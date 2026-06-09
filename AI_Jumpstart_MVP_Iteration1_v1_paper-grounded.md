@@ -1,161 +1,187 @@
-# AI Jumpstart MVP on NVIDIA GB10 — Iteration 1
+# AI Jumpstart MVP on NVIDIA GB10 — Iteration 1 (v1, Paper-Grounded · SOP-Aligned)
 
 **Prepared for:** Ryan | Helix, Connection Inc.
-**Scope:** Pic 4, Points 1 & 2 only (Use Cases & Value Proposition; Data Elements & Data Pipeline)
-**Deferred to later iterations:** Point 3 (SCO scaffolding), Point 4 (Synthetic Data Set)
-**Empirical basis:** *Robustness of Policy-Gradient RL for Multi-Echelon Inventory Control* (PPO vs. fixed analytical base-stock baseline; A3C vs. tuned (s,S) baseline)
+**Scope:** Pic 4, Points 1 & 2 (Use Cases & Value Proposition; Data Elements & Data Pipeline), fine-tuned to Ryan's prototype SOP.
+**Empirical basis:** *Robustness of Policy-Gradient RL for Multi-Echelon Inventory Control* (PPO vs. fixed analytical base-stock; A3C vs. tuned (s,S)).
 
-> **Evidence integrity note (read first).** This paper reports exactly **two** PPO results — a single aggregate inventory-cost improvement of **+36.76%** (stationary) and **+94.20%** (non-stationary) — measured on **one** small benchmark (1 warehouse, 3 retailers), at **one** random seed. It does **not** break improvement down by supply-chain pillar, and it covers **inventory replenishment only** (no routing, no cuOpt). The paper's own thesis is that single-environment, single-seed wins are *not* robust evidence. Every industry- or pillar-level number in this document is therefore an **illustrative extrapolation, not a measured result**, and is labeled as such. Use the headline band to frame the *story*; do not present granular per-pillar percentages as validated.
+> **Evidence integrity note.** This version cites the RL paper. The paper reports two PPO results — a single aggregate inventory-cost improvement of **+36.76%** (stationary) and **+94.20%** (non-stationary) — on **one** small benchmark (1 warehouse, 3 retailers), at **one** seed, for **inventory replenishment only** (no routing/cuOpt). The paper's own thesis is that single-environment, single-seed wins are *not* robust evidence. Treat its numbers as **reference points to inform the kickoff target margin**, not as committed prototype results. (The paper is also a *confidential reviewer copy* — keep this version internal.)
+
+---
+
+## Alignment to Ryan's Prototype SOP
+
+This deliverable now serves the prototype objective: **an end-to-end SCO prototype running entirely on a GB10-class device, from synthetic data to an optimized plan.** Key SOP constraints folded in below:
+
+- **On-device is a success condition, not an afterthought.** The whole pipeline must run inside the **128GB unified LPDDR5x** envelope (shared CPU/GPU); peak memory and solve/inference time are recorded metrics. Narrative: *a workload that used to need a rack now runs at the desk.*
+- **Depth over breadth.** One example company, one product family / small SKU set, a handful of locations — see §1.6.
+- **All four optimization dimensions** in scope: demand, inventory, multi-location, transportation/logistics.
+- **Beat a naive baseline by a margin set at kickoff.** Baseline = **simple reorder-point (inventory) + shortest-route (logistics)**. Margin (X% cost or service-level) is set jointly at kickoff.
+- **Propose, don't prescribe, the modeling.** Forecasting method, optimization formulation, and *classical solver vs. learned policy* are proposed as candidates and decided on evidence (see §2.3). PPO is our recommended learned candidate, **benchmarked head-to-head** against a strong classical solver.
+- **Reproducible & re-runnable.** Synthetic dataset is seeded/documented; pipeline runs end-to-end, ideally one command.
+- **3-week phasing** (see §3) with a short written + verbal handoff.
 
 ---
 
 ## Executive Thesis
 
-Classic Operations Research inventory heuristics — **echelon base-stock** and **(s, S) reorder-point** — are provably optimal *only under strict stationarity*. Their set-points are calibrated against a single statistic (mean demand-over-lead-time) and **nothing else**. The moment a supply chain becomes non-stationary — seasonality, correlated demand, capacity bottlenecks, heavy-tailed lead times, lost sales — those set-points are no longer aimed at the right target, and the policy degrades.
+Classical OR inventory heuristics — **reorder-point / base-stock / (s, S)** — are provably optimal **only under strict stationarity**. Their set-points come from average demand-over-lead-time, so under seasonality, correlation, capacity caps, and heavy-tailed lead times they aim at a target that no longer exists, producing simultaneous overstock and stockout. The paired **shortest-route** logistics heuristic ignores capacity, time windows, and live conditions.
 
-The reference study quantifies this. Against a **fixed, never-re-tuned** base-stock baseline, a **continuous-action PPO** agent's aggregate inventory-cost advantage **widens from +36.76% (stationary) to +94.20% (non-stationary)**. The paper is explicit on the mechanism: *most of that widening is the legacy baseline collapsing under shocks*, not PPO becoming intrinsically smarter. It also notes the Env-2 cost metric itself changed (added lost-sales penalties, widened bounds), so the 94.20% is partly a rescaling artifact, not a clean "94% of spend saved."
+The reference study illustrates the inventory side: against a **fixed, never-re-tuned** base-stock baseline, continuous-action **PPO**'s aggregate inventory-cost advantage widens from **+36.76%** (stationary) to **+94.20%** (non-stationary) — and the paper is explicit that *most of that widening is the legacy baseline collapsing under shocks*, partly on a rescaled cost metric, not PPO getting intrinsically smarter.
 
-**The value proposition:** PPO conditions its replenishment decisions on the *full system state* (on-hand, in-transit pipeline, backlog at every node), so when conditions shift, it adapts; the static heuristic cannot. The GB10 makes this deployable as a single secure on-premise appliance.
+**The prototype proposition:** a learned policy conditions on the full state (on-hand, in-transit pipeline, backlog per node) and adapts as conditions shift; the naive baseline cannot. We will *prove this on-device* against the reorder-point + shortest-route baseline, and benchmark the learned policy against a strong classical solver to see whether the learned approach earns its place.
 
 ---
 
-## Headline ROI Band (the only paper-grounded figure)
+## Target-Margin Reference (set the actual target at kickoff)
 
-There is one defensible number to anchor the pitch — an **aggregate inventory-cost** band, applied to inventory replenishment, framed as resilience:
+Per SOP, the prototype's win margin is agreed at kickoff. These reference points inform that conversation — they are *not* the committed number:
 
-| Operating Regime | PPO-vs-fixed-legacy Inventory-Cost Gap | What it actually means |
+| Reference (inventory cost vs. fixed legacy baseline) | Value | Caveat |
 |---|---|---|
-| **Stationary / stable demand** | **~37%** (paper: Env-1) | PPO's structural edge: it reacts to full pipeline state, not just inventory position. |
-| **Non-stationary / shock-exposed** | **up to ~94%** (paper: Env-2) | Mostly the *fixed* legacy baseline collapsing under caps + shocks. This is **disruption-avoided cost**, not steady-state savings, and partly reflects a changed cost metric. |
+| Stationary demand | ~37% (paper Env-1) | Single toy environment, single seed |
+| Non-stationary / shock-exposed | up to ~94% (paper Env-2) | Mostly *baseline collapse* vs. an un-tuned baseline; partly a rescaled metric |
 
-> **Pitch discipline.** Lead with the *resilience* story ("your static policy breaks when conditions move; ours adapts"), not a flat savings claim. Two honesty guardrails: (a) the upper bound is measured against a baseline that was *deliberately never re-tuned* — against a re-tuned heuristic the paper says the margin "would shrink substantially"; (b) all figures come from one toy environment, so treat them as directional, not contractual.
+> **Pitch discipline.** Against the SOP's naive reorder-point + shortest-route baseline, a meaningful win is highly plausible. Against a *re-tuned* classical solver the margin shrinks substantially (the paper says so). Set a conservative, defensible kickoff target (resilience under shock, not a flat headline %), then let the on-device benchmark report the real number.
 
 ---
 
-# 1. Use Cases & Value Proposition
+# 1. Use Cases & Value Proposition (Opportunity Map)
 
-The matrices below map the four supply-chain pillars to the legacy failure mode and the GB10-powered outcome. The final column states the **evidence basis** rather than a fabricated percentage, so the deck stays honest under scrutiny.
-
-**Legend — Evidence basis:**
-- **[P] Paper-grounded (inventory):** mechanism is directly supported by the PPO inventory result.
-- **[E] Extrapolation:** plausible benefit, *not* measured in this paper.
-- **[C] cuOpt capability:** GB10 routing optimization — a real product capability, but **not** evaluated in this paper; needs its own benchmark.
+The four target industries below are the market landscape. The 3-week prototype builds **one** of them in depth (§1.6). The final column states the evidence basis: **[P]** paper-grounded (inventory), **[E]** plausible extrapolation, **[C]** cuOpt capability not evaluated by the paper.
 
 ## 1.1 Manufacturing
-
-Inventory routinely represents **20–60% of total assets** for a manufacturer (per the paper's intro), so policy gains are material. Manufacturing is BOM-driven and capacity-constrained — the conditions the legacy heuristics handle worst.
-
-| Pillar | Pain Point | Legacy Failure Mode (the Villain) | GB10-Powered Outcome | Evidence Basis |
+| Pillar | Pain Point | Legacy Failure Mode (Villain) | GB10-Powered Outcome | Basis |
 |---|---|---|---|---|
-| **Demand** | Lumpy, correlated component demand propagating up the BOM | Base-stock tuned to mean demand-over-lead-time; misfires on regime shifts | PPO conditions on full multi-echelon state and adapts order quantities per node | **[P]** core mechanism |
-| **Capacity** | Finite line/plant throughput; bottlenecks under surge | Analytical heuristic assumes unconstrained replenishment; recommends infeasible orders when capped | Capacity-bounded PPO planning | **[P]** Env-2 tests bottleneck caps |
-| **Routing & Logistics** | Multi-tier inbound + finished-goods distribution | Static lane/route rules | cuOpt GPU route optimization | **[C]** separate benchmark needed |
-| **Costs** | Holding + ordering + backorder, jointly across echelons | Local per-tier optimization; a locally sensible move blows up a tier over | PPO minimizes *joint* discounted cost across the chain | **[P]** this is the paper's objective |
+| **Demand** | Lumpy, correlated component demand up the BOM | Reorder-point tuned to mean demand-over-lead-time; misfires on shifts | PPO conditions on full multi-echelon state | **[P]** |
+| **Capacity** | Finite line/plant throughput; surge bottlenecks | Heuristic assumes unconstrained replenishment | Capacity-bounded learned policy | **[P]** |
+| **Routing & Logistics** | Multi-tier inbound + finished-goods distribution | Shortest-route ignores caps/time windows | cuOpt / MILP route optimization | **[C]** |
+| **Costs** | Joint holding + ordering + backorder across echelons | Per-tier optimization blows up a tier over | Joint discounted-cost minimization | **[P]** |
 
 ## 1.2 Retail
-
-Retail is the closest real-world analog to the study's hard environment (Env-2): **seasonal demand, cross-node correlation, partial lost sales**. This is where the fixed baseline collapsed and PPO's measured gap reached 94.20%.
-
-| Pillar | Pain Point | Legacy Failure Mode (the Villain) | GB10-Powered Outcome | Evidence Basis |
+| Pillar | Pain Point | Legacy Failure Mode (Villain) | GB10-Powered Outcome | Basis |
 |---|---|---|---|---|
-| **Demand** | Seasonality, promotions, demand correlated across stores | Static set-points never re-tuned to the live season | PPO tracks shifting profile and correlated movement across nodes | **[P]** Env-2 = seasonal + correlated |
-| **Capacity** | DC / shelf / backroom limits | Reorder-point ignores capacity ceilings → over-orders | Capacity-aware PPO | **[P]** capacity-cap mechanism |
-| **Routing & Logistics** | Replenishment cadence, last-mile, store clustering | Fixed delivery schedules | cuOpt dynamic routing | **[C]** not in this paper |
-| **Costs** | Markdowns from overstock; lost-sales stockouts | Mean-tuned policy over- and under-shoots simultaneously | Joint cost min including lost-sales penalty | **[P]** Env-2 adds lost-sales penalty |
+| **Demand** | Seasonality, promotions, cross-store correlation | Static set-points never re-aligned to the live season | PPO tracks shifting, correlated demand | **[P]** |
+| **Capacity** | DC / shelf / backroom limits | Reorder-point ignores ceilings → over-orders | Capacity-aware policy | **[P]** |
+| **Routing & Logistics** | Replenishment cadence, last-mile | Fixed schedules / shortest-route | cuOpt dynamic routing | **[C]** |
+| **Costs** | Markdowns + lost-sales stockouts | Mean-tuned policy over/under-shoots at once | Joint cost min w/ lost-sales penalty | **[P]** |
 
 ## 1.3 Wholesale & Logistics
-
-The routing-and-capacity-heavy vertical. **Caution:** the routing value here rests on cuOpt, which this paper does *not* evaluate — present routing claims as a separate capability, not as backed by the 36–94% figures.
-
-| Pillar | Pain Point | Legacy Failure Mode (the Villain) | GB10-Powered Outcome | Evidence Basis |
+| Pillar | Pain Point | Legacy Failure Mode (Villain) | GB10-Powered Outcome | Basis |
 |---|---|---|---|---|
-| **Demand** | Bullwhip-amplified, bursty B2B orders | Base-stock smooths to a mean the order stream rarely hits | PPO responds to live pipeline state | **[E]** plausible; not the paper's topology |
-| **Capacity** | Warehouse throughput + fleet caps | Unconstrained heuristic orders what the network can't move | Capacity-bounded PPO | **[P]** cap mechanism |
-| **Routing & Logistics** | Large-scale multi-stop, multi-lane optimization | Manual / static routing | **cuOpt** GPU route optimization — the core lever here | **[C]** headline capability, unquantified by this paper |
-| **Costs** | Holding vs. transport trade-off | Tier-by-tier optimization misses the network trade-off | Network-wide joint cost min | **[P/E]** inventory side [P]; transport side [C] |
+| **Demand** | Bullwhip-amplified, bursty B2B orders | Base-stock smooths to a rarely-hit mean | PPO responds to live pipeline state | **[E]** |
+| **Capacity** | Warehouse + fleet capacity caps | Unconstrained heuristic over-orders | Capacity-bounded policy | **[P]** |
+| **Routing & Logistics** | Large-scale multi-stop / multi-lane | Manual / shortest-route at scale | **cuOpt** GPU route optimization — core lever | **[C]** |
+| **Costs** | Holding vs. transport trade-off | Tier-by-tier misses network trade-off | Network-wide joint cost min | **[P/C]** |
 
 ## 1.4 Hospitals
-
-A "stockout" of a clinical supply is a **service-level / patient-safety failure**, not just a cost line. **Important honesty flag:** the paper's PPO environment does **not** measure service level (it reads "n/a"); the only service-level evidence in the paper is the A3C agent, which came out **slightly worse** than the heuristic on the hard environment. So we **cannot** claim a service-level win from this paper — service level must be validated separately before any hospital pitch.
-
-| Pillar | Pain Point | Legacy Failure Mode (the Villain) | GB10-Powered Outcome | Evidence Basis |
+| Pillar | Pain Point | Legacy Failure Mode (Villain) | GB10-Powered Outcome | Basis |
 |---|---|---|---|---|
-| **Demand** | Census/case-mix driven, seasonal surges, low-volume critical items | Static par levels tuned to average census; blind to surges | PPO adapts par levels to live census + seasonal signal | **[E]** plausible; SL unproven |
-| **Capacity** | Limited storage, perishables, cold-chain | Heuristic ignores expiry and storage caps | Constraint-aware PPO | **[P]** cap mechanism; **[E]** for expiry |
-| **Routing & Logistics** | Intra-system distribution across sites/floors | Fixed par-restock rounds | cuOpt internal distribution | **[C]** not in this paper |
-| **Costs** | Holding + critical-item stockout penalty | Mean-tuned policy under-protects against rare critical shortages | PPO weights shortage penalty as a first-class signal | **[P]** for cost; **service level NOT claimed** |
+| **Demand** | Census/case-mix, seasonal surges, critical low-volume items | Static par levels blind to surges | PPO adapts par levels to live census | **[E]** |
+| **Capacity** | Storage, perishables, cold-chain | Heuristic ignores expiry/storage caps | Constraint-aware policy | **[P/E]** |
+| **Routing & Logistics** | Intra-system distribution | Fixed par-restock rounds | cuOpt internal distribution | **[C]** |
+| **Costs** | Holding + critical-item stockout penalty | Under-protects against rare critical shortages | Shortage-weighted policy (**service level NOT claimed from paper**) | **[P]** |
 
-## 1.5 Cross-Industry Summary (Pitch Matrix)
+## 1.6 Prototype Scope Selection (depth over breadth)
 
-One honest band, applied to **inventory cost only**, with fit and the biggest caveat surfaced per industry.
+| Dimension | Prototype Choice (recommended; confirm at kickoff) |
+|---|---|
+| **Example company** | One mid-market distributor/retailer of a single product family (concrete, demo-friendly) |
+| **SKU set** | One product family / small SKU set (e.g., ~5–20 SKUs) |
+| **Locations** | A handful — e.g., 1 supplier/DC → 3–5 regional stores/sites |
+| **Demand** | Seasonal + noisy history (closest analog to the paper's hard environment) |
+| **Inventory** | Multi-echelon positions: on-hand, in-transit, backlog per node |
+| **Multi-location** | Allocation across the DC + sites |
+| **Transportation/logistics** | Lanes between nodes with lead times, capacity, and cost |
 
-| Industry | Best-Fit GB10 Lever | Inventory-Cost Band (illustrative) | Strongest Caveat to Disclose |
-|---|---|---|---|
-| Manufacturing | PPO (inventory) + cuOpt (routing) | ~37% stable → up to ~94% under shock | Routing benefit (cuOpt) is unquantified by the paper |
-| Retail | PPO — closest analog to Env-2 | ~37% stable → up to ~94% under shock | Upper bound is vs. a *never-re-tuned* baseline |
-| Wholesale & Logistics | cuOpt (routing) + PPO (inventory) | Inventory side only; routing separate | Core routing value rests on cuOpt, not this paper |
-| Hospitals | PPO (shortage-weighted) | ~37% stable → up to ~94% under shock | **No service-level win is supported; must be re-tested** |
+> A retail/distribution example is recommended because it exercises **all four dimensions** cleanly and its seasonal, correlated demand is exactly where the learned-policy story is strongest. Final company/SKU/locations are pinned at kickoff (SOP Week 1).
 
 ---
 
-# 2. Data Elements & Data Pipeline
+# 2. Data Elements & End-to-End Pipeline
 
-## 2.1 Data Elements to Ingest
+## 2.1 Data Elements (synthetic, seeded, documented)
 
-Mapped to the supply-chain pillars and to the model's state representation (the MDP state packs **on-hand inventory, in-transit pipeline, and backlog at every node**).
+| Category | Specific Raw Elements | Dimension Served |
+|---|---|---|
+| **Network topology** | Nodes (supplier/DC/sites), echelon structure, lane graph | Multi-location |
+| **Inventory state** | On-hand by SKU/node, in-transit pipeline, outstanding orders, backlog | Inventory |
+| **Demand history** | Seeded synthetic series with seasonality/trend/noise, promo calendar | Demand |
+| **Lead times** | Per-lane lead-time draws + variability | Inventory, Transport |
+| **Capacity & constraints** | Supplier caps, storage limits, vehicle/fleet capacity | Inventory, Transport |
+| **Cost parameters** | Holding, ordering, backorder/lost-sales penalty, transport cost | Costs (all dims) |
+| **Routing data** | Lane distances/times, time windows, vehicle attributes | Transport |
+| **Service targets** | Fill-rate / service-level targets, criticality tiers | Demand, Costs |
+| **Unstructured context** | Supplier docs, SOPs, planner notes | Vector DB / RAG corpus |
 
-| Category | Specific Raw Elements | Pillar Served | Feeds (Model Component) |
-|---|---|---|---|
-| **Network topology** | Node list (suppliers, plants, DCs, warehouses, retailers/sites), echelon structure, lane/route graph | All | State-space definition |
-| **Inventory state** | On-hand by SKU/node, in-transit pipeline, outstanding orders, backlog/backorders | Demand, Costs | MDP state vector |
-| **Demand history** | Sales / POS / consumption transactions, order history, seasonality & promo calendars, patient census (hospitals) | Demand | Demand model + RAG context |
-| **Lead times** | Per-lane lead-time history and variability/distributions | Capacity, Routing | Transition dynamics |
-| **Capacity & constraints** | Supplier capacity caps, plant/line throughput, storage limits, vehicle/fleet capacity, expiry/cold-chain rules | Capacity | Action-space constraints |
-| **Cost parameters** | Holding, ordering (fixed+variable), backorder/lost-sales/stockout penalty, transport cost | Costs | Cost signal |
-| **Service targets** | Service-level / fill-rate targets, criticality tiers (esp. hospitals) | Costs, Demand | Objective weighting |
-| **Routing data** | Lane distances/times, time windows, vehicle attributes | Routing & Logistics | cuOpt inputs |
-| **Unstructured context** | Supplier contracts, SOPs, planner notes, product master/BOM docs | All | Vector DB / RAG corpus |
-
-## 2.2 Conceptual Data Pipeline (On-GB10, Fully Local)
-
-Per Pic 3, the customer plugs raw data into the GB10 appliance and the stack runs locally — **no data leaves the device** (the data-sovereignty selling point). The **128GB unified memory** lets the vector DB, local LLM, and RL engine share one address space, reducing CPU↔GPU copy overhead.
-
-> **Capacity realism flag:** 128GB is generous for an appliance but *not* unlimited once a useful local LLM, a vector index, and an RL workload coexist. Model size, index footprint, and whether PPO is *trained* on-device vs. *served* (with periodic offline re-training) are real sizing constraints to resolve in the architecture iteration — not assume away.
+## 2.2 Pipeline (ingest → forecast → optimize → output; one command, on-device)
 
 ```
-[Customer Raw Data]
+[Seeded Synthetic Data Generator]   <-- reproducible; documented
         |
         v
-(1) Ingestion & Normalization  -->  structured into MDP state representation
-        |                           (on-hand / in-transit / backlog per node)
-        +-----------------------------------------------+
-        v                                               v
-(2) Vector DB (embeddings)                   (4) Empirical AI Modeling -- PPO
-    unstructured docs, historical                 on Blackwell GPU via CUDA;
-    patterns, contracts, SOPs                     cuOpt for routing (separate)
-        |                                               |
-        v                                               v
-(3) LLM + RAG  <-- retrieves context -->      Policy outputs: per-echelon
-    natural-language planner interface,        order quantities (+ routing
-    scenario lookup, decision rationale        via cuOpt), adapted to live state
-        +---------------------------->  [Optimized SCO Recommendations] <-------+
+(1) Ingest & Normalize  --> structured state (on-hand / in-transit / backlog per node)   [ARM CPU]
+        |
+        +--> (2) Vector DB (embeddings) <--retrieves--> (3) LLM + RAG  [planner Q&A + rationale]
+        |
+        v
+(4) Forecast  --> demand signal (method TBD, §2.3)                                         [CPU/GPU]
+        |
+        v
+(5) Optimize across 4 dimensions: demand • inventory • multi-location • transport          [Blackwell GPU]
+        |   - Naive baseline: reorder-point + shortest-route  (target to beat)
+        |   - Strong classical: MILP / cuOpt + tuned base-stock
+        |   - Learned candidate: continuous-action PPO
+        v
+[Optimized Plan]  +  [Recorded metrics: peak unified-memory, solve/inference latency, GPU vs CPU util]
 ```
 
-**Stage detail:**
+- **Vector DB + LLM + RAG** provide a planner-facing natural-language interface and decision rationale; they **contextualize**, they do **not** make the inventory/routing decision.
+- The entire chain targets a **single re-runnable command** and must stay within the **128GB** budget.
 
-1. **Ingestion & Normalization** — Raw client data is structured into the model's state representation (inventory position, pipeline, backlog per node, plus demand/lead-time/capacity/cost fields). Runs on the 20-core ARM CPU.
-2. **Vector DB embedding** — Unstructured/historical context (supplier docs, SOPs, prior demand regimes) is embedded into a local vector database in unified memory — the institutional-memory layer.
-3. **LLM + RAG** — A locally hosted LLM queries the vector DB to (a) give planners a natural-language interface, (b) retrieve analogous historical scenarios, and (c) produce human-readable rationale. The LLM **contextualizes**; it does **not** make the inventory decision.
-4. **Empirical AI Modeling (PPO)** — The structured state feeds the **continuous-action PPO** engine on the Blackwell GPU via CUDA; **cuOpt** handles routing as a separate optimizer. PPO emits per-echelon order quantities as a continuous vector (not a coarse discretized grid) and adapts as dynamics shift. *Architectural scope only — reward signals, cost functions, and state-space matrices are deferred to a later iteration.*
+## 2.3 Scaffolding Options to Confirm at Kickoff (propose, don't prescribe)
+
+| Decision | Candidate options | Recommended starting point |
+|---|---|---|
+| **Forecasting** | Statistical (ETS/ARIMA, Croston for intermittent) · ML (gradient-boosted) · deep (temporal) | Seasonal statistical baseline first; add ML if it earns it |
+| **Inventory optimization** | Reorder-point / base-stock (baseline) · tuned (s,S) (classical) · **PPO** (learned) | PPO as learned candidate vs. tuned base-stock |
+| **Routing/transport** | Shortest-route (baseline) · MILP / **cuOpt** (classical) · learned | cuOpt for routing |
+| **Classical vs. learned** | Run both; decide on cost/service **and** on-device latency/memory | Benchmark head-to-head |
+
+> This is the honest reconciliation of the SOP ("don't prescribe") with the PPO lead: PPO is the recommended *learned* candidate, but it has to **beat the naive baseline** and **justify itself against a strong classical solver** on-device — including the paper's known PPO shock-tail risk (a Week-3 stress target).
 
 ---
 
-## Scope Boundary & Honest Caveats (for the deck's appendix)
+# 3. Measurable Outcomes & Phased Plan
 
-- **Continuous-action PPO is the recommended engine — and the discretization matters.** The paper's discrete-action A3C agent actually *lost* (−21.79%) on the hard environment. "RL" alone is not the answer; the continuous action head plus full-state conditioning carry the result. We standardize on PPO.
-- **The ~94% is disruption-avoided cost vs. a never-re-tuned baseline, on a changed cost metric.** Against a re-tuned heuristic the paper says the margin would shrink substantially. Pitch resilience, not a flat savings figure.
-- **Single-benchmark evidence.** All numbers come from one 1-warehouse/3-retailer environment at one seed. The paper's whole point is that this is not robust evidence — real per-industry validation is required before contractual ROI claims.
-- **Known PPO risk to disclose proactively.** PPO showed a right-tail of high-cost shock episodes it had not learned to hedge. A risk-aware (e.g. CVaR-weighted) evaluation, and best-checkpoint selection to handle PPO's late-training instability, belong in the Point 3 scaffolding work.
-- **Routing/cuOpt is unproven by this paper.** It is a real GB10 capability but needs its own benchmark; do not borrow the 36–94% figures for it.
-- **Hospitals: no service-level claim is supported.** The only SL evidence in the paper is mildly negative (A3C). Validate before any clinical pitch.
-- **Next iterations:** Point 3 (SCO scaffolding) and Point 4 (Synthetic Data Set) — not addressed here by design.
+## 3.1 Success Metrics (set target values at kickoff)
+
+| Outcome | Metric | Target |
+|---|---|---|
+| On-device feasibility | Peak unified-memory; fits in 128GB w/ headroom | _set at kickoff_ |
+| Speed | Solve/inference latency per plan | _set at kickoff_ |
+| Hardware story | GPU vs CPU utilization; where Blackwell actually helps | documented |
+| Quality | % cost reduction **or** service-level gain vs. reorder-point + shortest-route | _X% set at kickoff_ |
+| Reproducibility | Seeded dataset; documented | yes/no |
+| Re-runnability | End-to-end, ideally one command | yes/no |
+| Handoff | Short written + verbal | delivered |
+
+## 3.2 Three-Week Plan (accelerated)
+
+| Week | Focus | Checkpoint |
+|---|---|---|
+| **1** | Scope, data, environment — pin company/decision/metrics; generate seeded synthetic data (seasonal demand, inventory, locations, lanes, costs, lead times); confirm ARM64 toolchain | Data + baseline heuristic in place |
+| **2** | Pipelines + optimization — build ingest→forecast→optimize→output; implement all four dimensions; first full run, then iterate | End-to-end run beating baseline on ≥1 metric |
+| **3** | Benchmark, harden, hand off — on-device benchmark (memory/latency/GPU vs CPU); stress larger scenarios to find limits; document; present | Final demo + writeup |
+
+---
+
+## Appendix — Honest Caveats
+
+- **PPO is the recommended learned candidate, not a mandate.** Per SOP, classical vs. learned is decided on evidence; continuous action head + full-state conditioning are why PPO leads the learned options.
+- **The ~94% reference is vs. an un-tuned baseline on a rescaled metric** — pitch resilience, set a conservative kickoff target.
+- **Single-benchmark evidence; validate per scenario** (the paper's own thesis).
+- **Known PPO shock-tail risk** → Week-3 stress target; consider risk-aware (CVaR) evaluation in Point 3 scaffolding.
+- **Routing/cuOpt unproven by the paper** — benchmark separately.
+- **Hospitals: no service-level win supported by the paper** — validate per site.
+- **On-device budget is real engineering** — model size + index + RL workload must coexist in 128GB; resolve train-on-device vs. serve-with-offline-retrain at kickoff.
+- **Deferred:** Point 3 (full SCO scaffolding) and Point 4 (full dataset spec) beyond the kickoff-level proposals above.
