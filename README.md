@@ -228,6 +228,7 @@ docs/
 refs/
   multi_echelon_rl_inventory_paper.pdf               # team's class paper (shareable; code on GitHub)
   master_prompt.md                                   # Iteration-1 task definition (Points 1 & 2)
+  Dell_Pro_Max_GB10_Specification.pdf                # Ryan's hardware spec (source for §3)
   whiteboards/
     Pic 1.jpeg ... Pic 5.jpeg                        # source whiteboard photos
 data/                                                # scaffolded — empty (.gitkeep)
@@ -247,7 +248,6 @@ configs/                                             # scaffolded — empty (.gi
 ```
 > The `src/`, `data/`, `benchmark/`, and `configs/` trees are **scaffolded but empty** (`.gitkeep` placeholders) — the build has not started (see §9, §13). Still to add when the build lands: `run.sh`/`Makefile` (one-command entrypoint) and `requirements`/env (ARM64-aware deps; prefer NGC containers).
 > External code for the paper: `github.com/singhdivyank/multi-echelon-rl-inventory` (PPO/A3C envs, configs, training). Useful reference when building `src/optimize/learned`.
-> The hardware spec (`Dell_Pro_Max_GB10_Specification.pdf`, see §15) belongs in `refs/` but is not yet committed to this repo.
 
 **`.gitignore` (at repo root):**
 ```
