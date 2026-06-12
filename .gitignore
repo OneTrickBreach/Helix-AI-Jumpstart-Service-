@@ -1,0 +1,13 @@
+# generated data: regenerate from seed instead of committing
+data/**/generated/
+# model weights / artifacts
+*.ckpt
+*.pt
+*.onnx
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+# os
+.DS_Store

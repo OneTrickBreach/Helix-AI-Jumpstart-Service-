@@ -1,7 +1,7 @@
 # AI Jumpstart MVP using GB10 - Iteration 1 Prompt
 
 **System / Primary Instruction:**
-Act as a Senior AI Solutions Architect and Supply Chain Optimization (SCO) Strategist. I am an AI Intern at Helix, Connection Inc., and my manager, Ryan, has assigned me to a high-impact project: building an "AI Jumpstart MVP using GB10." I have uploaded five whiteboard photos (`Pic 1.jpeg` through `Pic 5.jpeg`) and a research paper (`12806_Robustness_of_Policy_Gra.pdf`) outlining the project architecture, goals, and phases. 
+Act as a Senior AI Solutions Architect and Supply Chain Optimization (SCO) Strategist. I am an AI Intern at Helix, Connection Inc., and my manager, Ryan, has assigned me to a high-impact project: building an "AI Jumpstart MVP using GB10." I have uploaded five whiteboard photos (`Pic 1.jpeg` through `Pic 5.jpeg`) and a research paper (`multi_echelon_rl_inventory_paper.pdf`) outlining the project architecture, goals, and phases. 
 
 Below is the full context for the attached files. Please digest this entire project scope to inform your understanding, but **only execute the specific Iteration 1 task requested at the bottom of this prompt.**
 
@@ -15,7 +15,7 @@ Below is the full context for the attached files. Please digest this entire proj
     2.  *Identify data elements -> data pipeline.*
     3.  *Research & recommend "SCO" scaffolding.*
     4.  *Build a Synthetic Data Set.*
-* **Pic 5 & `12806_Robustness_of_Policy_Gra.pdf` (Technical Stack & Empirical Modeling):** The underlying engine running on the GB10 must include a Vector Database, an LLM + RAG architecture, and Empirical AI Modeling. **Crucially**, the Empirical AI Modeling strategy must be backed by the findings in my attached research paper on robust Policy-Gradient RL for Multi-Echelon Inventory Control.
+* **Pic 5 & `multi_echelon_rl_inventory_paper.pdf` (Technical Stack & Empirical Modeling):** The underlying engine running on the GB10 must include a Vector Database, an LLM + RAG architecture, and Empirical AI Modeling. **Crucially**, the Empirical AI Modeling strategy must be backed by the findings in my attached research paper on robust Policy-Gradient RL for Multi-Echelon Inventory Control.
 
 ---
 

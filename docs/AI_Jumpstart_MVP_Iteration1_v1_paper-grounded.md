@@ -4,7 +4,7 @@
 **Scope:** Pic 4, Points 1 & 2 (Use Cases & Value Proposition; Data Elements & Data Pipeline), fine-tuned to Ryan's prototype SOP and the Dell Pro Max GB10 hardware spec.
 **Empirical basis:** *Robustness of Policy-Gradient RL for Multi-Echelon Inventory Control* (PPO vs. fixed analytical base-stock; A3C vs. tuned (s,S)).
 
-> **Evidence integrity note.** This version cites the RL paper. The paper reports two PPO results — aggregate inventory-cost improvement of **+36.76%** (stationary) and **+94.20%** (non-stationary) — on **one** small benchmark (1 warehouse, 3 retailers), **one** seed, **inventory only** (no routing/cuOpt). Its own thesis is that single-environment, single-seed wins are *not* robust evidence. Treat its numbers as **reference points for the kickoff target margin**, not committed prototype results. (Also a *confidential reviewer copy* — keep this version internal.)
+> **Evidence integrity note.** This version cites the RL paper. The paper reports two PPO results — aggregate inventory-cost improvement of **+36.76%** (stationary) and **+94.20%** (non-stationary) — on **one** small benchmark (1 warehouse, 3 retailers), **one** seed, **inventory only** (no routing/cuOpt). Its own thesis is that single-environment, single-seed wins are *not* robust evidence. Treat its numbers as **reference points for the kickoff target margin**, not committed prototype results. (Source: the team's own class paper — Singh & Biswas, CS 5180, Northeastern — publicly available with code at `github.com/singhdivyank/multi-echelon-rl-inventory`. Shareable; not confidential. For *customer-facing* pitches, prefer v2: broad public industry benchmarks are evidentially stronger than a single class-project benchmark.)
 
 ---
 
