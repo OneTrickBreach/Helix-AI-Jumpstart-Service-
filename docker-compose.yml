@@ -1,0 +1,22 @@
+# =============================================================================
+# AI Jumpstart Service — docker-compose STUB (scaffold only)
+# =============================================================================
+# One service that builds the placeholder Dockerfile and requests the GB10 GPU.
+# This is not a runnable product yet — there is no application code (see
+# docs/containerization.md). GPU access is reserved via the Compose device
+# reservation syntax (requires NVIDIA Container Toolkit on the host).
+# =============================================================================
+
+services:
+  jumpstart:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: helix-ai-jumpstart:scaffold
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

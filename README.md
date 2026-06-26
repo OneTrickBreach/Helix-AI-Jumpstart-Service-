@@ -91,6 +91,8 @@ device this repo runs on**, see [`docs/environment.md`](docs/environment.md) —
 generated from the live GB10 (`helix-gb10-intern`) and date-stamped (probed **2026-06-26**).
 Re-run the probe commands listed there to refresh it.
 
+**Containerization:** GPU-in-container status, the pinned arm64 CUDA 13 base image, and constraints are tracked in [`docs/containerization.md`](docs/containerization.md).
+
 Agent guardrails (bandwidth-vs-capacity, cuOpt-from-NGC, PPO-must-earn-its-place, the ~94%
 caveat, etc.) are auto-loaded from [`.devin/rules/helix-sco.md`](.devin/rules/helix-sco.md).
 
