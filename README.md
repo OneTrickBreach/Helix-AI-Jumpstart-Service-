@@ -85,6 +85,15 @@ Two units bond over a single **200G QSFP56 passive DAC cable** (0.5 m, NVIDIA-ap
 The device is **compute-rich but bandwidth-modest**: **~273 GB/s** unified-memory bandwidth is the binding limiter — not the 1 PFLOP compute or the 128 GB capacity. Memory-bandwidth-bound work (large-LLM token generation, big RL batches) feels this first.
 **Implication for us:** the **RL policy network is tiny** (inventory-control policies are lightweight MLPs — the reference PPO used a 2×64 MLP), so the learned optimizer sits trivially within budget. The real memory/bandwidth pressure is the **local LLM + vector index** — right-size the NIM-served LLM accordingly.
 
+### Hardware & Environment (live device)
+The spec table above is the *target* platform. For the **actual values measured on the
+device this repo runs on**, see [`docs/environment.md`](docs/environment.md) — it is
+generated from the live GB10 (`helix-gb10-intern`) and date-stamped (probed **2026-06-26**).
+Re-run the probe commands listed there to refresh it.
+
+Agent guardrails (bandwidth-vs-capacity, cuOpt-from-NGC, PPO-must-earn-its-place, the ~94%
+caveat, etc.) are auto-loaded from [`.devin/rules/helix-sco.md`](.devin/rules/helix-sco.md).
+
 ---
 
 ## 4. Project SOP (Ryan's authoritative framing)
