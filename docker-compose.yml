@@ -1,18 +1,36 @@
 # =============================================================================
-# AI Jumpstart Service — docker-compose STUB (scaffold only)
+# AI Jumpstart Service — docker-compose (Phase 0)
 # =============================================================================
-# One service that builds the placeholder Dockerfile and requests the GB10 GPU.
-# This is not a runnable product yet — there is no application code (see
-# docs/containerization.md). GPU access is reserved via the Compose device
-# reservation syntax (requires NVIDIA Container Toolkit on the host).
+# Three-service stack for Phase 0: api, llm, vectordb.
+# cuOpt/OR-Tools VRP logic is integrated INSIDE the api service (not a separate service).
+# All arm64. GPU reserved on api, llm via deploy.resources.reservations.devices.
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose ps
+#   docker compose logs -f
+#
+# The GB10 has a single GPU (shared unified memory). All GPU services share it.
 # =============================================================================
 
 services:
-  jumpstart:
+  # ---------------------------------------------------------------------------
+  # api — FastAPI + embeddings (nomic-embed-text-v1.5) + cuOpt/OR-Tools fallback
+  # ---------------------------------------------------------------------------
+  api:
     build:
       context: .
       dockerfile: Dockerfile
-    image: helix-ai-jumpstart:scaffold
+    image: helix-ai-jumpstart:api-phase0
+    ports:
+      - "8080:8080"
+    volumes:
+      # Persist HuggingFace / sentence-transformers model cache
+      - model-cache:/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/models/huggingface
+      - SENTENCE_TRANSFORMERS_HOME=/models/sentence-transformers
     deploy:
       resources:
         reservations:
@@ -20,3 +38,70 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    depends_on:
+      vectordb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
+
+  # ---------------------------------------------------------------------------
+  # llm — vLLM serving Nemotron 30B FP8 (MoE), OpenAI-compatible API
+  # ---------------------------------------------------------------------------
+  llm:
+    build:
+      context: ./docker/llm
+      dockerfile: Dockerfile
+    image: helix-ai-jumpstart:llm-phase0
+    ports:
+      - "8000:8000"
+    volumes:
+      # Persist model weights across rebuilds
+      - model-cache:/models
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/models/huggingface
+      # Set HF_TOKEN if model is gated (pass via .env or export)
+      - HF_TOKEN=${HF_TOKEN:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 15s
+      start_period: 600s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # vectordb — Qdrant (arm64 multi-arch official image)
+  # ---------------------------------------------------------------------------
+  vectordb:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    healthcheck:
+      # Qdrant image has no curl/wget; use bash TCP check
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/6333'"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  model-cache:
+    driver: local
+  qdrant-data:
+    driver: local

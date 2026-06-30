@@ -1,0 +1,28 @@
+# =============================================================================
+# AI Jumpstart Service — api container Python dependencies (Phase 0)
+# =============================================================================
+# All packages must work on arm64/aarch64 + CUDA 13.
+# Torch is installed via the PyTorch index for CUDA support.
+# =============================================================================
+
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+httpx>=0.27.0
+
+# Embeddings: nomic-embed-text-v1.5 (768-dim) via sentence-transformers on GPU
+sentence-transformers>=3.0.0
+einops>=0.8.0
+
+# Torch — installed from PyTorch index for CUDA/arm64 support
+--extra-index-url https://download.pytorch.org/whl/cu131
+torch>=2.6.0
+
+# Vector DB client (to talk to Qdrant service)
+qdrant-client>=1.12.0
+
+# OR-Tools fallback for cuOpt (CPU VRP solver)
+ortools>=9.11
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.24.0

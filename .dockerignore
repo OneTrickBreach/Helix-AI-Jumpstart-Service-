@@ -1,6 +1,14 @@
 .git
 data/
 refs/
+docs/
+benchmark/
 __pycache__
 *.pyc
 .venv
+venv/
+.devin/
+.claude/
+.gemini/
+*.md
+!requirements*.txt

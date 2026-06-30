@@ -21,7 +21,8 @@ Read these, in order, and treat them as binding:
 5. [`docs/Iteration2_Point3_Scaffolding_Response_to_Ryan.md`](Iteration2_Point3_Scaffolding_Response_to_Ryan.md) — the **model/tool stack** you will implement and *why*.
 6. [`docs/AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md`](AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md) and [`v2_standalone`](AI_Jumpstart_MVP_Iteration1_v2_standalone.md) — use-case map, data elements, pipeline shape.
 7. [`refs/master_prompt.md`](../refs/master_prompt.md) — original Iteration-1 task framing.
-8. Reference implementation (external, for the RL env only): `github.com/singhdivyank/multi-echelon-rl-inventory`.
+8. [`docs/DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) — chronological record of every development (what/why/verified results). **Read it for current state, and UPDATE it in the same change you make work.**
+9. Reference implementation (external, for the RL env only): `github.com/singhdivyank/multi-echelon-rl-inventory`.
 
 ### 0.2 Non-negotiable guardrails (copied from the rules — violating these is a defect)
 - **Memory BANDWIDTH (~273 GB/s) is the binding constraint, not the 128 GB capacity.** Benchmark bandwidth; right-size the LLM (a single shared MoE, served once).
