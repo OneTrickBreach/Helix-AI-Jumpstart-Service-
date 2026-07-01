@@ -37,6 +37,7 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements-api.txt
 # Application code
 # -----------------------------------------------------------------------------
 COPY src/ ./src/
+COPY data/ ./data/
 COPY tests/ ./tests/
 
 # The embeddings model will be downloaded on first use and cached in this volume

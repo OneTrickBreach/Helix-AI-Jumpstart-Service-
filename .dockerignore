@@ -1,5 +1,6 @@
 .git
-data/
+data/generated/
+data/**/__pycache__/
 refs/
 docs/
 benchmark/

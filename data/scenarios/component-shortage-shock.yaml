@@ -1,0 +1,82 @@
+scenario: component-shortage-shock
+description: Worst-case inbound component shortage where key supplier lanes go to zero and lead times spike.
+random_seed_override:
+simulation:
+  horizon_periods: 52
+network:
+  suppliers: 5
+  plants: 2
+  lines_per_plant: 3
+  distribution_centers: 2
+  customers: 8
+  finished_goods: 4
+  subassemblies_per_finished_good: 2
+  raw_components_per_subassembly: 2
+demand:
+  base_units_per_customer_period: 42
+  seasonality_amplitude: 0.20
+  trend_per_period: 0.001
+  noise_std: 0.14
+  lump_probability: 0.12
+  lump_multiplier_range: [1.5, 2.4]
+  periods_per_year: 52
+  shock:
+capacity:
+  capacity_tightness: 1.18
+  plant_storage_periods: 2.5
+  supplier_capacity_units_per_period: 10000
+  supplier_storage_units: 42000
+  dc_throughput_units_per_period: 8200
+  dc_storage_units: 26000
+  customer_storage_units: 2600
+lanes:
+  inbound_raw:
+    lead_time_mean_days: 10.5
+    lead_time_std_days: 2.5
+    cost_per_unit: 1.28
+    distance_km: 760
+    transport_cost_per_km: 0.0045
+    co2_kg_per_unit: 0.48
+  plant_to_dc:
+    lead_time_mean_days: 3.3
+    lead_time_std_days: 0.9
+    cost_per_unit: 0.78
+    distance_km: 440
+    transport_cost_per_km: 0.005
+    co2_kg_per_unit: 0.30
+  dc_to_customer:
+    lead_time_mean_days: 2.2
+    lead_time_std_days: 0.6
+    cost_per_unit: 0.52
+    distance_km: 190
+    transport_cost_per_km: 0.006
+    co2_kg_per_unit: 0.17
+lane_disruption:
+  name: zero_supply_component_shortage
+  lane_type: inbound_raw
+  affected_lane_count: 2
+  start_period: 18
+  duration_periods: 10
+  capacity_multiplier: 0.0
+  lead_time_multiplier: 3.0
+costs:
+  holding_cost:
+    finished_good: 1.05
+    subassembly: 0.48
+    raw_component: 0.22
+  ordering_cost:
+    finished_good: 64.0
+    subassembly: 38.0
+    raw_component: 21.0
+  backorder_penalty:
+    finished_good: 18.0
+    subassembly: 8.0
+    raw_component: 3.5
+  lost_sale_penalty:
+    finished_good: 34.0
+    subassembly: 14.0
+    raw_component: 6.5
+service_targets:
+  fill_rate_target: 0.97
+  days_inventory_target: 22.0
+  criticality_tier: shock-critical

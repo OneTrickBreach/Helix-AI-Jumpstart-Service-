@@ -5,7 +5,11 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build test logs ps clean
+.PHONY: up down build test test-data logs ps clean data check-api-running
+
+SEED ?= 12345
+SCENARIO ?= baseline
+DATA_OUTPUT_DIR ?= data/generated/$(SCENARIO)
 
 # ---------------------------------------------------------------------------
 # Docker Compose commands
@@ -47,6 +51,10 @@ log-%:
 test:
 	docker compose exec api python3 -m pytest tests/ -v --tb=short
 
+## Run only the Phase 1 synthetic data generator tests inside the api container
+test-data: check-api-running
+	docker compose exec api python3 -m pytest tests/test_data_generator.py -v --tb=short
+
 ## Run a specific test file (usage: make test-file FILE=tests/test_service_health.py)
 test-file:
 	docker compose exec api python3 -m pytest $(FILE) -v --tb=short
@@ -54,6 +62,17 @@ test-file:
 ## Run tests from the host (requires services to be up, tests hit endpoints)
 test-host:
 	python3 -m pytest tests/ -v --tb=short -k "not container_internal"
+
+# ---------------------------------------------------------------------------
+# Synthetic data generation
+# ---------------------------------------------------------------------------
+
+check-api-running:
+	@docker compose ps --status running --services | grep -qx api || (echo "ERROR: api container is not running. Run 'make up' first."; exit 1)
+
+## Generate seeded synthetic Manufacturing data inside the running api container
+data: check-api-running
+	docker compose exec api python3 data/generator/generate.py --seed $(SEED) --scenario $(SCENARIO) --output-dir $(DATA_OUTPUT_DIR)
 
 # ---------------------------------------------------------------------------
 # Service-specific

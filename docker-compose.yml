@@ -27,6 +27,8 @@ services:
     volumes:
       # Persist HuggingFace / sentence-transformers model cache
       - model-cache:/models
+      # Keep generated synthetic data visible on the host for review.
+      - ./data:/app/data
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - HF_HOME=/models/huggingface

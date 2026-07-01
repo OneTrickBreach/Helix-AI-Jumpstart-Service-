@@ -1,0 +1,79 @@
+scenario: demand-surge
+description: Sudden finished-goods demand surge that strains capacity and inventory buffers.
+random_seed_override:
+simulation:
+  horizon_periods: 52
+network:
+  suppliers: 5
+  plants: 2
+  lines_per_plant: 3
+  distribution_centers: 2
+  customers: 8
+  finished_goods: 4
+  subassemblies_per_finished_good: 2
+  raw_components_per_subassembly: 2
+demand:
+  base_units_per_customer_period: 45
+  seasonality_amplitude: 0.22
+  trend_per_period: 0.003
+  noise_std: 0.16
+  lump_probability: 0.14
+  lump_multiplier_range: [1.5, 2.6]
+  periods_per_year: 52
+  shock:
+    name: finished_goods_demand_surge
+    start_period: 20
+    duration_periods: 8
+    multiplier: 1.75
+capacity:
+  capacity_tightness: 1.08
+  plant_storage_periods: 2.4
+  supplier_capacity_units_per_period: 11200
+  supplier_storage_units: 45000
+  dc_throughput_units_per_period: 8600
+  dc_storage_units: 28000
+  customer_storage_units: 2600
+lanes:
+  inbound_raw:
+    lead_time_mean_days: 9.2
+    lead_time_std_days: 2.0
+    cost_per_unit: 1.20
+    distance_km: 660
+    transport_cost_per_km: 0.0042
+    co2_kg_per_unit: 0.44
+  plant_to_dc:
+    lead_time_mean_days: 3.0
+    lead_time_std_days: 0.8
+    cost_per_unit: 0.76
+    distance_km: 430
+    transport_cost_per_km: 0.005
+    co2_kg_per_unit: 0.29
+  dc_to_customer:
+    lead_time_mean_days: 2.1
+    lead_time_std_days: 0.5
+    cost_per_unit: 0.51
+    distance_km: 185
+    transport_cost_per_km: 0.006
+    co2_kg_per_unit: 0.16
+lane_disruption:
+costs:
+  holding_cost:
+    finished_good: 1.00
+    subassembly: 0.45
+    raw_component: 0.20
+  ordering_cost:
+    finished_good: 62.0
+    subassembly: 36.0
+    raw_component: 19.0
+  backorder_penalty:
+    finished_good: 17.0
+    subassembly: 7.0
+    raw_component: 3.0
+  lost_sale_penalty:
+    finished_good: 32.0
+    subassembly: 12.0
+    raw_component: 6.0
+service_targets:
+  fill_rate_target: 0.965
+  days_inventory_target: 20.0
+  criticality_tier: surge-critical

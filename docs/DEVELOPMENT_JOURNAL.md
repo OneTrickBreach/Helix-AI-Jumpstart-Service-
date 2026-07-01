@@ -18,15 +18,107 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration2-scaffolding-and-poa`
-- **Phase:** Phase 0 (environment & container baseline) — **complete, uncommitted**.
+- **Phase:** Phase 1 (seeded synthetic Manufacturing data generator) — **complete, uncommitted**.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack (verified on GB10):** `api` (FastAPI + nomic-embed embeddings + cuOpt/OR-Tools),
   `llm` (vLLM serving Nemotron 30B FP8 MoE), `vectordb` (Qdrant). cuOpt fell back to OR-Tools (CPU).
-- **Next:** Phase 1 (seeded synthetic Manufacturing data generator).
+- **Next:** Phase 2 (secure API layer + baseline + ingest/forecast).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-01 — Phase 1 brutal-truth review + fixes
+**Status:** Independently re-verified on the live GB10 stack; **uncommitted**.
+
+**Why:** Reviewed the Phase 1 deliverable against actual on-device behaviour rather than the
+build report, to catch overclaims and defects before Phase 2 builds on these schemas.
+
+**Independently re-verified (real runs, api container up):**
+- Byte-identical determinism: two `generate.py --seed 42 --scenario baseline` runs produced no
+  `sha256sum` diff. Re-verified again after the code fix below — still byte-identical.
+- `pytest tests/test_data_generator.py`: **11/11** passed.
+- `pytest tests/` (full suite): **28/28** passed (Phase 0 smoke tests intact).
+- All **four** scenarios generate end-to-end (build report had only run 2):
+  `baseline`/`component-shortage-shock`/`demand-surge` = 2,912 demand rows + 1,560 lane-period rows;
+  `stress-large` = 44,928 demand rows + 15,808 lane-period rows (confirms it stretches the network).
+- Generated files under `data/generated/` confirmed gitignored (`git check-ignore` positive;
+  0 generated files in `git status`).
+
+**Defects found and fixed:**
+- **Mixed numeric formatting in `demand.csv.base_quantity_units`.** The column is documented as
+  `float`, but derived-component rows emitted bare ints (e.g. `371`) while finished-goods rows
+  emitted float form (`371.000000`). Fixed by casting derived `base_quantity_units` to `float` in
+  `build_component_demand` (both subassembly and raw-component rows). Output now uniform `.6f`.
+- **Test gap that let the above slip through.** The schema test parsed float columns with
+  `float(...)`, which silently accepts integer strings. Added a regression guard asserting every
+  float-typed column is rendered in float form (contains `.`). Guard passes across all 4 scenarios.
+
+**Reviewed and accepted as-is (not defects):**
+- `random_seed_override` in a scenario would override the CLI `--seed`; all four configs leave it
+  null, and `metadata.json` records both `requested_seed` and effective `seed`, so this is a
+  documented, intentional feature — flagged here only so Phase 2 is aware.
+- Plant capacity is sized against finished-goods throughput (assembly), not derived component load;
+  intentional. Baseline capacity-sanity test passes.
+
+**Open issues / follow-ups:**
+- Consider a small safety check so `--output-dir` cannot point at a parent dir before `rmtree`.
+- Phase 2 should consume these documented schemas through the secure API/ingest layer.
+
+## 2026-07-01 — Phase 1 complete: seeded synthetic Manufacturing data generator
+**Status:** Built and verified on the live GB10 stack; **uncommitted**.
+
+**What changed:**
+- Added `data/generator/generate.py` plus `data/generator/README.md`.
+  - Generates a synthetic Manufacturing topology: suppliers -> plants/production lines -> DCs -> customers.
+  - Generates multi-tier BOMs with finished goods -> subassemblies -> raw components.
+  - Generates lumpy finished-goods demand with seasonality, trend, noise, and optional shock multipliers.
+  - Derives component demand from the BOM so component demand is correlated with finished-goods demand.
+  - Generates plant/line capacities, inbound and finished-goods lanes, lane costs, lead-time distributions,
+    period-level lane disruption effects, SKU cost parameters, service targets, and initial inventory.
+  - Writes deterministic CSV + JSON outputs with `scenario` and `seed` recorded in every CSV and full
+    reproducibility metadata in `metadata.json`.
+- Added four scenario configs in `data/scenarios/`:
+  `baseline`, `component-shortage-shock`, `demand-surge`, and `stress-large`.
+- Added `make data` and `make test-data`.
+  - `make data` runs inside the running `api` container and writes host-visible outputs under
+    `data/generated/<scenario>/`.
+  - `make test-data` runs only Phase 1 generator tests inside `api`.
+- Added CPU-only generator deps to `requirements-api.txt`: `numpy`, `PyYAML`.
+- Updated container wiring so the API image contains `data/` and the running container bind-mounts
+  `./data:/app/data`; `.dockerignore` now excludes only generated data, not generator/config sources.
+- Added `tests/test_data_generator.py` covering determinism, schemas/dtypes, no required nulls,
+  BOM-linked component-demand correlation, baseline capacity sanity, supply shock periods,
+  demand surge periods, seed/scenario metadata, and generated-output PII/real-company-name checks.
+
+**Verified results (real runs):**
+- Rebuilt API image successfully: `docker compose build api`.
+- Recreated API container successfully: `docker compose up -d --no-deps api`; API returned healthy.
+- `make data SEED=42 SCENARIO=baseline` succeeded and produced:
+  `nodes.csv`, `skus.csv`, `bom.csv`, `demand.csv`, `production_lines.csv`, `lanes.csv`,
+  `lane_periods.csv`, `service_targets.csv`, `initial_inventory.csv`, `metadata.json`.
+  Baseline row counts checked: 17 nodes, 28 SKUs, 24 BOM rows, 2,912 demand rows, 30 lanes,
+  1,560 lane-period rows.
+- `make data SEED=42 SCENARIO=component-shortage-shock` succeeded with the same file set.
+  Shock row counts checked: 17 nodes, 28 SKUs, 24 BOM rows, 2,912 demand rows, 30 lanes,
+  1,560 lane-period rows.
+- Determinism verified after final generator change:
+  `sha256sum data/generated/baseline/* | sort` before and after a second
+  `make data SEED=42 SCENARIO=baseline` produced no `diff`.
+- `make test-data` passed: **11/11** tests.
+- `make test` passed: **28/28** tests, including existing Phase 0 health, embeddings, LLM,
+  Qdrant, and cuOpt/OR-Tools fallback tests.
+
+**Deviations / corrections:**
+- During verification, the generated metadata initially used a Helix-branded generator string.
+  The new no-real-names test caught it; the output metadata was changed to neutral
+  `manufacturing-synthetic-data`, and the tests were rerun successfully.
+- No GPU-specific package was added for data generation; Phase 1 generation remains CPU-only.
+
+**Open issues / follow-ups:**
+- Phase 2 should consume these documented schemas through the secure API/ingest layer rather than
+  duplicating parsing logic.
+- Generated files under `data/generated/` remain gitignored and reproducible from seed/config.
 
 ## 2026-06-30 — Phase 0 executed (environment & container baseline) + review
 **Status:** Built in a separate working session; **reviewed and corrected here; uncommitted.**

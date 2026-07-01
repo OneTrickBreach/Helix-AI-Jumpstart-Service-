@@ -23,6 +23,10 @@ qdrant-client>=1.12.0
 # OR-Tools fallback for cuOpt (CPU VRP solver)
 ortools>=9.11
 
+# Phase 1 synthetic data generation (CPU-only)
+numpy>=2.0.0
+PyYAML>=6.0.2
+
 # Testing
 pytest>=8.0.0
 pytest-asyncio>=0.24.0

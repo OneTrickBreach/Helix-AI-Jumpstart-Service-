@@ -1,0 +1,86 @@
+scenario: stress-large
+description: Larger high-variability Manufacturing network with combined demand and supply disruption pressure.
+random_seed_override:
+simulation:
+  horizon_periods: 104
+network:
+  suppliers: 10
+  plants: 4
+  lines_per_plant: 5
+  distribution_centers: 4
+  customers: 24
+  finished_goods: 12
+  subassemblies_per_finished_good: 3
+  raw_components_per_subassembly: 3
+demand:
+  base_units_per_customer_period: 58
+  seasonality_amplitude: 0.34
+  trend_per_period: 0.004
+  noise_std: 0.28
+  lump_probability: 0.22
+  lump_multiplier_range: [1.7, 3.6]
+  periods_per_year: 52
+  shock:
+    name: broad_finished_goods_surge
+    start_period: 42
+    duration_periods: 14
+    multiplier: 1.55
+capacity:
+  capacity_tightness: 0.98
+  plant_storage_periods: 2.0
+  supplier_capacity_units_per_period: 18000
+  supplier_storage_units: 90000
+  dc_throughput_units_per_period: 18000
+  dc_storage_units: 85000
+  customer_storage_units: 7000
+lanes:
+  inbound_raw:
+    lead_time_mean_days: 12.0
+    lead_time_std_days: 4.0
+    cost_per_unit: 1.55
+    distance_km: 980
+    transport_cost_per_km: 0.0048
+    co2_kg_per_unit: 0.60
+  plant_to_dc:
+    lead_time_mean_days: 4.2
+    lead_time_std_days: 1.4
+    cost_per_unit: 0.92
+    distance_km: 620
+    transport_cost_per_km: 0.0054
+    co2_kg_per_unit: 0.36
+  dc_to_customer:
+    lead_time_mean_days: 2.8
+    lead_time_std_days: 0.9
+    cost_per_unit: 0.68
+    distance_km: 260
+    transport_cost_per_km: 0.0065
+    co2_kg_per_unit: 0.22
+lane_disruption:
+  name: stress_combined_inbound_disruption
+  lane_type: inbound_raw
+  affected_lane_count: 4
+  start_period: 38
+  duration_periods: 16
+  capacity_multiplier: 0.15
+  lead_time_multiplier: 2.4
+costs:
+  holding_cost:
+    finished_good: 1.24
+    subassembly: 0.58
+    raw_component: 0.30
+  ordering_cost:
+    finished_good: 75.0
+    subassembly: 44.0
+    raw_component: 28.0
+  backorder_penalty:
+    finished_good: 24.0
+    subassembly: 10.0
+    raw_component: 5.0
+  lost_sale_penalty:
+    finished_good: 44.0
+    subassembly: 18.0
+    raw_component: 9.0
+service_targets:
+  fill_rate_target: 0.975
+  days_inventory_target: 24.0
+  criticality_tier: stress-critical
