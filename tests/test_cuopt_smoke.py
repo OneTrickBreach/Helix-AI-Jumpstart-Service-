@@ -26,9 +26,9 @@ class TestCuoptSmoke:
         print(f"*** cuOpt available: {data['cuopt_available']} ***")
         print(f"*** Fallback to OR-Tools: {data['fallback']} ***")
 
-    def test_cuopt_solve_vrp(self, api_client):
+    def test_cuopt_solve_vrp(self, api_client, api_headers):
         """Solve a tiny 4-location, 1-vehicle VRP and verify the route."""
-        resp = api_client.get("/cuopt/solve", timeout=60.0)
+        resp = api_client.get("/cuopt/solve", headers=api_headers, timeout=60.0)
         assert resp.status_code == 200
         data = resp.json()
 

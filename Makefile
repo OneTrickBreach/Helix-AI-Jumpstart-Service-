@@ -5,7 +5,7 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build test test-data logs ps clean data check-api-running
+.PHONY: up down build test test-data logs ps clean data run bench check-api-running
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -73,6 +73,14 @@ check-api-running:
 ## Generate seeded synthetic Manufacturing data inside the running api container
 data: check-api-running
 	docker compose exec api python3 data/generator/generate.py --seed $(SEED) --scenario $(SCENARIO) --output-dir $(DATA_OUTPUT_DIR)
+
+## Run Phase 2 ingest -> forecast -> baseline optimize pipeline
+run: check-api-running data
+	docker compose exec api python3 -m src.pipeline.run --scenario $(SCENARIO)
+
+## Run Phase 3 baseline vs tuned-classical vs PPO benchmark
+bench: check-api-running data
+	docker compose exec api python3 -m src.pipeline.bench --scenario $(SCENARIO)
 
 # ---------------------------------------------------------------------------
 # Service-specific

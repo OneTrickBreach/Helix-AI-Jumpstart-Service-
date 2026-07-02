@@ -8,6 +8,7 @@ via HTTP, so they work both inside the api container and from the host.
 import os
 import pytest
 import httpx
+from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Service URLs — configurable via env vars for host vs. container execution
@@ -23,11 +24,29 @@ if os.environ.get("TEST_FROM_HOST", ""):
     API_BASE = "http://localhost:8080"
 
 
+def _api_key() -> str | None:
+    if os.environ.get("HELIX_API_KEY"):
+        return os.environ["HELIX_API_KEY"]
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if line.startswith("HELIX_API_KEY="):
+                return line.split("=", 1)[1].strip()
+    return None
+
+
 @pytest.fixture(scope="session")
 def api_client():
     """HTTP client pointing at the api service."""
     with httpx.Client(base_url=API_BASE, timeout=60.0) as client:
         yield client
+
+
+@pytest.fixture(scope="session")
+def api_headers():
+    key = _api_key()
+    assert key, "HELIX_API_KEY must be configured for protected API tests"
+    return {"X-API-Key": key}
 
 
 @pytest.fixture(scope="session")

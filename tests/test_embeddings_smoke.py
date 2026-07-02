@@ -23,11 +23,12 @@ class TestEmbeddingsSmoke:
         assert data["dimension"] == 768, f"Expected 768-dim, got {data['dimension']}"
         assert data["match"] is True
 
-    def test_embeddings_encode_single(self, api_client):
+    def test_embeddings_encode_single(self, api_client, api_headers):
         """POST /embeddings/encode returns a 768-dim vector for a single text."""
         resp = api_client.post(
             "/embeddings/encode",
             json={"texts": ["Supply chain optimization for manufacturing"]},
+            headers=api_headers,
             timeout=60.0,
         )
         assert resp.status_code == 200
@@ -40,7 +41,7 @@ class TestEmbeddingsSmoke:
         vec = data["embeddings"][0]
         assert any(v != 0.0 for v in vec), "All embedding values are zero"
 
-    def test_embeddings_encode_batch(self, api_client):
+    def test_embeddings_encode_batch(self, api_client, api_headers):
         """POST /embeddings/encode handles multiple texts correctly."""
         texts = [
             "Inventory management",
@@ -50,6 +51,7 @@ class TestEmbeddingsSmoke:
         resp = api_client.post(
             "/embeddings/encode",
             json={"texts": texts},
+            headers=api_headers,
             timeout=60.0,
         )
         assert resp.status_code == 200

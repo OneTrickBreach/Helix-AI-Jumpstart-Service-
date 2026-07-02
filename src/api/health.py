@@ -15,8 +15,8 @@ from fastapi import FastAPI
 
 app = FastAPI(
     title="Helix AI Jumpstart API",
-    description="Phase 0 — container baseline & smoke tests",
-    version="0.1.0",
+    description="Secure API-first SCO prototype",
+    version="0.3.0",
 )
 
 
@@ -76,3 +76,7 @@ app.include_router(embeddings_router, prefix="/embeddings", tags=["embeddings"])
 from src.api.cuopt_smoke import router as cuopt_router  # noqa: E402
 
 app.include_router(cuopt_router, prefix="/cuopt", tags=["cuopt"])
+
+from src.api.pipeline import router as pipeline_router  # noqa: E402
+
+app.include_router(pipeline_router, tags=["pipeline"])

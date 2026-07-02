@@ -11,7 +11,9 @@ Provides:
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+
+from src.api.security import require_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +175,7 @@ def cuopt_health():
     }
 
 
-@router.get("/solve")
+@router.get("/solve", dependencies=[Depends(require_api_key)])
 def cuopt_solve():
     """Solve a tiny 4-location, 1-vehicle VRP as a smoke test."""
     engine = _detect_solver()

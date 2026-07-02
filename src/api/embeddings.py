@@ -13,8 +13,10 @@ import os
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from src.api.security import require_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +78,7 @@ def embeddings_health():
         raise HTTPException(status_code=503, detail=f"Embeddings model not ready: {e}")
 
 
-@router.post("/encode", response_model=EncodeResponse)
+@router.post("/encode", response_model=EncodeResponse, dependencies=[Depends(require_api_key)])
 def encode(req: EncodeRequest):
     """Encode text(s) into embedding vector(s) using nomic-embed-text-v1.5."""
     try:

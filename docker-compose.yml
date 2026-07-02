@@ -29,10 +29,13 @@ services:
       - model-cache:/models
       # Keep generated synthetic data visible on the host for review.
       - ./data:/app/data
+      # Keep run/benchmark outputs visible on the host for review.
+      - ./benchmark:/app/benchmark
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - HF_HOME=/models/huggingface
       - SENTENCE_TRANSFORMERS_HOME=/models/sentence-transformers
+      - HELIX_API_KEY=${HELIX_API_KEY}
     deploy:
       resources:
         reservations:

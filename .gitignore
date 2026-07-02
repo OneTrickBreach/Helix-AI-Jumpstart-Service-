@@ -1,5 +1,8 @@
 # generated data: regenerate from seed instead of committing
 data/**/generated/
+benchmark/*.json
+benchmark/*.csv
+.env
 # model weights / artifacts
 *.ckpt
 *.pt
