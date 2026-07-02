@@ -18,7 +18,7 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration2-scaffolding-and-poa`
-- **Phase:** Phase 0 through Phase 3 **committed and pushed** (`7b23c6e`, `45c6098`, `2e96713`).
+- **Phase:** Phase 0 through Phase 3 **committed and pushed** (`7b23c6e`, `45c6098`, `fb9946d`).
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack (verified on GB10):** `api` (FastAPI + nomic-embed embeddings + cuOpt/OR-Tools),
   `llm` (vLLM serving Nemotron 30B FP8 MoE), `vectordb` (Qdrant). cuOpt fell back to OR-Tools (CPU).
@@ -29,7 +29,7 @@
 ## Entries (newest first)
 
 ## 2026-07-02 — Phase 2/3 brutal-truth review + fixes
-**Status:** Independently re-verified on the live GB10 stack after a full rebuild; **committed as `2e96713` (pushed)**.
+**Status:** Independently re-verified on the live GB10 stack after a full rebuild; **committed as `fb9946d` (pushed)**.
 
 **Why:** Reviewed the Phase 2/3 deliverable against actual on-device behaviour. The build
 report's headline claim — "PPO honestly lost to tuned classical" — turned out to rest on a
@@ -140,7 +140,7 @@ real time in this review and will bite the next agent too if unaware.
   is not rediscovered per session.
 
 ## 2026-07-02 — Phase 3 complete: tuned classical + PPO benchmark harness
-**Status:** Built and verified on the live GB10 stack; **committed as `2e96713` (pushed)**.
+**Status:** Built and verified on the live GB10 stack; **committed as `fb9946d` (pushed)**.
 
 **What changed:**
 - Added tuned classical optimizer under `src/optimize/classical/`.
@@ -197,7 +197,7 @@ real time in this review and will bite the next agent too if unaware.
   wants scenarios that force visible reorder/transport decisions in the first comparison window.
 
 ## 2026-07-02 — Phase 2 complete: secure API + ingest/forecast + baseline pipeline
-**Status:** Built and verified on the live GB10 stack; **committed as `2e96713` (pushed)**.
+**Status:** Built and verified on the live GB10 stack; **committed as `fb9946d` (pushed)**.
 
 **What changed:**
 - Added API-key auth for protected endpoints via `HELIX_API_KEY`; local secret is supplied through
