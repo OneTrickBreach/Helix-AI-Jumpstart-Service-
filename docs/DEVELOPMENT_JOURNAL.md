@@ -18,19 +18,19 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration2-scaffolding-and-poa`
-- **Phase:** Phase 0 through Phase 3 **committed and pushed** (`7b23c6e`, `45c6098`, `fb9946d`);
-  Phase 4 RAG advisory layer implemented, brutal-truth reviewed, and fixed (**uncommitted**).
+- **Phase:** Phase 0 through Phase 4 **committed and pushed** (`7b23c6e`, `45c6098`, `fb9946d`,
+  `e7a7634`). Phase 4 RAG advisory layer implemented, brutal-truth reviewed, and fixed.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack (verified on GB10):** `api` (FastAPI + nomic-embed embeddings + cuOpt/OR-Tools),
   `llm` (vLLM serving Nemotron 30B FP8 MoE), `vectordb` (Qdrant). cuOpt fell back to OR-Tools (CPU).
-- **Next:** Phase 5 (thin CLI/web clients over the secure API) after Phase 4 commit.
+- **Next:** Phase 5 (thin CLI/web clients over the secure API).
 
 ---
 
 ## Entries (newest first)
 
 ## 2026-07-06 — Phase 4 brutal-truth review + fixes
-**Status:** Independently re-verified on the live GB10 stack after a full rebuild; **uncommitted**.
+**Status:** Independently re-verified on the live GB10 stack after a full rebuild; **git ref: `e7a7634`**.
 
 **Why:** Reviewed the Phase 4 RAG advisory layer against actual on-device behaviour rather than
 the build report, per this project's standing review practice, before Phase 5 builds on it.
@@ -97,7 +97,7 @@ the repro above still surfaces correctly through this path too).
 - LanceDB fallback remains undemonstrated (Qdrant has not hit memory pressure yet).
 
 ## 2026-07-06 — Phase 4 RAG advisory layer implemented
-**Status:** Built and verified on the live GB10 stack; **git ref: uncommitted**.
+**Status:** Built and verified on the live GB10 stack; **git ref: `e7a7634`**.
 
 **What changed:**
 - Added `src/rag/advisory.py` and `src/rag/__init__.py`.
