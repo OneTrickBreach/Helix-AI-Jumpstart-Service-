@@ -5,7 +5,7 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build test test-data logs ps clean data run bench check-api-running
+.PHONY: up down build test test-data logs ps clean data run bench rag check-api-running
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -81,6 +81,10 @@ run: check-api-running data
 ## Run Phase 3 baseline vs tuned-classical vs PPO benchmark
 bench: check-api-running data
 	docker compose exec api python3 -m src.pipeline.bench --scenario $(SCENARIO)
+
+## Run Phase 4 RAG advisory rationale for the benchmark-selected plan
+rag: check-api-running data
+	docker compose exec api python3 -m src.rag.advisory --scenario $(SCENARIO)
 
 # ---------------------------------------------------------------------------
 # Service-specific

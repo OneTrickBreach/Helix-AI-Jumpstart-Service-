@@ -14,6 +14,7 @@ from src.ingest.state import load_scenario_state, summarize_state
 from src.optimize.baseline.policy import optimize_baseline
 from src.pipeline.bench import run_head_to_head
 from src.pipeline.run import run_baseline_pipeline
+from src.rag.advisory import generate_advisory_rationale
 
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -31,6 +32,17 @@ class TextIngestRequest(BaseModel):
 
 class BenchmarkRequest(ScenarioRequest):
     ppo_timesteps: int = Field(default=128, ge=16, le=4096)
+
+
+class RAGCorpusDocument(BaseModel):
+    source_type: str = Field(default="planner_note", min_length=1, max_length=64)
+    title: str = Field(min_length=1, max_length=160)
+    text: str = Field(min_length=1, max_length=8000)
+
+
+class RAGRationaleRequest(BenchmarkRequest):
+    top_k: int = Field(default=5, ge=1, le=10)
+    corpus_documents: list[RAGCorpusDocument] = Field(default_factory=list, max_length=32)
 
 
 class GenericResponse(BaseModel):
@@ -109,3 +121,26 @@ def benchmark(req: BenchmarkRequest):
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/rag/rationale", response_model=GenericResponse)
+def rag_rationale(req: RAGRationaleRequest):
+    try:
+        benchmark_result = run_head_to_head(
+            req.scenario,
+            horizon=req.horizon,
+            ppo_timesteps=req.ppo_timesteps,
+        )
+        rationale = generate_advisory_rationale(
+            benchmark_result=benchmark_result,
+            top_k=req.top_k,
+            extra_documents=[
+                doc.model_dump() if hasattr(doc, "model_dump") else doc.dict()
+                for doc in req.corpus_documents
+            ],
+        )
+        return GenericResponse(scenario=req.scenario, status="ok", data=rationale)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"RAG rationale failed: {exc}")

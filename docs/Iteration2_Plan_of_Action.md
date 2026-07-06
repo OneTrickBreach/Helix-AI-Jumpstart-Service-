@@ -121,45 +121,45 @@ Each phase lists **tasks**, **the containerization requirement**, and **acceptan
 
 ### Phase 0 — Environment & container baseline (de-risk first)
 **Goal:** prove the toolchain and the *risky* arm64 images before building features.
-- [ ] Confirm `nvidia-smi`, `nvcc --version`, CUDA 13 inside the `api` container (GPU already verified — see containerization doc).
-- [ ] **Serve the LLM:** pull/serve **Nemotron ~30B FP8 (MoE)** on GPU; confirm a completion. (NVAIE not needed for dev; NFR NVAIE available if gated.)
-- [ ] **Embeddings:** load `nomic-embed-text-v1.5` (768-dim) via sentence-transformers on GPU; confirm an embedding.
-- [ ] **Vector DB:** stand up **Qdrant**; create/insert/query a collection. Note the **LanceDB** fallback if memory pressure shows.
-- [ ] **cuOpt arm64 check:** smoke-pull cuOpt from NGC; run a hello-world VRP. **If no arm64 build works, do NOT block** — fall back to OR-Tools (CPU VRP), flag it, keep going (per proceed-without-blocking).
+- [x] Confirm `nvidia-smi`, `nvcc --version`, CUDA 13 inside the `api` container (GPU already verified — see containerization doc).
+- [x] **Serve the LLM:** pull/serve **Nemotron ~30B FP8 (MoE)** on GPU; confirm a completion. (NVAIE not needed for dev; NFR NVAIE available if gated.)
+- [x] **Embeddings:** load `nomic-embed-text-v1.5` (768-dim) via sentence-transformers on GPU; confirm an embedding.
+- [x] **Vector DB:** stand up **Qdrant**; create/insert/query a collection. Note the **LanceDB** fallback if memory pressure shows.
+- [x] **cuOpt arm64 check:** smoke-pull cuOpt from NGC; run a hello-world VRP. **If no arm64 build works, do NOT block** — fall back to OR-Tools (CPU VRP), flag it, keep going (per proceed-without-blocking).
 - **Containerize:** all services start via **`docker compose up`** (Compose v2); GPU reserved on `api`/`cuopt`/`llm`.
 - **AC:** `docker compose up` brings up all services healthy; LLM + embeddings + Qdrant pass smoke tests on the GB10; cuOpt status (works / fell back) recorded in `docs/containerization.md`.
 
 ### Phase 1 — Seeded synthetic data generator (Point 4)
 **Goal:** reproducible, documented dataset for the confirmed vertical [**Manufacturing**].
-- [ ] Generator in `data/generator/`: manufacturing network (suppliers → plant/lines → DC → customers), **BOM / multi-tier component structure**, lumpy + correlated component demand up the BOM, line/plant **capacity** limits, multi-tier inbound + finished-goods lanes, per-lane lead times + variability, cost params, service targets.
-- [ ] Fixed, documented **seed**; deterministic regeneration; schema documented in `data/generator/README.md`.
-- [ ] Define 3–4 **scenarios** in `data/scenarios/`, including **worst-case shock** scenarios (supply disruption / demand collapse / cost inflation — the war/COVID/inflation analogues Ryan called out): e.g., `baseline`, `component-shortage-shock`, `demand-surge`, `stress-large`.
+- [x] Generator in `data/generator/`: manufacturing network (suppliers → plant/lines → DC → customers), **BOM / multi-tier component structure**, lumpy + correlated component demand up the BOM, line/plant **capacity** limits, multi-tier inbound + finished-goods lanes, per-lane lead times + variability, cost params, service targets.
+- [x] Fixed, documented **seed**; deterministic regeneration; schema documented in `data/generator/README.md`.
+- [x] Define 3–4 **scenarios** in `data/scenarios/`, including **worst-case shock** scenarios (supply disruption / demand collapse / cost inflation — the war/COVID/inflation analogues Ryan called out): e.g., `baseline`, `component-shortage-shock`, `demand-surge`, `stress-large`.
 - **Containerize:** generation runs inside the `api` container via `make data`.
 - **AC:** `make data SEED=…` reproduces byte-identical inputs; documented; no real customer data.
 
 ### Phase 2 — Secure API layer + baseline (the number to beat) + ingest/forecast
 **Goal:** establish the **API-first** backbone and the "BEFORE" side of the comparison.
-- [ ] **`src/api/`**: stand up the **secure FastAPI layer** (authN/authZ, input validation, secrets handling) — every feature below is added as an endpoint; the CLI (`src/cli/`) is a thin client of it.
-- [ ] `src/ingest/`: **GPU-accelerated** ingestion for documents/images (sentence-transformers on GPU); Polars/cuDF for small tabular state → normalized state.
-- [ ] `src/forecast/` statistical baseline (`statsforecast`: ETS/ARIMA + Croston/SBA for intermittent/lumpy BOM demand).
-- [ ] `src/optimize/baseline/` reorder-point + shortest-route → full plan + metrics (cost breakdown, fill-rate, days-of-inventory).
-- [ ] `src/bench/` records peak unified-mem, bandwidth, latency, GPU/CPU util for every run.
+- [x] **`src/api/`**: stand up the **secure FastAPI layer** (authN/authZ, input validation, secrets handling) — every feature below is added as an endpoint; the CLI (`src/cli/`) is a thin client of it.
+- [x] `src/ingest/`: **GPU-accelerated** ingestion for documents/images (sentence-transformers on GPU); Polars/cuDF for small tabular state → normalized state.
+- [x] `src/forecast/` statistical baseline (`statsforecast`: ETS/ARIMA + Croston/SBA for intermittent/lumpy BOM demand).
+- [x] `src/optimize/baseline/` reorder-point + shortest-route → full plan + metrics (cost breakdown, fill-rate, days-of-inventory).
+- [x] `src/bench/` records peak unified-mem, bandwidth, latency, GPU/CPU util for every run.
 - **Containerize:** all runs inside `api`.
 - **AC:** `make run SCENARIO=baseline` (and the equivalent API call) outputs a baseline plan + metrics JSON + recorded resource profile.
 
 ### Phase 3 — Strong classical + learned candidate (the "AFTER")
 **Goal:** the optimized side, with PPO held to an honest bar.
-- [ ] `src/optimize/classical/`: tuned (s,S) via Optuna; **cuOpt** routing client (GPU). Wire the routing solve through the `cuopt` service.
-- [ ] `src/optimize/learned/`: multi-echelon **Gym env** + **continuous-action PPO** (Stable-Baselines3), tiny MLP policy. Reference the singhdivyank repo for the env shape (do not copy confidential material).
-- [ ] **Head-to-head benchmark harness:** baseline vs. tuned-classical vs. PPO on identical seeded inputs; the "AFTER" plan = the best performer **by evidence**, with the result recorded (including when classical wins).
+- [x] `src/optimize/classical/`: tuned (s,S) via Optuna; **cuOpt** routing client (GPU). Wire the routing solve through the `cuopt` service.
+- [x] `src/optimize/learned/`: multi-echelon **Gym env** + **continuous-action PPO** (Stable-Baselines3), tiny MLP policy. Reference the singhdivyank repo for the env shape (do not copy confidential material).
+- [x] **Head-to-head benchmark harness:** baseline vs. tuned-classical vs. PPO on identical seeded inputs; the "AFTER" plan = the best performer **by evidence**, with the result recorded (including when classical wins).
 - **Containerize:** PPO train/infer in `api` (GPU); routing in `cuopt` (GPU).
 - **AC:** `make bench SCENARIO=component-shortage-shock` emits a comparison table (cost/service/latency/memory) for all three approaches; PPO is reported honestly (win or lose).
 
 ### Phase 4 — RAG advisory layer
 **Goal:** plain-language rationale + human-readable summaries, clearly advisory.
-- [ ] `src/rag/`: embed scenario context + supplier/SOP/notes corpus with **nomic-embed-text-v1.5** (GPU) into **Qdrant** (fallback LanceDB); retrieve; prompt the **shared Nemotron** `llm` service for a rationale of the chosen plan.
-- [ ] Reuse the **same single LLM** for UI summaries and rationale (no second model) to minimize weights + KV-cache memory.
-- [ ] Label all LLM output **advisory**; it never produces the numeric metrics.
+- [x] `src/rag/`: embed scenario context + supplier/SOP/notes corpus with **nomic-embed-text-v1.5** (GPU) into **Qdrant** (fallback LanceDB); retrieve; prompt the **shared Nemotron** `llm` service for a rationale of the chosen plan.
+- [x] Reuse the **same single LLM** for UI summaries and rationale (no second model) to minimize weights + KV-cache memory.
+- [x] Label all LLM output **advisory**; it never produces the numeric metrics.
 - **Containerize:** `vectordb` + `llm` services; `api` orchestrates.
 - **AC:** given a plan, the API returns a grounded, retrieval-cited rationale; record LLM tokens/s + peak memory.
 
