@@ -29,6 +29,153 @@
 
 ## Entries (newest first)
 
+## 2026-07-07 — Phase 5 brutal-truth review + fix (honest SSE progress)
+**Status:** Independently re-verified on the live GB10 stack after api + web rebuilds; **uncommitted**.
+
+**Why:** Reviewed the Phase 5 front-ends against actual on-device behaviour (not the build report)
+before Phase 6 depends on them.
+
+**Critical finding: the SSE "live progress" was fake.** `GET /scenario-comparison/stream` emitted
+all five stages (`ingest`, `forecast`, `baseline`, `classical`, `ppo`) as `status: "running"` in a
+tight loop *before any computation started*, then blocked in one opaque `_run_scenario_comparison`
+call, then emitted `rag`/`done`. The web `StageStepper` compounded it by marking a stage complete
+(green check) on the mere *presence* of any event, ignoring `status`. Net browser behaviour: every
+optimizer stage showed "done" within milliseconds while nothing had actually run, then a long
+freeze, then the result. Confirmed live via a timestamped `curl` of the stream: all five stage
+events landed in the same ~2 ms window. In an integrity-first project ("no brochure numbers"), a
+progress indicator that lies about what has executed is a defect, not cosmetics. (The Phase 5 build
+had honestly logged this as a deferred follow-up; the review closes it now rather than shipping it.)
+
+**Fix (DRY, no duplicated orchestration):**
+- `src/pipeline/bench.py`: `run_head_to_head` gained an optional `progress_callback(stage, status)`
+  invoked at the REAL boundaries of ingest/forecast/baseline/classical/ppo. Default `None` keeps
+  every existing caller (`/pipeline/bench`, `make bench`) byte-for-byte unchanged.
+- `src/api/pipeline.py`: `_run_scenario_comparison` forwards the callback and additionally emits
+  `rag` running/complete around the rationale call. The SSE endpoint now runs the real pipeline in
+  a worker thread that pushes events onto a `queue.Queue` at true stage boundaries while the
+  response generator drains and streams them — no faked events, no duplicated benchmark logic.
+- `web/src/App.tsx`: `StageStepper` is now status-aware — spinner while a stage is `running`, green
+  check only on `complete` — so the UI reflects real progress.
+- `tests/test_phase5_api.py`: fakes updated to the new signature; the SSE test now asserts truthful
+  `running`→`complete` transitions, the `rag` stage, and stage ordering (not just event presence).
+
+**Verified results (real, on-device, after api + web rebuild):**
+- `make test` (full backend suite): **45/45 passed** (one pre-existing Starlette `TestClient`
+  deprecation warning).
+- `docker compose build web` succeeded (Vite production build type-checked the StageStepper change).
+- Timestamped `curl` of the live stream through the running api now shows TRUTHFUL, incremental
+  progress: `ingest` complete ~2 ms in; `forecast` running→complete spanning ~0.84 s; `ppo`
+  running→complete spanning ~1.1 s (matching its recorded latency); `rag` running→complete spanning
+  ~15.2 s (matching the LLM's ~14.9 s wall-clock); then `done`. Winner `classical`, `ppo_outcome:
+  lost_to_classical`; the stale malicious Qdrant note was still surfaced flagged
+  (`ignore_previous_instructions`, `reveal_system_prompt`, `secret_exfiltration`).
+
+**Reviewed and accepted as-is (not defects):**
+- `days_of_inventory` shown ↓ = green matches the agreed Scenario-Comparison mockup in the
+  scaffolding doc §3; kept.
+- nginx static upstream + `${HELIX_API_KEY}` template: envsubst only substitutes env-set vars, so
+  `$host`/`$remote_addr` survive and the key is injected server-side; fine for a PoC behind
+  `depends_on: api healthy`.
+- Delta math + Vitest coverage are correct; the UI renders the raw API payload with no hard-coded
+  numbers; `httpx`/`PyYAML` are declared deps and the CLI is a pure HTTP client (imports no
+  optimizer/forecast/pipeline/RAG modules).
+
+**Open issues / follow-ups (unchanged):** Optuna still unseeded (cross-run classical values vary);
+no manual browser screenshot captured; Qdrant stale-note cleanup/TTL; frontend `npm audit` findings
+to review before any production-facing deployment.
+
+## 2026-07-07 — Phase 5 web + CLI front-ends over secure API
+**Status:** Implemented and verified on the live GB10 stack; **git ref: uncommitted**.
+
+**What changed:**
+- Added protected Phase 5 API surface in `src/api/pipeline.py`:
+  - `GET /scenarios` discovers scenario configs/generated data instead of hard-coding UI options.
+  - `POST /scenario-comparison` runs one benchmark and then passes that benchmark result into
+    `generate_advisory_rationale`, avoiding the Phase 4 double benchmark run.
+  - `GET /scenario-comparison/stream` emits SSE stage events and a final combined
+    `{benchmark, rationale}` payload for browser clients.
+- Added `web/` React + Vite + TypeScript + Tailwind UI for planner-facing Scenario Comparison:
+  scenario picker, horizon/PPO/top-k controls, SSE stage stepper, before/after metric cards,
+  three-way approach table, objective chart, on-device profile, and **ADVISORY ONLY** rationale
+  with citations and visible prompt-injection flags.
+- Added `web/src/lib/deltas.ts` and Vitest coverage for integrity-critical display deltas:
+  cost metrics lower-is-better, fill rate as signed percentage points, days of inventory
+  lower-is-better display, and honest baseline-wins messaging.
+- Added thin HTTP CLI in `src/cli/scenario_comparison.py`; it calls the same secure API endpoints
+  and does not import optimizer, forecast, pipeline, or RAG modules.
+- Added arm64 web container plumbing:
+  - `docker/web/Dockerfile` multi-stage Node build -> nginx static serve.
+  - `docker/web/default.conf.template` serves the SPA and reverse-proxies `/api/*` to `api:8080/*`,
+    injecting `X-API-Key` server-side and disabling buffering for SSE.
+  - `docker-compose.yml` now includes `web` on `8081:80`, no GPU, depends on healthy `api`.
+  - `Makefile` now includes `make web`, `make cli-list`, and `make cli`.
+- Added `tests/test_phase5_api.py` covering scenario listing auth/shape, single benchmark reuse in
+  the combined POST endpoint, and SSE stage/final payload behavior.
+
+**Why:** Phase 5 requires planner-facing web and CLI front-ends while preserving the API-first
+architecture: all numeric evidence comes from the on-device API, LLM text remains advisory-only,
+PPO is reported honestly, and the browser never receives `HELIX_API_KEY`.
+
+**Verified results (real runs):**
+- Rebuilt and restarted the API after `src/` changes:
+  `docker compose build api && docker compose up -d --no-deps api`.
+- Focused Phase 5 backend tests:
+  `docker compose exec api python3 -m pytest tests/test_phase5_api.py -v --tb=short` -> **3/3 passed**.
+- Full backend regression:
+  `make test` -> **45/45 passed** (one existing FastAPI/Starlette `TestClient` deprecation warning).
+- Web checks in a Node container:
+  `npm test` -> **6/6 Vitest delta-util tests passed**.
+  `npm run build` -> TypeScript + Vite production build passed. Vite warned that the main JS chunk
+  is larger than 500 kB, expected from the current Recharts bundle and not a functional failure.
+- Web image/container:
+  `docker compose build web` passed; `docker compose up -d web`; `docker compose ps` showed
+  `api`, `llm`, `vectordb`, and `web` healthy/running. `curl http://localhost:8081/` returned the
+  SPA and `curl http://localhost:8081/api/scenarios` returned protected scenario data through nginx.
+- API-key leakage check:
+  searched `web/dist` for both the literal `HELIX_API_KEY` and the configured key value from the
+  environment/`.env`; neither was present.
+- Real SSE run through the web/nginx same-origin path:
+  `curl -N 'http://localhost:8081/api/scenario-comparison/stream?scenario=baseline&horizon=4&ppo_timesteps=16&top_k=3'`
+  emitted `stage` events for ingest, forecast, baseline, classical, PPO, RAG, then a final `done`
+  payload. Observed final benchmark:
+  - Winner: **classical**; `ppo_outcome: lost_to_classical`.
+  - BEFORE baseline total cost **36530.645259**, objective **45561.235673**, fill rate **0.859694**,
+    days inventory **2.980161**.
+  - AFTER classical total cost **34916.928052**, objective **43120.721294**, fill rate **0.867962**,
+    days inventory **1.652414**.
+  - Cost breakdown before: holding **5018.791777**, ordering **1980.0**, transport **7753.416916**,
+    backorder **10485.913902**, lost sale **11292.522664**.
+  - Cost breakdown after: holding **4638.018071**, ordering **2280.0**, transport **7503.841482**,
+    backorder **9867.995944**, lost sale **10627.072555**.
+  - Winner resource profile: peak unified memory **401.613281 MB**, effective bandwidth
+    **0.117362 GB/s**, solve latency **0.232159 s**, CPU **10.4%**, GPU utilization reported
+    `null` by the profiler on this unified-memory stack.
+  - Rationale label **ADVISORY ONLY**; **3 citations** returned. A stale malicious Phase 4 test
+    note already present in Qdrant was retrieved and correctly surfaced as flagged
+    (`ignore_previous_instructions`, `reveal_system_prompt`, `secret_exfiltration`) rather than
+    hidden or fed as trusted context.
+- Real CLI run:
+  `make cli SCENARIO=baseline HORIZON=4 PPO_TIMESTEPS=16 TOP_K=3` completed through the API and
+  printed the before/after table, approach table, on-device panel, advisory rationale, citations,
+  and prompt-injection flags. Because the classical optimizer retunes on each request, this separate
+  API run produced a different but still real classical winner: total cost **34800.621816**,
+  objective **43039.958356**, fill rate **0.867607**, days inventory **1.338642**.
+
+**Open issues / follow-ups:**
+- Browser behavior was verified through production build, running nginx, proxied `/api/scenarios`,
+  and the real SSE payload; no manual browser screenshot/visual inspection was captured in this run.
+- Separate scenario-comparison requests can produce slightly different tuned-classical values because
+  Optuna is not seeded in `optimize_classical`; the UI and CLI each render the exact API payload
+  they receive, but cross-run exact equality is not guaranteed until tuning is seeded or cached.
+- ~~The SSE endpoint emits stage progress from the API wrapper around the existing opaque
+  `run_head_to_head` call; true per-substage timing would require adding a progress callback to the
+  benchmark harness in a later phase.~~ **Resolved in the 2026-07-07 review below.**
+- Qdrant still contains stale Phase 4 `extra_documents` test notes; prompt-injection scanning flags
+  them correctly at retrieval time, but a cleanup/TTL path remains a useful PoC hygiene improvement.
+- `npm install` reported dependency audit findings in the frontend dependency tree. Not exploited by
+  the static PoC build during this verification, but should be reviewed before any production-facing
+  deployment.
+
 ## 2026-07-06 — Phase 4 brutal-truth review + fixes
 **Status:** Independently re-verified on the live GB10 stack after a full rebuild; **git ref: `e7a7634`**.
 

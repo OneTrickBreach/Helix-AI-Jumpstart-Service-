@@ -5,11 +5,14 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build test test-data logs ps clean data run bench rag check-api-running
+.PHONY: up down build web test test-data logs ps clean data run bench rag cli cli-list check-api-running
 
 SEED ?= 12345
 SCENARIO ?= baseline
 DATA_OUTPUT_DIR ?= data/generated/$(SCENARIO)
+HORIZON ?= 8
+PPO_TIMESTEPS ?= 128
+TOP_K ?= 5
 
 # ---------------------------------------------------------------------------
 # Docker Compose commands
@@ -30,6 +33,10 @@ down:
 ## Rebuild all images
 build:
 	docker compose build
+
+## Build and start the web UI at http://localhost:8081
+web:
+	docker compose up -d --build web
 
 ## Show running services
 ps:
@@ -85,6 +92,14 @@ bench: check-api-running data
 ## Run Phase 4 RAG advisory rationale for the benchmark-selected plan
 rag: check-api-running data
 	docker compose exec api python3 -m src.rag.advisory --scenario $(SCENARIO)
+
+## List scenarios through the secure API using the thin CLI
+cli-list: check-api-running
+	docker compose exec api python3 -m src.cli.scenario_comparison list
+
+## Run Phase 5 scenario comparison through the secure API using the thin CLI
+cli: check-api-running
+	docker compose exec api python3 -m src.cli.scenario_comparison run --scenario $(SCENARIO) --horizon $(HORIZON) --ppo-timesteps $(PPO_TIMESTEPS) --top-k $(TOP_K)
 
 # ---------------------------------------------------------------------------
 # Service-specific
