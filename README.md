@@ -2,7 +2,7 @@
 
 > **What this is:** An end-to-end supply-chain-optimization (SCO) prototype designed to run **entirely on a single GB10-class device** (Dell Pro Max with GB10 / NVIDIA DGX Spark sibling), from seeded synthetic data to an optimized plan. Built at **Helix, Connection Inc.** The pitch in one line: *a workload that used to need a rack now runs at the desk.*
 
-> **How to use this file (humans + AI agents):** Read it all once. If you are an AI coding agent resuming work, jump to **[§9 Current Status](#9-current-status--iteration-1)**, **[§11 Open Decisions](#11-open-decisions-for-kickoff)**, and **[§13 Next Steps](#13-getting-started--next-steps)** — that is where the project currently stands and what to do next. Everything above those is the context you need to not break the established direction or re-introduce already-fixed mistakes (see **[§12 Caveats](#12-honest-caveats--guardrails-carry-forward)**).
+> **How to use this file (humans + AI agents):** Read it all once. For the current build, jump to **[§9 Current Status](#9-current-status--iteration-2-prototype)**, **[§11 Confirmed Decisions](#11-confirmed-kickoff-decisions)**, and [`docs/handoff.md`](docs/handoff.md).
 
 ---
 
@@ -25,9 +25,9 @@ A suggested `.gitignore` is in **[§10](#10-repository-structure)**.
 6. [Data Elements & Pipeline](#6-data-elements--pipeline)
 7. [Use-Case / Opportunity Map](#7-use-case--opportunity-map)
 8. [Prototype Scope (depth over breadth)](#8-prototype-scope-depth-over-breadth)
-9. [Current Status — Iteration 1](#9-current-status--iteration-1)
+9. [Current Status — Iteration 2 prototype](#9-current-status--iteration-2-prototype)
 10. [Repository Structure](#10-repository-structure)
-11. [Open Decisions for Kickoff](#11-open-decisions-for-kickoff)
+11. [Confirmed Kickoff Decisions](#11-confirmed-kickoff-decisions)
 12. [Honest Caveats & Guardrails (carry-forward)](#12-honest-caveats--guardrails-carry-forward)
 13. [Getting Started / Next Steps](#13-getting-started--next-steps)
 14. [Glossary](#14-glossary)
@@ -53,7 +53,7 @@ The goal is to "AI-fy" the supply chain end to end and package it as a sellable 
 - **Flow (Pic 3/4):** `Customer Data → AI Jumpstart Service → GB10 device`. Sold packaged inside the hardware.
 - **OEMs (Pic 1):** GB10 ships from multiple vendors — **Dell** (units in hand), plus **Lenovo, HP, Asus, Acer** (identical product). The solution is **not Dell-locked**.
 - **Clustering:** A deployment can be **1× or 2× GB10 nodes** (the whiteboard's "1x / 2x GB10"). Two nodes pool to 256 GB (see §3).
-- **Core success condition:** "Runs fully on-device within the 128 GB unified-memory envelope" is itself a headline outcome, not an afterthought.
+- **Core success condition:** the full prototype runs on-device within the GB10's **128 GB nominal / ~121 GiB usable** unified-memory envelope, backed by a device-level measurement.
 
 ---
 
@@ -204,60 +204,84 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 
 ---
 
-## 9. Current Status — Iteration 1
+## 9. Current Status — Iteration 2 prototype
 
-**DONE ✅ (documentation only — no code yet):**
-- **Iteration 1, Points 1 & 2 delivered** in two versions:
-  - `docs/AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md` — **shareable internally / with Ryan.** Uses the team's class-paper figures (PPO +36.76% stationary → +94.20% non-stationary) as **target-margin reference points** (not as committed results). For external pitches, prefer v2 (stronger evidence base).
-  - `docs/AI_Jumpstart_MVP_Iteration1_v2_standalone.md` — **SHAREABLE.** Same structure, grounded only in public sources (McKinsey/Gartner/BCG/Deloitte) + peer-reviewed RL literature; no paper dependency.
-- Both docs include: SOP alignment, confirmed GB10 hardware spec, prototype scope, data elements + pipeline, scaffolding options, measurable-outcomes table, 3-week plan, and an honest-caveats appendix.
-- **Corrections already made (do NOT regress these):**
-  - Removed fabricated per-pillar percentages; the paper provides ONE aggregate inventory-cost number, on ONE toy benchmark, ONE seed.
-  - Separated cuOpt/routing as a capability NOT evaluated by the paper.
-  - Removed the unsupported hospital service-level claim.
-  - Reframed the ~94% as "disruption-avoided cost vs. an un-tuned baseline on a rescaled metric," not flat savings.
-  - Corrected the hardware constraint from "128 GB capacity" to "**~273 GB/s bandwidth**"; noted the RL policy is tiny and the LLM/index is the real load.
+**Phases 0–6 built:** the API-first Manufacturing PoC covers deterministic synthetic data,
+ingest/forecast, baseline and tuned-classical optimization, the PPO candidate, Qdrant-backed RAG
+through one shared Nemotron 30B FP8 service, secure API endpoints, truthful SSE progress, a thin
+CLI, the web comparison view, and an all-scenario on-device benchmark suite.
 
-**NOT STARTED ⛔ (the actual build):**
-- Point 3 (full SCO scaffolding spec) and Point 4 (full synthetic-dataset spec) beyond kickoff-level proposals.
-- **All code:** synthetic data generator, ingest, forecast, optimizers (baseline/classical/learned), RAG layer, end-to-end one-command runner, benchmarking harness.
-- Device standup / ARM64 toolchain verification / cuOpt-on-NGC verification.
-- Kickoff target numbers (the "X%" margin, memory/latency targets) — not yet set.
+- `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`;
+  GPU reservations are declared for `api` and `llm`.
+- `make run SCENARIO=baseline` regenerates seeded input and emits an on-device baseline plan.
+- `make bench-all` regenerates and runs all four scenarios through baseline, classical, PPO, and
+  the advisory RAG/LLM stage, writing `benchmark/suite-summary.json` and `.md`.
+- PPO remains visible whether it wins or loses. The tuned-classical result is the prototype's
+  evidence-based default when it wins.
+- cuOpt is unavailable for this arm64/CUDA combination; the explicitly reported fallback is
+  OR-Tools on CPU. The cuOpt/OR-Tools capability is served in-process by `api` at `/cuopt/*`
+  (no separate container), matching how routing is actually solved.
+- Process RSS and the allocation-rate proxy are labeled honestly. Suite-level memory is sampled
+  from the device/host unified pool; GPU utilization remains `null` when the GB10 probe reports N/A.
+
+**Latest live-run status (2026-07-09):** the Phase 6 code and images were built and the non-GPU
+software regression subset passed, but full `make up` / `make bench-all` is currently blocked by
+the host GPU reporting `nvidia-container-cli: nvml error: gpu requires reset`. No Phase 6 suite
+numbers should be treated as final until the GB10 is reset/rebooted and `make bench-all` is rerun.
+
+See [`docs/handoff.md`](docs/handoff.md), [`docs/containerization.md`](docs/containerization.md),
+and the generated suite summary, once regenerated, for operating instructions and measured results.
 
 ---
 
 ## 10. Repository Structure
 
-**Current (actual layout):**
+**Current (actual layout, condensed):**
 ```
 README.md                                            # this file — stays at repo ROOT (GitHub landing page)
 .gitignore                                           # keeps heavy/binary artifacts out of git
-.claude/                                             # tooling config (untouched)
+.devin/                                              # project rules / continuation guardrails
+Dockerfile                                           # arm64 API image (includes cuOpt/OR-Tools capability)
+docker-compose.yml                                   # four-service PoC stack
+Makefile                                             # one-command build/test/run/bench entrypoints
+benchmark/                                           # generated benchmark artifacts; do not trust stale runs
+configs/                                             # runtime/scenario config
+data/
+  generator/                                         # seeded synthetic data generator
+  scenarios/                                         # baseline, shock, surge, stress-large configs
+  generated/                                         # regenerated scenario data
 docs/
   AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md   # shareable internally (class-paper based)
   AI_Jumpstart_MVP_Iteration1_v2_standalone.md       # shareable externally (public sources)
+  containerization.md                                # current arm64/four-service stack notes
+  handoff.md                                         # Phase 6 handoff commands and caveats
+  DEVELOPMENT_JOURNAL.md                             # chronological truth ledger
+docker/
+  llm/                                               # vLLM/Nemotron service image
+  web/                                               # nginx static web image
 refs/
   multi_echelon_rl_inventory_paper.pdf               # team's class paper (shareable; code on GitHub)
   master_prompt.md                                   # Iteration-1 task definition (Points 1 & 2)
   Dell_Pro_Max_GB10_Specification.pdf                # Ryan's hardware spec (source for §3)
   whiteboards/
     Pic 1.jpeg ... Pic 5.jpeg                        # source whiteboard photos
-data/                                                # scaffolded — empty (.gitkeep)
-  generator/            # seeded synthetic data generation (documented seeds)
-  scenarios/            # scenario configs (small -> stress)
-src/                                                 # scaffolded — empty (.gitkeep)
-  ingest/               # raw -> structured state (on-hand/in-transit/backlog per node)
-  forecast/             # demand forecasting (method TBD; start statistical)
+src/
+  api/                                                # FastAPI API incl. integrated cuOpt/OR-Tools capability (/cuopt/*)
+  bench/                                              # profiler and Phase 6 all-scenario suite
+  cli/                                                # thin API-first scenario-comparison CLI
+  forecast/                                           # demand forecast
+  ingest/                                             # raw/generated data -> structured state
   optimize/
-    baseline/           # reorder-point + shortest-route (the target to beat)
-    classical/          # MILP / cuOpt + tuned (s,S)
-    learned/            # continuous-action PPO
-  rag/                  # vector DB + NIM-served LLM (advisory only)
-  pipeline/             # end-to-end runner -> ONE command
-benchmark/                                           # scaffolded — empty (.gitkeep): peak mem, ~273 GB/s bandwidth, latency, GPU vs CPU util
-configs/                                             # scaffolded — empty (.gitkeep): seeds, targets, hardware/runtime config
+    baseline/                                         # reorder-point + shortest-route
+    classical/                                        # tuned classical optimizer, OR-Tools fallback
+    learned/                                          # PPO candidate
+  pipeline/                                           # API-reused run_head_to_head orchestration
+  rag/                                                # Qdrant + local LLM advisory layer
+tests/                                               # backend/unit/API regression tests
+web/                                                 # React/Vite planner UI
 ```
-> The `src/`, `data/`, `benchmark/`, and `configs/` trees are **scaffolded but empty** (`.gitkeep` placeholders) — the build has not started (see §9, §13). Still to add when the build lands: `run.sh`/`Makefile` (one-command entrypoint) and `requirements`/env (ARM64-aware deps; prefer NGC containers).
+> Keep generated scenario data and benchmark outputs reproducible from seed. Do not commit large
+> model weights or stale benchmark artifacts as if they were current evidence.
 > External code for the paper: `github.com/singhdivyank/multi-echelon-rl-inventory` (PPO/A3C envs, configs, training). Useful reference when building `src/optimize/learned`.
 
 **`.gitignore` (at repo root):**
@@ -275,17 +299,24 @@ __pycache__/  *.pyc  .venv/  venv/
 
 ---
 
-## 11. Open Decisions for Kickoff
+## 11. Confirmed Kickoff Decisions
 
-These are intentionally unset (the SOP says "set together at kickoff"):
-1. **The example company / product family / exact locations** (recommendation in §8).
-2. **The win margin** — X% cost reduction or service-level gain vs. reorder-point + shortest-route.
-3. **On-device targets** — peak-memory ceiling (within 128 GB), solve/inference latency target.
-4. **Forecasting method** — start statistical, or go straight to ML/deep?
-5. **Whether the learned policy is PPO only, or PPO + a learned router.**
-6. **Single-node demo vs. 2-node cluster as the headline** (affects whether cluster setup moves into Week 1–2).
-7. **LLM size for RAG** (≤ ~200B inference single-node, but bandwidth-bound — pick conservatively).
-8. **Whether any fine-tuning is in scope** (≤ ~70B single-node cap).
+Ryan confirmed these on 2026-06-30:
+
+| Decision | Confirmed direction |
+|---|---|
+| Vertical | Manufacturing |
+| Outcome framing | Real improvement vs. baseline plus resilience under worst-case shock; no pre-asserted percentage |
+| Product shape | Development / Proof-of-Concept, not production |
+| LLM | One shared NVIDIA Nemotron ~30B MoE at FP8 |
+| Embeddings | `nomic-ai/nomic-embed-text-v1.5`, 768 dimensions |
+| Vector store | Qdrant; LanceDB only if memory pressure requires it |
+| NVAIE | Not required for development; NFR available if a gate is hit |
+| Interface | Secure API first; CLI and web remain thin clients |
+| Single vs. two node | Single node unless a measured ~121 GiB usable-memory limit is hit; two nodes remain the escalation route |
+
+No kickoff decision authorizes a claimed win margin: each scenario reports its real run.
+Fine-tuning, production licensing/hardening, and the two-node implementation remain out of scope.
 
 ---
 
@@ -351,4 +382,4 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ---
 
-*Last updated at end of Iteration 1 (documentation complete; build not yet started). Keep this README current as the single source of truth — update §9 and §11 as decisions are made and code lands.*
+*Last updated during Iteration 2 Phase 6 hardening (2026-07-09). Keep this README current as the single source of truth — update §9 and §11 as decisions are made and code lands.*

@@ -165,20 +165,22 @@ Each phase lists **tasks**, **the containerization requirement**, and **acceptan
 
 ### Phase 5 — Front-ends (web + CLI) over the API: Scenario Comparison
 **Goal:** a planner-facing UI **and** a CLI, both thin clients of the same API — before/after with +/- % deltas.
-- [ ] `web/` React + Vite + TS + Tailwind + shadcn/ui + Recharts/Tremor.
-- [ ] `src/cli/` thin CLI calling the **same API endpoints** as the web UI (preserves the one-command run).
-- [ ] **Scenario Comparison view:** pick a scenario → Run → live progress via **SSE** → BEFORE (baseline) vs AFTER (optimized) metric cards with **signed % deltas** + correct good/bad coloring.
-- [ ] **On-device panel:** peak memory, bandwidth, solve/inference latency, GPU vs CPU util.
-- [ ] **Rationale panel:** the advisory LLM text, labeled as such.
-- [ ] **Integrity:** every number comes from a real run via the API — **no hard-coded percentages**.
+- [x] `web/` React + Vite + TS + Tailwind + Recharts.
+- [x] `src/cli/` thin CLI calling the **same API endpoints** as the web UI (preserves the one-command run).
+- [x] **Scenario Comparison view:** pick a scenario → Run → live progress via **SSE** → BEFORE (baseline) vs AFTER (optimized) metric cards with **signed % deltas** + correct good/bad coloring.
+- [x] **On-device panel:** peak memory, bandwidth, solve/inference latency, GPU vs CPU util. (Phase 6 relabeled these honestly: API-process RSS + allocation-rate proxy, not device memory/DRAM bandwidth.)
+- [x] **Rationale panel:** the advisory LLM text, labeled as such.
+- [x] **Integrity:** every number comes from a real run via the API — **no hard-coded percentages**.
 - **Containerize:** `web` (nginx) + `api`; full stack via `docker compose up`.
 - **AC:** from a browser, a user runs a scenario and sees an honest before/after with deltas computed as `(after−before)/before`, plus the on-device panel.
 
 ### Phase 6 — Benchmark, harden, hand off
-- [ ] On-device benchmark across scenarios; escalate `stress-large` toward the 2-node 256 GB path *if* single-node limits are hit (document where bandwidth saturates).
-- [ ] One-command bring-up (`make up`) + one-command run (`make run`) verified clean on the GB10.
-- [ ] Short written + verbal handoff; update `README.md` §9/§11 and `docs/containerization.md`.
-- **AC:** reproducible end-to-end on-device run; documented results; demo-ready.
+- [~] On-device benchmark across scenarios; escalate `stress-large` toward the 2-node 256 GB path *if* single-node limits are hit (document where bandwidth saturates). — **Suite implemented** (`src/bench/suite.py`, `make bench-all`) reusing `run_head_to_head`, with device-level memory sampling (`/proc/meminfo`), honest envelope flag, and a captioned bandwidth finding. **Not yet run live** (GPU blocked). 2-node path remains unimplemented (only if a real single-node limit is hit).
+- [~] One-command bring-up (`make up`) + one-command run (`make run`) verified clean on the GB10. — **Blocked:** `make up` currently fails at GPU init (`nvidia-container-cli: nvml error: gpu requires reset`); needs a host reboot, then re-verify.
+- [x] Short written + verbal handoff; update `README.md` §9/§11 and `docs/containerization.md`. — Written handoff in `docs/handoff.md`; README §9/§11 and `docs/containerization.md` updated to the honest four-service runtime.
+- **AC:** reproducible end-to-end on-device run; documented results; demo-ready. — **Partially met:** code + docs complete and CPU-side tests pass; the live on-device suite run is pending a GPU reset/reboot (see `docs/DEVELOPMENT_JOURNAL.md`).
+
+> **Phase 6 status note (2026-07-09):** Implementation and docs are complete and uncommitted. A brutal-truth review removed a redundant, GPU-reserving `cuopt` container that duplicated the `api`'s built-in `/cuopt/*` probe and hard-blocked `api` startup; the runtime is the honest four-service stack (`web`, `api`, `llm`, `vectordb`) with cuOpt/OR-Tools integrated in `api`. Live benchmark numbers are pending the GB10 GPU reset.
 
 ---
 

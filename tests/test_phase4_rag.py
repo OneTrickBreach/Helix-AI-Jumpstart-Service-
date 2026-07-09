@@ -175,7 +175,7 @@ def test_short_llm_text_gets_benchmark_template_fallback(
             "usage": {"completion_tokens": 3, "total_tokens": 20},
             "profile": {
                 "wall_clock_seconds": 1.0,
-                "peak_unified_memory_mb": 100.0,
+                "peak_process_rss_mb": 100.0,
                 "tokens_per_second": 3.0,
             },
         },
@@ -218,7 +218,7 @@ def test_incomplete_llm_sentence_gets_benchmark_template_fallback(
             "usage": {"completion_tokens": 8, "total_tokens": 32},
             "profile": {
                 "wall_clock_seconds": 1.0,
-                "peak_unified_memory_mb": 100.0,
+                "peak_process_rss_mb": 100.0,
                 "tokens_per_second": 8.0,
             },
         },
@@ -274,7 +274,7 @@ def test_advisory_rationale_is_labeled_cited_and_metric_source_is_optimizer(
             "usage": {"completion_tokens": 12, "total_tokens": 80},
             "profile": {
                 "wall_clock_seconds": 2.0,
-                "peak_unified_memory_mb": 1024.0,
+                "peak_process_rss_mb": 1024.0,
                 "tokens_per_second": 6.0,
             },
         },
@@ -301,7 +301,7 @@ def test_advisory_rationale_is_labeled_cited_and_metric_source_is_optimizer(
     assert result["numeric_metrics_source"] == advisory.NUMERIC_METRICS_SOURCE
     assert result["citations"][0]["citation_id"] == "C1"
     assert result["llm_profile"]["tokens_per_second"] == 6.0
-    assert result["llm_profile"]["peak_unified_memory_mb"] == 1024.0
+    assert result["llm_profile"]["peak_process_rss_mb"] == 1024.0
     assert result["prompt_injection_flags"]
 
 
@@ -321,7 +321,7 @@ def test_rag_rationale_endpoint_is_protected_and_thin(monkeypatch: pytest.Monkey
             "selected_approach": benchmark_result["winner"]["approach"],
             "numeric_metrics_source": advisory.NUMERIC_METRICS_SOURCE,
             "citations": [{"citation_id": "C1"}],
-            "llm_profile": {"tokens_per_second": 1.0, "peak_unified_memory_mb": 1.0},
+            "llm_profile": {"tokens_per_second": 1.0, "peak_process_rss_mb": 1.0},
         },
     )
     client = TestClient(app)

@@ -1,9 +1,9 @@
 # =============================================================================
 # AI Jumpstart Service — docker-compose (Phase 0)
 # =============================================================================
-# Three-service stack for Phase 0: api, llm, vectordb.
-# cuOpt/OR-Tools VRP logic is integrated INSIDE the api service (not a separate service).
-# All arm64. GPU reserved on api, llm via deploy.resources.reservations.devices.
+# Four-service PoC stack: web, api, llm, vectordb.
+# cuOpt/OR-Tools VRP capability is integrated INSIDE the api service (served at
+# /cuopt/*), not a separate container. All arm64. GPU reserved on api and llm.
 #
 # Usage:
 #   docker compose up -d --build
@@ -45,6 +45,7 @@ services:
       context: .
       dockerfile: Dockerfile
     image: helix-ai-jumpstart:api-phase0
+    platform: linux/arm64
     ports:
       - "8080:8080"
     volumes:
@@ -84,6 +85,7 @@ services:
       context: ./docker/llm
       dockerfile: Dockerfile
     image: helix-ai-jumpstart:llm-phase0
+    platform: linux/arm64
     ports:
       - "8000:8000"
     volumes:
@@ -113,6 +115,7 @@ services:
   # ---------------------------------------------------------------------------
   vectordb:
     image: qdrant/qdrant:latest
+    platform: linux/arm64
     ports:
       - "6333:6333"
       - "6334:6334"

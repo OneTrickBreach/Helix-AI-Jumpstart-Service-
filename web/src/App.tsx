@@ -286,10 +286,15 @@ function ResourcePanel({ benchmark }: { benchmark: Benchmark }) {
   const winner = benchmark.winner.approach;
   const profile = benchmark.resource_profiles[winner] ?? {};
   const items = [
-    ["Peak memory", `${number(profile.peak_unified_memory_mb)} MB`],
-    ["Bandwidth", `${number(profile.effective_memory_bandwidth_gbps)} GB/s`],
+    ["API process peak RSS", `${number(profile.peak_process_rss_mb)} MB`],
+    ["Allocation-rate proxy", `${number(profile.allocation_rate_gbps_proxy, 4)} GB/s (not DRAM BW)`],
     ["Solve latency", `${number(profile.wall_clock_seconds, 3)} s`],
-    ["GPU util", `${number(profile.gpu_utilization_percent)}%`],
+    [
+      "GPU util",
+      profile.gpu_utilization_percent == null
+        ? profile.gpu_metrics_status ?? "unavailable"
+        : `${number(profile.gpu_utilization_percent)}%`,
+    ],
     ["CPU util", `${number(profile.cpu_utilization_percent)}%`],
   ];
   return (

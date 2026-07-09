@@ -5,7 +5,7 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build web test test-data logs ps clean data run bench rag cli cli-list check-api-running
+.PHONY: up down build web test test-data logs ps clean data run bench bench-all rag cli cli-list check-api-running
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -88,6 +88,13 @@ run: check-api-running data
 ## Run Phase 3 baseline vs tuned-classical vs PPO benchmark
 bench: check-api-running data
 	docker compose exec api python3 -m src.pipeline.bench --scenario $(SCENARIO)
+
+## Run Phase 6 all-scenario benchmark, including RAG/LLM and device-memory sampling
+bench-all: check-api-running
+	@for scenario in baseline component-shortage-shock demand-surge stress-large; do \
+		docker compose exec api python3 data/generator/generate.py --seed $(SEED) --scenario $$scenario --output-dir data/generated/$$scenario || exit 1; \
+	done
+	docker compose exec api python3 -m src.bench.suite --horizon $(HORIZON) --ppo-timesteps $(PPO_TIMESTEPS) --top-k $(TOP_K)
 
 ## Run Phase 4 RAG advisory rationale for the benchmark-selected plan
 rag: check-api-running data

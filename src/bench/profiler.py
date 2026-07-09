@@ -30,11 +30,32 @@ def _gpu_snapshot() -> dict:
             check=False,
         )
         if result.returncode != 0 or not result.stdout.strip():
-            return {"gpu_utilization_percent": None, "gpu_memory_used_mb": None}
+            return {
+                "gpu_utilization_percent": None,
+                "gpu_memory_used_mb": None,
+                "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+            }
         gpu_util, mem = [part.strip() for part in result.stdout.splitlines()[0].split(",")[:2]]
-        return {"gpu_utilization_percent": float(gpu_util), "gpu_memory_used_mb": float(mem)}
-    except Exception:
-        return {"gpu_utilization_percent": None, "gpu_memory_used_mb": None}
+        if gpu_util in {"N/A", "[N/A]"} or mem in {"N/A", "[N/A]"}:
+            return {
+                "gpu_utilization_percent": None,
+                "gpu_memory_used_mb": None,
+                "gpu_metrics_status": (
+                    "unavailable: GB10 unified-memory nvidia-smi query reports N/A "
+                    "inside this stack"
+                ),
+            }
+        return {
+            "gpu_utilization_percent": float(gpu_util),
+            "gpu_memory_used_mb": float(mem),
+            "gpu_metrics_status": "available",
+        }
+    except Exception as exc:
+        return {
+            "gpu_utilization_percent": None,
+            "gpu_memory_used_mb": None,
+            "gpu_metrics_status": f"unavailable: {type(exc).__name__}",
+        }
 
 
 @contextmanager
@@ -61,11 +82,18 @@ def profile_run(name: str, scenario: str):
                 "name": name,
                 "scenario": scenario,
                 "wall_clock_seconds": round(latency, 6),
-                "peak_unified_memory_mb": round(peak_rss / (1024 * 1024), 6),
-                "effective_memory_bandwidth_gbps": round((abs(end_mem - start_mem) / max(latency, 1e-9)) / 1e9, 6),
+                # This is the API process high-water RSS, not device-level
+                # unified-memory use and not the LLM/Qdrant container footprint.
+                "peak_process_rss_mb": round(peak_rss / (1024 * 1024), 6),
+                # A start/end RSS delta divided by time is only a coarse
+                # net-allocation-rate proxy. It is not measured DRAM bandwidth.
+                "allocation_rate_gbps_proxy": round(
+                    (abs(end_mem - start_mem) / max(latency, 1e-9)) / 1e9, 6
+                ),
                 "cpu_utilization_percent": psutil.cpu_percent(interval=None) or start_cpu,
                 "gpu_utilization_percent": end_gpu["gpu_utilization_percent"],
                 "gpu_memory_used_mb": end_gpu["gpu_memory_used_mb"],
+                "gpu_metrics_status": end_gpu["gpu_metrics_status"],
                 "gpu_start": start_gpu,
             }
         )

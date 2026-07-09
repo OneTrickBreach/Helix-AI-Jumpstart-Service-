@@ -41,17 +41,19 @@ export type ComparisonRow = {
   fill_rate: number;
   days_of_inventory: number;
   latency_seconds: number;
-  peak_memory_mb: number;
-  gpu_utilization_percent: number;
+  peak_process_rss_mb: number;
+  allocation_rate_gbps_proxy: number;
+  gpu_utilization_percent: number | null;
 };
 
 export type ResourceProfile = {
   wall_clock_seconds?: number;
-  peak_unified_memory_mb?: number;
-  effective_memory_bandwidth_gbps?: number;
+  peak_process_rss_mb?: number;
+  allocation_rate_gbps_proxy?: number;
   cpu_utilization_percent?: number;
   gpu_utilization_percent?: number;
   gpu_memory_used_mb?: number | null;
+  gpu_metrics_status?: string;
 };
 
 export type Benchmark = {
@@ -106,4 +108,3 @@ export type ApiResponse<T> = {
   status: "ok";
   data: T;
 };
-

@@ -81,6 +81,13 @@ def test_benchmark_harness_has_all_approaches(monkeypatch, generated_phase3: Pat
     approaches = {row["approach"] for row in result["comparison"]}
     assert approaches == {"baseline", "classical", "ppo"}
     for row in result["comparison"]:
-        assert {"total_cost", "fill_rate", "days_of_inventory", "latency_seconds", "peak_memory_mb"}.issubset(row)
+        assert {
+            "total_cost",
+            "fill_rate",
+            "days_of_inventory",
+            "latency_seconds",
+            "peak_process_rss_mb",
+            "allocation_rate_gbps_proxy",
+        }.issubset(row)
     assert result["winner"]["approach"] in approaches
     assert result["ppo_outcome"] in {"won", "lost_to_baseline", "lost_to_classical"}

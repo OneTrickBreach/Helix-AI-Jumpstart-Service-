@@ -13,7 +13,8 @@ const benchmark: Benchmark = {
     fill_rate: 0.93,
     days_of_inventory: 16,
     latency_seconds: 0.2,
-    peak_memory_mb: 110,
+    peak_process_rss_mb: 110,
+    allocation_rate_gbps_proxy: 0.01,
     gpu_utilization_percent: 0,
   },
   objective_tie_across_approaches: false,
@@ -101,4 +102,3 @@ describe("delta integrity utility", () => {
     expect(winnerMessage(baselineWins)).toBe("Baseline already best; no improvement found by evidence.");
   });
 });
-

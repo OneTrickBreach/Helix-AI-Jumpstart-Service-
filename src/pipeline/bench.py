@@ -23,7 +23,8 @@ def _row(approach: str, plan: dict, profile: dict) -> dict:
         "fill_rate": metrics["fill_rate"],
         "days_of_inventory": metrics["days_of_inventory"],
         "latency_seconds": profile["wall_clock_seconds"],
-        "peak_memory_mb": profile["peak_unified_memory_mb"],
+        "peak_process_rss_mb": profile["peak_process_rss_mb"],
+        "allocation_rate_gbps_proxy": profile["allocation_rate_gbps_proxy"],
         "gpu_utilization_percent": profile["gpu_utilization_percent"],
     }
 

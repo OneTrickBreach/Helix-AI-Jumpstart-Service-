@@ -18,16 +18,141 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration2-scaffolding-and-poa`
-- **Phase:** Phase 0 through Phase 4 **committed and pushed** (`7b23c6e`, `45c6098`, `fb9946d`,
-  `e7a7634`). Phase 4 RAG advisory layer implemented, brutal-truth reviewed, and fixed.
+- **Phase:** Phase 0 through Phase 5 are implemented; Phase 6 hardening/scaffolding is currently
+  **uncommitted** and partially verified. Full live Phase 6 benchmark execution is blocked by the
+  GB10/NVML reset state recorded below.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
-- **Stack (verified on GB10):** `api` (FastAPI + nomic-embed embeddings + cuOpt/OR-Tools),
-  `llm` (vLLM serving Nemotron 30B FP8 MoE), `vectordb` (Qdrant). cuOpt fell back to OR-Tools (CPU).
-- **Next:** Phase 5 (thin CLI/web clients over the secure API).
+- **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
+  cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
+  current solver path, served in-process by `api` at `/cuopt/*` (the redundant dedicated `cuopt`
+  container from the initial Phase 6 pass was removed in the review below).
+- **Next:** clear/reset the GB10 GPU state, run the full live suite, then record real
+  `stress-large` single-node/two-node evidence.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-09 — Phase 6 brutal-truth review + fix (removed redundant cuopt service)
+**Status:** Independent review of the Phase 6 dev; one architectural fix applied; still
+**uncommitted**; live GPU benchmark remains blocked by the NVML reset state. **git ref: uncommitted**.
+
+**Scope:** Reviewed the Phase 6 dev (done by a different, less capable agent) against the guardrails
+and actual on-device behaviour. I verified everything reachable without the GPU and fixed the one
+real defect.
+
+**Verdict — mostly sound and honest.** The profiler honesty rename is correct
+(`peak_unified_memory_mb`→`peak_process_rss_mb`, `effective_memory_bandwidth_gbps`→
+`allocation_rate_gbps_proxy`, plus a `gpu_metrics_status` reason). `src/bench/suite.py` reuses
+`run_head_to_head` (no duplicated optimizer/RAG logic), samples device-level memory from
+`/proc/meminfo` (labeled as such), flags the ~121 GiB envelope honestly, preserves losing-PPO rows,
+never fabricates GPU util, and the bandwidth "finding" is captioned as an inference, not a
+measurement. The GPU blocker and stale-artifact caveats were documented without faking numbers.
+
+**Defect found + fixed — the unprompted dedicated `cuopt` service.** The initial Phase 6 pass added
+a separate GPU-reserving `cuopt` container (`src/api/cuopt_service.py`) running
+`uvicorn src.api.cuopt_service:app` on `:8082`, and made `api` `depends_on: cuopt (service_healthy)`.
+This was wrong because:
+- It only re-served the `cuopt_smoke` router that `api` **already** exposes at `/cuopt/*`
+  (`src/api/health.py` includes it), so it was 100% redundant.
+- Nothing calls `cuopt:8082` — routing is solved in-process with OR-Tools inside `api`. It was a
+  facade matching the POA's service count, not the POA's intent (real GPU routing, which cuOpt
+  can't do on this arm64 stack).
+- It reserved the single scarce GPU and, via the hard `depends_on`, added a new failure mode:
+  if `cuopt` can't become healthy, `api` can't start — the opposite of "harden".
+- It diverged from the known-good Phase 5 topology, which matters because the GPU is down and the
+  new 5-service topology could not be tested.
+Fix: removed the `cuopt` service and the `api→cuopt` dependency from `docker-compose.yml`, deleted
+`src/api/cuopt_service.py`, and realigned the docs (README §9/§10, `docs/containerization.md`, this
+snapshot) to the honest **four-service** runtime (`web`, `api`, `llm`, `vectordb`) with the
+cuOpt/OR-Tools capability integrated in `api` at `/cuopt/*`. `platform: linux/arm64` (added to all
+services in the Phase 6 pass) was kept.
+
+**Verified after fix (no GPU needed):**
+- `docker compose config --quiet` passes; `docker compose config --services` → `api, llm, vectordb, web`.
+- CPU-only regression subset in a throwaway `api` image:
+  `pytest tests/test_phase6_suite.py tests/test_phase3_benchmark.py tests/test_phase4_rag.py
+  tests/test_phase5_api.py tests/test_phase2_pipeline.py tests/test_data_generator.py`
+  → **31 passed, 1 failed**. The single failure is `test_phase2_pipeline.py::test_api_auth_and_validation`
+  (`httpx.ConnectError: Connection refused`) — a live-service test that needs the running `api` on the
+  compose network; it is an environment artifact of the standalone container, not a regression
+  (the prior pass got 32/32 on the compose network). All Phase 6 suite + renamed-field tests pass.
+
+**Still blocked (host, not code):** `make up`/`make bench-all` remain blocked by the GB10 reporting
+`nvidia-container-cli: nvml error: gpu requires reset`. `nvidia-smi` shows `ERR!` fields; a GPU reset
+failed (primary GPU). Realistic fix is a **host reboot**, which I did not run (destructive; needs the
+operator). After reboot, run: `make up`, `docker compose ps`, `make test`, `make bench-all`,
+`make run SCENARIO=baseline`, then record the real suite numbers + stress-large decision here.
+
+## 2026-07-09 — Phase 6 benchmark hardening + handoff scaffolding
+**Status:** Implemented and partially verified; real on-device benchmark execution is **blocked by GPU/NVML reset state**; **git ref: uncommitted**.
+
+**Why:** Phase 6 requires an honest all-scenario benchmark/handoff pass before any demo claim:
+reuse the existing API-first benchmark path, report PPO whether it wins or loses, remove misleading
+memory/bandwidth labels, measure device-level memory instead of treating one process's RSS as
+unified-device usage, and document the single-node vs. two-node decision from actual runs.
+
+**What changed:**
+- Added `src/bench/suite.py`, a Phase 6 all-scenario suite for `baseline`,
+  `component-shortage-shock`, `demand-surge`, and `stress-large`. It reuses
+  `run_head_to_head`, then calls the existing RAG rationale path so benchmark + LLM behavior are
+  covered together. It writes `benchmark/suite-summary.json` and `.md`.
+- Added system-level unified-memory sampling around each scenario using `/proc/meminfo`
+  (`MemTotal - MemAvailable`) from inside the API container. The suite compares the observed
+  device/host pool peak against the GB10's ~121 GiB usable envelope and flags >=90%.
+- Renamed misleading profiler fields:
+  - `peak_unified_memory_mb` -> `peak_process_rss_mb`
+  - `effective_memory_bandwidth_gbps` -> `allocation_rate_gbps_proxy`
+  These are now labeled as API-process RSS and an allocation-rate proxy, not device memory or
+  measured DRAM bandwidth.
+- Propagated the honest metric names through the benchmark API rows, CLI, web types/UI, and tests.
+  GPU utilization stays `null` with a status/reason when the GB10 probe returns N/A.
+- Added `make bench-all`, which regenerates the four seeded scenarios and runs the Phase 6 suite
+  in the API container.
+- Added a dedicated `cuopt` FastAPI capability service (`src/api/cuopt_service.py`) and updated
+  `docker-compose.yml` to the five-service PoC boundary: `web`, `api`, `cuopt`, `llm`, `vectordb`.
+  This does **not** claim cuOpt is available; the optimizer remains explicit about the OR-Tools CPU
+  fallback. **[SUPERSEDED 2026-07-09 by the review entry above: this dedicated `cuopt` container was
+  removed as redundant/robustness-reducing; the runtime is the four-service stack with `/cuopt/*`
+  served in-process by `api`.]**
+- Updated `README.md` §9/§11, replaced `docs/containerization.md`, and added `docs/handoff.md`
+  with current commands, caveats, and demo handoff notes.
+- Added `tests/test_phase6_suite.py` and updated Phase 3/4/5 tests for the renamed resource fields.
+
+**Verified results (real, not inferred):**
+- `docker compose config --quiet` passed.
+- `git diff --check` passed.
+- `docker compose build api cuopt web` passed; the web image's TypeScript/Vite production build
+  completed inside the container.
+- `docker compose build api cuopt` passed after the Phase 6 unit-test fix.
+- Focused Phase 6 suite unit tests:
+  `docker run --rm -v "$PWD/data:/app/data" -v "$PWD/benchmark:/app/benchmark" helix-ai-jumpstart:api-phase0 python3 -m pytest tests/test_phase6_suite.py -v --tb=short`
+  -> **4/4 passed**.
+- Selected non-GPU regression subset against a temporary API container on the Compose network:
+  `tests/test_data_generator.py tests/test_phase2_pipeline.py tests/test_phase3_benchmark.py tests/test_phase4_rag.py tests/test_phase5_api.py tests/test_phase6_suite.py`
+  -> **32/32 passed** (one pre-existing FastAPI/Starlette `TestClient`/httpx deprecation warning).
+
+**Blocked verification (important):**
+- `make up` was attempted after image builds and failed during GPU container initialization:
+  `nvidia-container-cli: detection error: nvml error: gpu requires reset`.
+- `docker compose ps -a` then showed `vectordb` running/healthy and `api`, `cuopt`, `llm`, `web`
+  stuck in `Created`, consistent with GPU-backed services failing before start.
+- `nvidia-smi` showed the GB10 in an error state (`ERR!` fields, GPU utilization `N/A`, no running
+  GPU processes).
+- `nvidia-smi --gpu-reset -i 0` failed because the GB10 is the primary GPU.
+- Because of this host/GPU state, the following were **not** verified in this turn:
+  `make bench-all`, `make run SCENARIO=baseline`, live web/API bring-up, and real
+  `benchmark/suite-summary.{json,md}` generation. Any existing benchmark artifacts should be
+  treated as stale unless regenerated after the GPU reset/reboot.
+
+**Open issues / follow-ups:**
+- Reset/reboot the GB10 host (or otherwise clear the primary-GPU NVML reset condition), then run:
+  `make up`, `docker compose ps`, `make test`, `make bench-all`,
+  `make run SCENARIO=baseline`, and `sed -n '1,220p' benchmark/suite-summary.md`.
+- After `make bench-all` succeeds, update this journal with the real per-scenario numbers and the
+  stress-large single-node vs. two-node decision from the generated suite summary.
+- If GPU utilization remains N/A after reset, keep reporting it as unavailable rather than filling
+  a synthetic value.
 
 ## 2026-07-07 — Phase 5 brutal-truth review + fix (honest SSE progress)
 **Status:** Independently re-verified on the live GB10 stack after api + web rebuilds; **uncommitted**.

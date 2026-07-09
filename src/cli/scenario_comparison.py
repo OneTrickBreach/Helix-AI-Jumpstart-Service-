@@ -124,10 +124,18 @@ def _print_resources(benchmark: dict[str, Any]) -> None:
     winner = benchmark["winner"]["approach"]
     profile = benchmark["resource_profiles"][winner]
     print("\nOn-device resource profile")
-    print(f"- Peak unified memory: {_number(profile.get('peak_unified_memory_mb')):,.2f} MB")
-    print(f"- Effective bandwidth: {_number(profile.get('effective_memory_bandwidth_gbps')):,.2f} GB/s")
+    print(f"- API process peak RSS: {_number(profile.get('peak_process_rss_mb')):,.2f} MB")
+    print(
+        f"- Allocation-rate proxy (not DRAM bandwidth): "
+        f"{_number(profile.get('allocation_rate_gbps_proxy')):,.4f} GB/s"
+    )
     print(f"- Solve latency: {_number(profile.get('wall_clock_seconds')):,.3f}s")
-    print(f"- GPU utilization: {_number(profile.get('gpu_utilization_percent')):,.2f}%")
+    gpu_util = profile.get("gpu_utilization_percent")
+    print(
+        f"- GPU utilization: {float(gpu_util):,.2f}%"
+        if gpu_util is not None
+        else f"- GPU utilization: {profile.get('gpu_metrics_status', 'unavailable')}"
+    )
     print(f"- CPU utilization: {_number(profile.get('cpu_utilization_percent')):,.2f}%")
 
 
