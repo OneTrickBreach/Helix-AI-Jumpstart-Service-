@@ -140,6 +140,8 @@ In line with the directive to containerize everything that gets built, the archi
 
 All wired by **`docker compose` (Compose v2)**, GPU via `deploy.resources.reservations.devices` (already stubbed). One-command bring-up is the goal. Full build sequence is in the Plan of Action.
 
+> **Built outcome (2026-07-10):** the shipped prototype is a **four-service** stack — `cuopt` was **not** built as a separate container because no arm64/CUDA-13 cuOpt build was available; the routing solve runs **in-process in `api` via OR-Tools (CPU)**, exposed at `api:/cuopt/*`. GPU is reserved on `api` and `llm` only. See [`containerization.md`](containerization.md) and [`DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md).
+
 ---
 
 ## 5. Confirmed Decisions (Ryan, 2026-06-30)

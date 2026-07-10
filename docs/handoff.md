@@ -16,10 +16,13 @@ measured objective with latency used only to break an objective tie. Signed delt
 from those returned values. The rationale is **ADVISORY ONLY** and cannot change numeric plans or
 metrics.
 
-The complete handoff artifact is `benchmark/suite-summary.md`; its JSON companion is intended for
-automation. Each scenario contains baseline, tuned-classical, and PPO rows even when PPO loses.
-As of 2026-07-09, regenerate this artifact after clearing the GB10/NVML reset condition; stale
-benchmark files are not Phase 6 evidence.
+The complete handoff artifact is `benchmark/suite-summary.md` (regenerate with `make bench-all`; it
+is gitignored, and its JSON companion is intended for automation). Each scenario contains baseline,
+tuned-classical, and PPO rows even when PPO loses. As of the **2026-07-10** live run: tuned classical
+wins `baseline`/`demand-surge`/`stress-large`; the naive baseline wins `component-shortage-shock`
+(tuned classical could not beat it under the shock); **PPO lost in all four scenarios**; device peak
+67–68 GiB of ~121 GiB (≥52 GiB headroom). The recorded numbers also live in
+`docs/DEVELOPMENT_JOURNAL.md` and `docs/iteration-docs/AI_Jumpstart_MVP_Iteration2_handoff.md`.
 
 ## Read the on-device panel honestly
 
@@ -42,8 +45,9 @@ index has not caused memory pressure. Only one Nemotron service is loaded. All d
 device.
 
 The two-node 256 GB route is conditional. It is not implemented unless the real `stress-large`
-run reaches the single-node usable-memory limit. The current decision must come from the generated
-summary after `make bench-all`; do not infer it while the GPU startup blocker remains unresolved.
+run reaches the single-node usable-memory limit. The 2026-07-10 live `make bench-all` recorded
+`stress-large` at ~68.1 GiB device peak (≥52 GiB headroom), so **single-node is retained and the
+two-node path is not needed** at prototype scale.
 
 This is a development PoC. Production licensing, multi-tenant isolation, HA, deployment
 automation, fine-tuning, and larger-than-prototype scaling are intentionally out of scope.

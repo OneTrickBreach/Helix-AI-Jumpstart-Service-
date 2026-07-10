@@ -6,10 +6,10 @@
 
 ---
 
-## ⚠️ Read First — Repo Hygiene & Source Notes
+## Read First — Repo Hygiene & Source Notes
 
-- **The RL paper used here is the team's own class submission** (Singh & Biswas, *Robustness of Policy-Gradient RL for Multi-Echelon Inventory Control*, CS 5180, Northeastern), authored under the authors' own names, with public code at `github.com/singhdivyank/multi-echelon-rl-inventory`. It is **shareable** and safe to commit. *(Note: do NOT circulate the separate anonymized NeurIPS reviewer-copy of the same study, and don't de-anonymize that submission if it's still under review — that file is confidential; this class version is not.)*
-- **`...v1_paper-grounded.md`** grounds its ROI reference numbers in that class paper. It is fine to share internally / with Ryan. For **customer- or public-facing** material, prefer **`...v2_standalone.md`** — not for confidentiality reasons, but because broad public industry benchmarks (McKinsey/Gartner/BCG) are evidentially stronger than a single class-project benchmark (one toy environment, one seed). The paper's own thesis is that single-environment wins aren't robust evidence.
+- **The RL paper used here is the authors' own paper** (Singh & Biswas, *Robustness of Policy-Gradient RL for Multi-Echelon Inventory Control*), authored under the authors' own names, with public code at `github.com/singhdivyank/multi-echelon-rl-inventory`. It is **shareable** and safe to commit.
+- **`...v1_paper-grounded.md`** grounds its ROI reference numbers in that paper. It is fine to share internally / with Ryan. For **customer- or public-facing** material, prefer **`...v2_standalone.md`** — not for confidentiality reasons, but because broad public industry benchmarks (McKinsey/Gartner/BCG) are evidentially stronger than a single-benchmark study (one toy environment, one seed). The paper's own thesis is that single-environment wins aren't robust evidence.
 - Customer data, when this ships, **stays on the device** (SED-encrypted NVMe). Never exfiltrate client data off-box; that is a core product promise.
 
 A suggested `.gitignore` is in **[§10](#10-repository-structure)**.
@@ -224,13 +224,27 @@ CLI, the web comparison view, and an all-scenario on-device benchmark suite.
 - Process RSS and the allocation-rate proxy are labeled honestly. Suite-level memory is sampled
   from the device/host unified pool; GPU utilization remains `null` when the GB10 probe reports N/A.
 
-**Latest live-run status (2026-07-09):** the Phase 6 code and images were built and the non-GPU
-software regression subset passed, but full `make up` / `make bench-all` is currently blocked by
-the host GPU reporting `nvidia-container-cli: nvml error: gpu requires reset`. No Phase 6 suite
-numbers should be treated as final until the GB10 is reset/rebooted and `make bench-all` is rerun.
+**Latest live-run status (2026-07-10): Iteration 2 complete and verified on-device.**
+`make up` → `make test` (**49/49**) → `make bench-all` (all four scenarios) → `make run` all pass on
+the GB10. Real results (seed 12345, horizon 8, ppo-timesteps 128):
+
+- **Winners by evidence:** tuned classical wins `baseline` (obj 88 023 → 80 519), `demand-surge`
+  (100 735 → 95 913) and `stress-large` (2 622 323 → 2 495 180); the naive baseline wins
+  `component-shortage-shock` — under a zero-supply shock the tuned classical could **not** beat it,
+  reported honestly as "no improvement."
+- **PPO lost in all four scenarios** (higher cost, highest latency/memory) — reported honestly, not
+  hidden. Tuned classical is the evidence-based default where it wins.
+- **On-device envelope:** device peak memory 67–68 GiB of the ~121 GiB usable pool (≥52 GiB headroom
+  in every scenario); 90% flag clear. **stress-large stays single-node; the 2-node path is not
+  needed.** Shared LLM ~47 tokens/s.
+
+> The earlier `nvml error: gpu requires reset` wedge was a unified-memory OOM (the LLM's
+> `--gpu-memory-utilization` was set too high for the shared 121 GiB pool). Fixed by rebalancing it
+> to `0.45` after a host reboot; the wedge has not recurred.
 
 See [`docs/handoff.md`](docs/handoff.md), [`docs/containerization.md`](docs/containerization.md),
-and the generated suite summary, once regenerated, for operating instructions and measured results.
+[`docs/iteration-docs/`](docs/iteration-docs/) (the Iteration 1 + 2 handoff deliverables), and the
+generated `benchmark/suite-summary.md` (regenerate with `make bench-all`) for the measured results.
 
 ---
 
@@ -251,16 +265,21 @@ data/
   scenarios/                                         # baseline, shock, surge, stress-large configs
   generated/                                         # regenerated scenario data
 docs/
-  AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md   # shareable internally (class-paper based)
-  AI_Jumpstart_MVP_Iteration1_v2_standalone.md       # shareable externally (public sources)
+  iteration-docs/                                    # polished per-iteration handoff deliverables
+    AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md # Iteration 1 — shareable internally (paper-based)
+    AI_Jumpstart_MVP_Iteration1_v2_standalone.md     # Iteration 1 — shareable externally (public sources)
+    AI_Jumpstart_MVP_Iteration2_handoff.md           # Iteration 2 — on-device prototype handoff (real results)
+  Iteration2_Plan_of_Action.md                       # Iteration 2 build blueprint (phases 0–6)
+  Iteration2_Point3_Scaffolding_Response_to_Ryan.md  # Iteration 2 model/tool rationale
   containerization.md                                # current arm64/four-service stack notes
-  handoff.md                                         # Phase 6 handoff commands and caveats
+  handoff.md                                         # quick-start commands and on-device caveats
+  environment.md                                     # live GB10 device specs
   DEVELOPMENT_JOURNAL.md                             # chronological truth ledger
 docker/
   llm/                                               # vLLM/Nemotron service image
   web/                                               # nginx static web image
 refs/
-  multi_echelon_rl_inventory_paper.pdf               # team's class paper (shareable; code on GitHub)
+  multi_echelon_rl_inventory_paper.pdf               # authors' own paper (shareable; code on GitHub)
   master_prompt.md                                   # Iteration-1 task definition (Points 1 & 2)
   Dell_Pro_Max_GB10_Specification.pdf                # Ryan's hardware spec (source for §3)
   whiteboards/
@@ -286,16 +305,20 @@ web/                                                 # React/Vite planner UI
 
 **`.gitignore` (at repo root):**
 ```
-# generated data: regenerate from seed instead of committing
+# generated data + benchmark reports: regenerate from seed / `make bench-all`
 data/**/generated/
+benchmark/*.json  benchmark/*.csv  benchmark/*.md
+.env
 # model weights / artifacts
 *.ckpt  *.pt  *.onnx
 # python
 __pycache__/  *.pyc  .venv/  venv/
+# web
+web/node_modules/  web/dist/  web/*.tsbuildinfo
 # os
 .DS_Store
 ```
-> The class paper, whiteboards, and master prompt ARE committed. Large PDFs/images can move to Git LFS if size becomes an issue.
+> The paper, whiteboards, and master prompt ARE committed. Large PDFs/images can move to Git LFS if size becomes an issue.
 
 ---
 
@@ -331,7 +354,7 @@ An agent continuing this work MUST preserve these — they are the difference be
 - **cuOpt is not preinstalled** and is unproven by the paper — pull from NGC, verify on ARM64, benchmark separately.
 - **Hospitals: no service-level win is substantiated** — validate per site before any clinical claim.
 - **Data sovereignty:** customer data stays on-device; do not design anything that ships it off-box.
-- **Evidence basis:** the class paper is shareable, but it's single-benchmark/single-seed academic evidence — use it for internal grounding, prefer v2's public benchmarks for external pitches.
+- **Evidence basis:** the paper is shareable, but it's single-benchmark/single-seed evidence — use it for internal grounding, prefer v2's public benchmarks for external pitches.
 
 ---
 
@@ -374,7 +397,7 @@ An agent continuing this work MUST preserve these — they are the difference be
 ## 15. Source Materials / Provenance
 
 - **Whiteboards `Pic_1..5.jpeg`** — Pic 1: supply-chain pillars + target industries + OEMs. Pic 2/4: hardware/architecture + customer-data→service→GB10 flow. Pic 3: high-level product flow. Pic 4: the four iteration points. Pic 5: tech stack (Vector DB, LLM+RAG, Empirical AI Modeling).
-- **`multi_echelon_rl_inventory_paper.pdf`** — the team's own class paper (Singh & Biswas, CS 5180, Northeastern); PPO/A3C on multi-echelon inventory, stationary (Env-1) vs non-stationary (Env-2). Source of the v1 reference figures. **Shareable**; public code at `github.com/singhdivyank/multi-echelon-rl-inventory`. *(Distinct from the anonymized NeurIPS reviewer copy of the same study — that one is confidential and should not be circulated.)*
+- **`multi_echelon_rl_inventory_paper.pdf`** — the authors' own paper (Singh & Biswas); PPO/A3C on multi-echelon inventory, stationary (Env-1) vs non-stationary (Env-2). Source of the v1 reference figures. **Shareable**; public code at `github.com/singhdivyank/multi-echelon-rl-inventory`.
 - **`Dell_Pro_Max_GB10_Specification.pdf`** — Ryan's hardware spec (Jun 2026); source for §3.
 - **`refs/master_prompt.md`** — Iteration-1 task definition (Points 1 & 2).
 - **Ryan's SOP (Teams)** — prototype objective, scope guardrails, measurable outcomes, 3-week plan; source for §4.

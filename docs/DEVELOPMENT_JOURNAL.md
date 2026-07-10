@@ -17,25 +17,107 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration2-scaffolding-and-poa`
-- **Phase:** Phase 0 through Phase 5 are implemented; Phase 6 hardening/scaffolding is currently
-  **uncommitted** and partially verified. Full live Phase 6 benchmark execution is blocked by the
-  GB10/NVML reset state recorded below.
+- **Branch:** `feat/iteration2-scaffolding-and-poa` — **merged to `main` (2026-07-10)**.
+- **Phase:** **Phases 0–6 complete, verified live on the GB10, committed, and merged to `main`**
+  (2026-07-10). Iteration 2 is done: `make up` → `make test` (49/49) → `make bench-all` (all 4
+  scenarios) → `make run` all pass on-device. The final work (the GPU-unblock + memory rebalance,
+  the live Phase 6 suite run, the review caveat, and the doc tie-up) is committed and merged.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
-  current solver path, served in-process by `api` at `/cuopt/*` (the redundant dedicated `cuopt`
-  container from the initial Phase 6 pass was removed in the review below).
-- **Next:** clear/reset the GB10 GPU state, run the full live suite, then record real
-  `stress-large` single-node/two-node evidence.
+  current solver path, served in-process by `api` at `/cuopt/*`.
+- **Live benchmark headline (2026-07-10, seed 12345, horizon 8, ppo-timesteps 128):** tuned
+  classical wins `baseline`/`demand-surge`/`stress-large`; naive baseline wins
+  `component-shortage-shock` (tuned classical could not beat it under the shock). **PPO lost in all
+  four scenarios** — reported honestly. Device peak memory 67–68 GiB of the ~121 GiB envelope
+  (≥52 GiB headroom everywhere); single-node retained, no 2-node path needed. Shared LLM ~47 tok/s.
+- **Next (Iteration 3):** branch merged to `main` and handed off to Ryan; then scope Iteration 3
+  (e.g. richer forecasting challenger, real document corpus for RAG, production-scale planning).
 
 ---
 
 ## Entries (newest first)
 
+## 2026-07-10 — Phase 6 finished live: GPU unblocked, memory rebalanced, full suite run + Iteration 2 tie-up
+**Status:** Iteration 2 complete and verified on-device. **git ref: `__FINAL_COMMIT__`; merged to `main` (2026-07-10).**
+
+**1. GPU unblocked (root cause = memory over-subscription, not a driver fault).** The GB10 was
+wedged in `nvidia-smi` `ERR!` / `nvidia-container-cli: nvml error: gpu requires reset`. `ishan` is
+not in sudoers (the GB10 is Ryan's machine, shared via Tailscale), so **Ryan rebooted the host**;
+`nvidia-smi` came back clean (41 °C, idle). Ryan's diagnosis was correct: *"most common scenario is
+you ran out of memory."* On the GB10 the GPU and system RAM are the **same ~121 GiB unified pool**,
+and vLLM's `--gpu-memory-utilization` is a fraction of that shared pool.
+
+**2. Fix — rebalanced the unified-memory budget (`docker/llm/Dockerfile`).** vLLM was at
+`--gpu-memory-utilization 0.6` (≈73 GiB reserved). With the `api` container (PyTorch + nomic-embed),
+Qdrant, the OS, and the full 4-scenario suite's Polars frames also drawing on the same 121 GiB — plus
+the now-removed redundant `cuopt` GPU container from the first Phase 6 pass — the pool oversubscribed
+and the device OOM-wedged. **Lowered to `0.45` (≈54 GiB)** — comfortably fits the ~30 GiB Nemotron
+30B A3B FP8 weights + KV cache, leaving ~67 GiB for everything else — with a documented budget note
+in the Dockerfile. Verified live: model loaded clean; steady-state 62 GiB used / 59 GiB free; suite
+peaks 67–68 GiB. The wedge did not recur.
+
+**3. Live verification (the ACs that were previously blocked).**
+- `make up` → all four services healthy (`web`, `api`, `llm`, `vectordb`); GPU reserved on `api`/`llm`.
+- `make test` → **49/49 passed** on-device (45 prior + 4 Phase 6 suite tests; one benign Starlette
+  `TestClient` deprecation warning).
+- `make bench-all` → all four scenarios ran end-to-end (benchmark + RAG/LLM + device-memory sampling);
+  wrote `benchmark/suite-summary.{json,md}`.
+- `make run SCENARIO=baseline` → produced a baseline plan (objective 88022.76, fill 0.805) matching
+  the suite's baseline row.
+- Web/API end-to-end through nginx: `GET /api/scenarios` and the SSE
+  `/api/scenario-comparison/stream` both work; SSE emits **truthful** per-stage running→complete
+  events (ingest→forecast→baseline→classical→ppo→rag→done); API key never leaves the server.
+
+**4. Real benchmark results (seed 12345, horizon 8, ppo-timesteps 128, top-k 5):**
+
+| Scenario | Winner | Baseline obj | Classical obj | PPO obj | PPO outcome | Device peak (GiB) |
+|---|---|---:|---:|---:|---|---:|
+| baseline | classical | 88 022.76 | **80 519.15** | 102 804.72 | lost_to_classical | 67.43 |
+| component-shortage-shock | baseline | **102 834.79** | 102 834.79 | 113 584.86 | lost_to_baseline | 67.42 |
+| demand-surge | classical | 100 735.04 | **95 913.47** | 115 161.75 | lost_to_classical | 67.32 |
+| stress-large | classical | 2 622 323.05 | **2 495 179.74** | 2 867 262.51 | lost_to_classical | 68.10 |
+
+- **PPO lost in every scenario** — reported honestly, exactly as the guardrails require. It is the
+  most expensive by latency (e.g. 21.9 s on stress-large vs 0.27 s classical) and memory.
+- **`component-shortage-shock`: tuned classical could not beat the naive baseline** (identical
+  objective; baseline wins the tie on latency). Honest "no improvement" outcome — under a zero-supply
+  shock, inventory policy can't recover lost sales that supply, not policy, is gating.
+- **Envelope:** device peak 67–68 GiB of ~121 GiB usable; ≥52 GiB headroom in every scenario; 90%
+  flag clear. **stress-large single-node retained; 2-node path not needed.**
+- Shared FP8 LLM ~46.6–47.1 tokens/s across scenarios.
+
+**5. Brutal-truth review of all six phases — one caveat added, no new bugs.** The prior per-phase
+reviews were thorough and the live run validated them. One genuine finding: in
+`src/bench/suite.py` the `peak_process_rss_mb` column **saturates at a constant 2251.03 MB from the
+2nd scenario onward**, because the suite runs all scenarios in one process and `ru_maxrss` is a
+process-lifetime high-water mark (monotonic). It is honestly labeled "API process high-water RSS,"
+but a reader could misread the constant as a per-scenario measurement. **Fix:** added an explicit
+caveat to the suite markdown pointing readers to the per-scenario device-level `/proc/meminfo`
+column as authoritative. No code semantics changed (can't reset `ru_maxrss` from Python; the
+device-level sampling already gives the honest per-scenario figure). Also swept for stale refs
+(none), TODOs (none), and confirmed the RAG retrieval-time injection scan, cuOpt→OR-Tools fallback,
+and no-key-in-browser bundle are all intact.
+
+**6. Iteration 2 doc tie-up.** Updated this journal, `docs/Iteration2_Plan_of_Action.md` (Phase 6
+checked off), `README.md` (§9 status), `docs/containerization.md` (live-verified status + memory
+budget + peak-RSS caveat), and `docs/handoff.md`. Moved the two Iteration 1 deliverables into
+`docs/iteration-docs/` and added a clean, self-contained **Iteration 2 handoff** doc there for Ryan.
+`benchmark/*.md` is now gitignored (generated by `make bench-all`); the recorded numbers live in the
+committed docs.
+
+**Open follow-ups:**
+- `peak_process_rss_mb` is process-cumulative in the suite; the device-level column is authoritative
+  (documented, not "fixed"). A future per-scenario process-RSS delta could be added if desired.
+- cuOpt still has no working arm64/CUDA-13 build; OR-Tools CPU remains the routing solver.
+- Real document corpus for RAG (currently a synthesized scenario/plan corpus) — Iteration 3 scope.
+
+---
+
 ## 2026-07-09 — Phase 6 brutal-truth review + fix (removed redundant cuopt service)
-**Status:** Independent review of the Phase 6 dev; one architectural fix applied; still
-**uncommitted**; live GPU benchmark remains blocked by the NVML reset state. **git ref: uncommitted**.
+**Status:** Independent review of the Phase 6 dev; one architectural fix applied. At the time the
+live GPU benchmark was blocked by the NVML reset state (resolved 2026-07-10, see the top entry).
+**git ref: `2f60769` (Phase 6 commit); merged to `main`.**
 
 **Scope:** Reviewed the Phase 6 dev (done by a different, less capable agent) against the guardrails
 and actual on-device behaviour. I verified everything reachable without the GPU and fixed the one
@@ -78,14 +160,14 @@ services in the Phase 6 pass) was kept.
   compose network; it is an environment artifact of the standalone container, not a regression
   (the prior pass got 32/32 on the compose network). All Phase 6 suite + renamed-field tests pass.
 
-**Still blocked (host, not code):** `make up`/`make bench-all` remain blocked by the GB10 reporting
-`nvidia-container-cli: nvml error: gpu requires reset`. `nvidia-smi` shows `ERR!` fields; a GPU reset
-failed (primary GPU). Realistic fix is a **host reboot**, which I did not run (destructive; needs the
-operator). After reboot, run: `make up`, `docker compose ps`, `make test`, `make bench-all`,
-`make run SCENARIO=baseline`, then record the real suite numbers + stress-large decision here.
+**Blocked at the time (host, not code) — since RESOLVED (2026-07-10):** `make up`/`make bench-all`
+were blocked by the GB10 reporting `nvidia-container-cli: nvml error: gpu requires reset`
+(`nvidia-smi` `ERR!`; a GPU reset failed on the primary GPU). The fix was a **host reboot** (done by
+Ryan, the machine owner) plus rebalancing the vLLM unified-memory fraction (0.6→0.45); the full live
+suite then ran clean. See the 2026-07-10 top entry for the real numbers.
 
 ## 2026-07-09 — Phase 6 benchmark hardening + handoff scaffolding
-**Status:** Implemented and partially verified; real on-device benchmark execution is **blocked by GPU/NVML reset state**; **git ref: uncommitted**.
+**Status:** Implemented and partially verified; at the time real on-device benchmark execution was **blocked by the GPU/NVML reset state** (resolved 2026-07-10). **git ref: `2f60769` (Phase 6 commit); merged to `main`.**
 
 **Why:** Phase 6 requires an honest all-scenario benchmark/handoff pass before any demo claim:
 reuse the existing API-first benchmark path, report PPO whether it wins or loses, remove misleading
@@ -155,7 +237,7 @@ unified-device usage, and document the single-node vs. two-node decision from ac
   a synthetic value.
 
 ## 2026-07-07 — Phase 5 brutal-truth review + fix (honest SSE progress)
-**Status:** Independently re-verified on the live GB10 stack after api + web rebuilds; **uncommitted**.
+**Status:** Independently re-verified on the live GB10 stack after api + web rebuilds. **git ref: `42bb41a` (Phase 5 commit); merged to `main`.**
 
 **Why:** Reviewed the Phase 5 front-ends against actual on-device behaviour (not the build report)
 before Phase 6 depends on them.
@@ -210,7 +292,7 @@ no manual browser screenshot captured; Qdrant stale-note cleanup/TTL; frontend `
 to review before any production-facing deployment.
 
 ## 2026-07-07 — Phase 5 web + CLI front-ends over secure API
-**Status:** Implemented and verified on the live GB10 stack; **git ref: uncommitted**.
+**Status:** Implemented and verified on the live GB10 stack. **git ref: `42bb41a` (Phase 5 commit); merged to `main`.**
 
 **What changed:**
 - Added protected Phase 5 API surface in `src/api/pipeline.py`:

@@ -245,7 +245,20 @@ def render_markdown(summary: dict[str, Any]) -> str:
             f"{row['allocation_rate_gbps_proxy']:.6f} | {gpu} | "
             f"{row['ppo_outcome']} | {row['winner']} |"
         )
-    lines.extend(["", "## Envelope and bandwidth finding", ""])
+    lines.extend(
+        [
+            "",
+            "> **Reading the memory columns:** the suite runs all scenarios in one "
+            "process, and `API peak RSS` comes from `ru_maxrss` — a process-lifetime "
+            "high-water mark. It is therefore monotonic and saturates after the first "
+            "scenario, so it is **not** a per-scenario/per-approach figure. The "
+            "per-scenario memory measure is the device-level `/proc/meminfo` column "
+            "(`Device peak (GiB)`), which is sampled fresh during each scenario.",
+            "",
+            "## Envelope and bandwidth finding",
+            "",
+        ]
+    )
     for item in summary["scenarios"]:
         memory = item["device_memory"]
         lines.append(

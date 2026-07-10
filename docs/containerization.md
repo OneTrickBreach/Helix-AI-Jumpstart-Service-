@@ -1,11 +1,15 @@
 # Containerization — GB10 (arm64, CUDA 13)
 
-> **Status:** Phase 6 four-service PoC stack. All images are arm64; the API and shared LLM
-> declare GPU reservations. cuOpt/OR-Tools VRP capability is integrated in the `api` service
-> (`/cuopt/*`), not a separate container. Last live startup attempt on 2026-07-09 was blocked
-> by `nvidia-container-cli: nvml error: gpu requires reset`.
+> **Status:** Phase 6 four-service PoC stack, **verified live on the GB10 (2026-07-10)**. All images
+> are arm64; the API and shared LLM declare GPU reservations. cuOpt/OR-Tools VRP capability is
+> integrated in the `api` service (`/cuopt/*`), not a separate container. `make up` →
+> `make test` (49/49) → `make bench-all` (4 scenarios) → `make run` all pass on-device.
+>
+> The earlier `nvml error: gpu requires reset` wedge was a **unified-memory OOM**, not a driver
+> fault: vLLM's `--gpu-memory-utilization` was set too high for the shared 121 GiB pool. Fixed by
+> rebalancing it (0.6 → 0.45) after a host reboot; see the memory budget below.
 
-_Last updated: **2026-07-09**_
+_Last updated: **2026-07-10**_
 
 ## Stack
 
@@ -18,6 +22,20 @@ _Last updated: **2026-07-09**_
 
 `platform: linux/arm64` is explicit for every service. The two GPU reservations (`api`, `llm`)
 share the single GB10 unified-memory device. Customer and generated data remain on-device.
+
+## Unified-memory budget (why the LLM fraction is capped)
+
+The GB10's "GPU memory" and system RAM are the **same ~121 GiB unified pool**. vLLM's
+`--gpu-memory-utilization` is therefore a fraction of the pool shared with the OS, the `api`
+container (PyTorch + nomic-embed), Qdrant, and the suite's Polars frames — not a private GPU budget.
+Set too high, the whole device OOMs and wedges into `nvidia-container-cli: gpu requires reset`
+(observed 2026-07-09 at `0.6` while running the full 4-scenario suite alongside a redundant GPU
+container).
+
+Current setting: **`--gpu-memory-utilization 0.45`** (≈54 GiB) in [`docker/llm/Dockerfile`](../docker/llm/Dockerfile).
+The Nemotron 30B A3B FP8 weights are ~30 GiB; 0.45 fits them plus KV cache and leaves ~67 GiB for
+`api` + Qdrant + OS. Verified live: steady-state 62 GiB used / 59 GiB free; full suite peaked
+67–68 GiB (≥52 GiB headroom). The wedge did not recur.
 
 ## One-command operation
 
@@ -55,6 +73,9 @@ arm64 cuOpt build later lands, the `/cuopt/*` capability can be split into its o
 ## Measurement caveats
 
 - `peak_process_rss_mb` is the API process high-water RSS only. It excludes the LLM and Qdrant.
+  In the Phase 6 suite it also **saturates** after the first scenario — the suite runs all scenarios
+  in one process and `ru_maxrss` is a process-lifetime high-water mark, so it is monotonic and not a
+  per-scenario figure. Use the device-level column for per-scenario memory.
 - `allocation_rate_gbps_proxy` is `abs(end RSS - start RSS) / latency`. It is a coarse process
   allocation-rate proxy, **not measured DRAM bandwidth**.
 - The Phase 6 suite samples `/proc/meminfo` (`MemTotal - MemAvailable`) during each complete
@@ -75,6 +96,8 @@ arm64 cuOpt build later lands, the `/cuopt/*` capability can be split into its o
 - Docker 29.2.1 with Compose v2
 - GPU visibility previously verified from the arm64 CUDA 13 container
 
-Current run evidence and the stress-large single-node decision belong in
-`benchmark/suite-summary.md` after a successful `make bench-all`. As of 2026-07-09, that real suite
-run is still blocked by the GB10/NVML reset state; see `docs/DEVELOPMENT_JOURNAL.md`.
+Current run evidence and the stress-large single-node decision live in `benchmark/suite-summary.md`
+(regenerate with `make bench-all`; the file itself is gitignored). As of the 2026-07-10 live run:
+all four scenarios peak 67–68 GiB of the ~121 GiB usable pool (≥52 GiB headroom), the 90% envelope
+flag is clear, and **stress-large stays single-node** (no 2-node path needed). PPO lost in all four
+scenarios. See `docs/DEVELOPMENT_JOURNAL.md` for the full table.

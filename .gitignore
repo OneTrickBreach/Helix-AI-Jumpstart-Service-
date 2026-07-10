@@ -2,6 +2,9 @@
 data/**/generated/
 benchmark/*.json
 benchmark/*.csv
+# generated benchmark reports (incl. suite-summary.md) — regenerate via `make bench-all`;
+# the recorded numbers live in the committed docs (journal + iteration-2 handoff)
+benchmark/*.md
 .env
 # model weights / artifacts
 *.ckpt

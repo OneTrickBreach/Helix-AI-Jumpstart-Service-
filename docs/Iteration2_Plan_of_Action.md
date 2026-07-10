@@ -19,7 +19,7 @@ Read these, in order, and treat them as binding:
 3. [`docs/environment.md`](environment.md) — the **live** GB10 specs (arm64, CUDA 13.0, driver 580.159.03, 121 GiB unified, ~273 GB/s bandwidth).
 4. [`docs/containerization.md`](containerization.md) — GPU-in-container is **verified working**; pinned arm64 CUDA 13 base image; NGC dev key configured.
 5. [`docs/Iteration2_Point3_Scaffolding_Response_to_Ryan.md`](Iteration2_Point3_Scaffolding_Response_to_Ryan.md) — the **model/tool stack** you will implement and *why*.
-6. [`docs/AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md`](AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md) and [`v2_standalone`](AI_Jumpstart_MVP_Iteration1_v2_standalone.md) — use-case map, data elements, pipeline shape.
+6. [`docs/iteration-docs/AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md`](iteration-docs/AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md) and [`v2_standalone`](iteration-docs/AI_Jumpstart_MVP_Iteration1_v2_standalone.md) — use-case map, data elements, pipeline shape.
 7. [`refs/master_prompt.md`](../refs/master_prompt.md) — original Iteration-1 task framing.
 8. [`docs/DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) — chronological record of every development (what/why/verified results). **Read it for current state, and UPDATE it in the same change you make work.**
 9. Reference implementation (external, for the RL env only): `github.com/singhdivyank/multi-echelon-rl-inventory`.
@@ -87,6 +87,8 @@ Seeded Synthetic Data ─▶ Ingest/Normalize ─▶ Forecast ─▶ Optimize (b
 - **`cuopt`** — NVIDIA cuOpt from NGC; GPU. `[arm64-verify first]` — the only piece not yet proven on GB10; fall back to OR-Tools (CPU VRP) without blocking.
 - **`llm`** — **single shared NVIDIA Nemotron ~30B (MoE) at FP8** (Ryan-proven on GB10); GPU. Reused across all language tasks.
 - **`vectordb`** — **Qdrant** (fall back to **LanceDB**, disk-based, if in-memory footprint is a problem); no GPU.
+
+> **Built outcome (2026-07-10):** cuOpt had no working arm64/CUDA-13 build, so the routing solve runs **in-process in `api` via OR-Tools (CPU)** and the `cuopt` capability is served at `api:/cuopt/*` — there is **no separate `cuopt` container**. The live runtime is the honest **four-service** stack (`web`, `api`, `llm`, `vectordb`). See [`containerization.md`](containerization.md).
 
 ### 1.3 Proposed repo structure (fill the existing empty scaffold)
 ```
@@ -175,12 +177,12 @@ Each phase lists **tasks**, **the containerization requirement**, and **acceptan
 - **AC:** from a browser, a user runs a scenario and sees an honest before/after with deltas computed as `(after−before)/before`, plus the on-device panel.
 
 ### Phase 6 — Benchmark, harden, hand off
-- [~] On-device benchmark across scenarios; escalate `stress-large` toward the 2-node 256 GB path *if* single-node limits are hit (document where bandwidth saturates). — **Suite implemented** (`src/bench/suite.py`, `make bench-all`) reusing `run_head_to_head`, with device-level memory sampling (`/proc/meminfo`), honest envelope flag, and a captioned bandwidth finding. **Not yet run live** (GPU blocked). 2-node path remains unimplemented (only if a real single-node limit is hit).
-- [~] One-command bring-up (`make up`) + one-command run (`make run`) verified clean on the GB10. — **Blocked:** `make up` currently fails at GPU init (`nvidia-container-cli: nvml error: gpu requires reset`); needs a host reboot, then re-verify.
-- [x] Short written + verbal handoff; update `README.md` §9/§11 and `docs/containerization.md`. — Written handoff in `docs/handoff.md`; README §9/§11 and `docs/containerization.md` updated to the honest four-service runtime.
-- **AC:** reproducible end-to-end on-device run; documented results; demo-ready. — **Partially met:** code + docs complete and CPU-side tests pass; the live on-device suite run is pending a GPU reset/reboot (see `docs/DEVELOPMENT_JOURNAL.md`).
+- [x] On-device benchmark across scenarios; escalate `stress-large` toward the 2-node 256 GB path *if* single-node limits are hit (document where bandwidth saturates). — **Suite implemented + run live** (`src/bench/suite.py`, `make bench-all`) reusing `run_head_to_head`, with device-level memory sampling (`/proc/meminfo`), honest envelope flag, and a captioned bandwidth finding. All four scenarios peak 67–68 GiB of ~121 GiB (≥52 GiB headroom); **single-node retained, 2-node path not needed.**
+- [x] One-command bring-up (`make up`) + one-command run (`make run`) verified clean on the GB10. — **Verified live 2026-07-10:** `make up` brings up all four services healthy (GPU on `api`/`llm`); `make run SCENARIO=baseline` produces a plan on-device. (The earlier `gpu requires reset` wedge was an OOM from an over-set LLM memory fraction; fixed by rebalancing `--gpu-memory-utilization` 0.6→0.45 after Ryan's reboot.)
+- [x] Short written + verbal handoff; update `README.md` §9/§11 and `docs/containerization.md`. — Written handoff in `docs/handoff.md` + self-contained Iteration 2 handoff in `docs/iteration-docs/`; README §9/§11 and `docs/containerization.md` updated to the live-verified four-service runtime.
+- **AC:** reproducible end-to-end on-device run; documented results; demo-ready. — **Met:** `make up` → `make test` (49/49) → `make bench-all` (4 scenarios) → `make run` all pass on-device; results recorded in `benchmark/suite-summary.md` and `docs/DEVELOPMENT_JOURNAL.md`. **PPO reported honestly (lost in all four scenarios).**
 
-> **Phase 6 status note (2026-07-09):** Implementation and docs are complete and uncommitted. A brutal-truth review removed a redundant, GPU-reserving `cuopt` container that duplicated the `api`'s built-in `/cuopt/*` probe and hard-blocked `api` startup; the runtime is the honest four-service stack (`web`, `api`, `llm`, `vectordb`) with cuOpt/OR-Tools integrated in `api`. Live benchmark numbers are pending the GB10 GPU reset.
+> **Phase 6 status note (2026-07-10):** Complete and verified live on the GB10. A brutal-truth review earlier removed a redundant, GPU-reserving `cuopt` container that duplicated the `api`'s built-in `/cuopt/*` probe and hard-blocked `api` startup; the runtime is the honest four-service stack (`web`, `api`, `llm`, `vectordb`) with cuOpt/OR-Tools integrated in `api`. The full live benchmark then ran after unblocking the GPU (host reboot) and rebalancing the vLLM unified-memory fraction; real numbers are in the journal.
 
 ---
 
