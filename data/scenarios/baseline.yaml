@@ -1,0 +1,75 @@
+scenario: baseline
+description: Normal Manufacturing operating conditions with moderate demand and no disruptions.
+random_seed_override:
+simulation:
+  horizon_periods: 52
+network:
+  suppliers: 5
+  plants: 2
+  lines_per_plant: 3
+  distribution_centers: 2
+  customers: 8
+  finished_goods: 4
+  subassemblies_per_finished_good: 2
+  raw_components_per_subassembly: 2
+demand:
+  base_units_per_customer_period: 44
+  seasonality_amplitude: 0.18
+  trend_per_period: 0.002
+  noise_std: 0.12
+  lump_probability: 0.10
+  lump_multiplier_range: [1.4, 2.2]
+  periods_per_year: 52
+  shock:
+capacity:
+  capacity_tightness: 1.30
+  plant_storage_periods: 3.0
+  supplier_capacity_units_per_period: 12000
+  supplier_storage_units: 50000
+  dc_throughput_units_per_period: 9000
+  dc_storage_units: 30000
+  customer_storage_units: 3000
+lanes:
+  inbound_raw:
+    lead_time_mean_days: 9.0
+    lead_time_std_days: 1.8
+    cost_per_unit: 1.15
+    distance_km: 640
+    transport_cost_per_km: 0.004
+    co2_kg_per_unit: 0.42
+  plant_to_dc:
+    lead_time_mean_days: 3.0
+    lead_time_std_days: 0.8
+    cost_per_unit: 0.72
+    distance_km: 420
+    transport_cost_per_km: 0.005
+    co2_kg_per_unit: 0.28
+  dc_to_customer:
+    lead_time_mean_days: 2.0
+    lead_time_std_days: 0.5
+    cost_per_unit: 0.48
+    distance_km: 180
+    transport_cost_per_km: 0.006
+    co2_kg_per_unit: 0.16
+lane_disruption:
+costs:
+  holding_cost:
+    finished_good: 0.95
+    subassembly: 0.42
+    raw_component: 0.18
+  ordering_cost:
+    finished_good: 60.0
+    subassembly: 35.0
+    raw_component: 18.0
+  backorder_penalty:
+    finished_good: 14.0
+    subassembly: 6.0
+    raw_component: 2.5
+  lost_sale_penalty:
+    finished_good: 28.0
+    subassembly: 10.0
+    raw_component: 5.0
+service_targets:
+  fill_rate_target: 0.96
+  days_inventory_target: 18.0
+  criticality_tier: standard
