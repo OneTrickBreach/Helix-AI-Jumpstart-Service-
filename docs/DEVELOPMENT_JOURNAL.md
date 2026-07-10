@@ -39,7 +39,7 @@
 ## Entries (newest first)
 
 ## 2026-07-10 — Phase 6 finished live: GPU unblocked, memory rebalanced, full suite run + Iteration 2 tie-up
-**Status:** Iteration 2 complete and verified on-device. **git ref: `__FINAL_COMMIT__`; merged to `main` (2026-07-10).**
+**Status:** Iteration 2 complete and verified on-device. **git ref: `38a989c`; merged to `main` (2026-07-10).**
 
 **1. GPU unblocked (root cause = memory over-subscription, not a driver fault).** The GB10 was
 wedged in `nvidia-smi` `ERR!` / `nvidia-container-cli: nvml error: gpu requires reset`. `ishan` is
