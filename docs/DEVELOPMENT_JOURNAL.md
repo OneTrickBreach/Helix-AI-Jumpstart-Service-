@@ -17,26 +17,62 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration2-scaffolding-and-poa` — **merged to `main` (2026-07-10)**.
-- **Phase:** **Phases 0–6 complete, verified live on the GB10, committed, and merged to `main`**
-  (2026-07-10). Iteration 2 is done: `make up` → `make test` (49/49) → `make bench-all` (all 4
-  scenarios) → `make run` all pass on-device. The final work (the GPU-unblock + memory rebalance,
-  the live Phase 6 suite run, the review caveat, and the doc tie-up) is committed and merged.
+- **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
+- **Phase:** **Iteration 3, Phase 0 (orientation & green baseline) complete and verified on-device
+  (2026-07-15).** Stack healthy, `make test` 49/49, `make bench-all` re-baselined. Awaiting go-ahead
+  for Phase 1 (reproducibility & integrity hardening). Executing one phase per session per the PoA.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
   current solver path, served in-process by `api` at `/cuopt/*`.
-- **Live benchmark headline (2026-07-10, seed 12345, horizon 8, ppo-timesteps 128):** tuned
-  classical wins `baseline`/`demand-surge`/`stress-large`; naive baseline wins
-  `component-shortage-shock` (tuned classical could not beat it under the shock). **PPO lost in all
-  four scenarios** — reported honestly. Device peak memory 67–68 GiB of the ~121 GiB envelope
-  (≥52 GiB headroom everywhere); single-node retained, no 2-node path needed. Shared LLM ~47 tok/s.
-- **Next (Iteration 3):** branch merged to `main` and handed off to Ryan; then scope Iteration 3
-  (e.g. richer forecasting challenger, real document corpus for RAG, production-scale planning).
+- **Live benchmark headline (2026-07-15 re-baseline, seed 12345, horizon 8, ppo-timesteps 128):**
+  `baseline` → **naive baseline wins** (tuned classical only tied it this run); `component-shortage-shock`,
+  `demand-surge`, `stress-large` → **tuned classical wins**. **PPO lost in all four** — reported honestly.
+  Winners flipped on 2/4 scenarios vs the 2026-07-10 handoff table because **Optuna is unseeded** in
+  `optimize_classical` (Phase 1 fix). Device peak 67–69 GiB of ~121 GiB (≥52 GiB headroom); single-node
+  retained. Shared LLM ~47 tok/s.
+- **Next:** Phase 1 — seed Optuna (kill the winner drift), fix per-scenario memory reporting, triage `npm audit`.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-15 — Iteration 3, Phase 0: orientation & green baseline (stale-GPU found + fixed)
+**Status:** Phase 0 complete, verified on-device. **git ref: uncommitted at time of writing (this entry is the Phase 0 commit).** Branch `feat/iteration3`.
+
+**Scope (no feature code, per the PoA):** load context (`README.md`, this journal, `docs/Iteration3_Plan_of_Action.md`, `.devin/rules/helix-sco.md`, plus `Makefile`/`docker-compose.yml`), confirm the repo is in a known-good state, and capture a fresh four-scenario baseline for later before/after comparison.
+
+**1. Real environment defect found & fixed — stale GPU/NVML in long-running containers.**
+On first `make test` the suite returned **47 passed, 2 FAILED**: `test_gpu_visible` (`gpu_visible: false`) and `test_driver_version` (`driver_version: null`). Diagnosed on-device:
+- Host `nvidia-smi` was **healthy** (GB10, 42–43 °C, driver 580.159.03, util 0%).
+- Inside **both** the `api` and `llm` containers (Up 5 days), `nvidia-smi` failed with **`Failed to initialize NVML: Unknown Error`**, and `GET /health` reported `gpu_visible:false, driver_version:null`.
+- Root cause: a host NVIDIA driver/daemon reload since the containers started detached their injected GPU handles. The containers kept passing their HTTP `/health` healthcheck (not a GPU probe), so they looked "healthy" while GPU enumeration was broken.
+- **Live CUDA contexts survived** the NVML break: the `llm` still generated tokens (real `/v1/chat/completions` response) and `nomic-embed` reported `device: cuda:0` with matching 768-dim. So compute worked; GPU *reporting* (which the demo panel + 2 tests rely on) did not.
+**Fix (the PoA-prescribed bring-up, not a workaround):** `docker compose up -d --no-deps --force-recreate api` re-injected fresh GPU handles. After recreate, in-container `nvidia-smi` works and `/health` → `gpu_visible:true, gpu_name:"NVIDIA GB10", driver_version:"580.159.03"`. Re-ran `make test` → **49/49 passed**.
+
+**2. Deliberate minimal intervention (honest limitation).** I recreated **only `api`**, NOT `llm`, to avoid a ~10-min Nemotron-30B reload and the documented unified-memory wedge risk (ishan is not sudoer; only Ryan can reboot the GB10 if it wedges). The `api` container is what the test suite and `bench-all` device/GPU reporting depend on, and the `llm` still serves fine (47 tok/s in the suite). **Follow-up:** the `llm` container's NVML is still stale (its own `nvidia-smi` fails); it works now but a restart would fail to re-see the GPU — recreate it in a maintenance window (accepting the reload) before the live demo to clear the fragile state fully.
+
+**3. Fresh baseline captured — `make bench-all` (seed 12345, horizon 8, ppo-timesteps 128, top-k 5; generated 2026-07-15T13:51:45Z).** `benchmark/suite-summary.md` is gitignored, so the numbers are recorded here:
+
+| Scenario | Winner | Baseline obj | Classical obj | PPO obj | PPO outcome | Device peak (GiB) | LLM tok/s |
+|---|---|---:|---:|---:|---|---:|---:|
+| baseline | **baseline** | 88022.76 | 88022.76 | 102804.72 | lost_to_baseline | 67.27 | 47.27 |
+| component-shortage-shock | **classical** | 102834.79 | 102104.98 | 113584.86 | lost_to_classical | 67.51 | 47.14 |
+| demand-surge | **classical** | 100735.04 | 98949.80 | 115161.75 | lost_to_classical | 67.81 | 47.12 |
+| stress-large | **classical** | 2622323.05 | 2493112.61 | 2867262.51 | lost_to_classical | 68.59 | 46.90 |
+
+**4. Honest finding — winners flipped vs the committed 2026-07-10 handoff on 2/4 scenarios.**
+On `baseline`, tuned classical only *tied* the naive baseline this run (obj 88022.76 == 88022.76; baseline wins the tie on latency), whereas 2026-07-10 classical won (80519.15). On `component-shortage-shock`, tuned classical *beat* baseline this run (102104.98 < 102834.79), whereas 2026-07-10 baseline won. `demand-surge`/`stress-large` winners are stable (classical), with objectives differing slightly. Cause: **Optuna is unseeded in `optimize_classical`** — cross-run tuned-classical objectives drift, and the drift is large enough to change the headline winner. This is not a regression I introduced; it is the exact reproducibility defect Phase 1 targets, now empirically confirmed to be demo-breaking (a live demo could contradict the handoff doc). **PPO lost all four** — consistent with the guardrails.
+
+**5. Envelope / guardrails.** Device peak 67.27–68.59 GiB of ~121 GiB usable (≥52 GiB headroom every scenario; 90% flag clear); single-node retained. GPU utilization reported **`unavailable`** (in-container GB10 `nvidia-smi` util query returns N/A) — not fabricated. `API peak RSS` still saturates at 2249.57 MB from scenario 2 on (known `ru_maxrss` process-lifetime artifact; device-level column is authoritative) — the other Phase 1 item.
+
+**Brutal-truth review of Phase 0.** No feature code was changed, so nothing to mask. The only mutation was a container recreate (the prescribed bring-up). Every result above was verified by a real on-device command (in-container `nvidia-smi`, `/health`, a real LLM completion, embeddings `device:cuda:0`, `make test` 49/49, a timestamped `make bench-all`), not assumed. No guardrail violations: PPO reported losing; tuned-classical-vs-naive framing preserved (and this run even shows classical failing to beat naive on `baseline`, reported straight); bandwidth-not-capacity framing intact; no hospital claim; data on-device; retrieval-time injection scan untouched.
+
+**DoD assessment: met.** Stack healthy (all four services; `api` GPU restored); `make test` 49/49; four-scenario baseline captured (recorded above).
+
+**Open follow-ups:**
+- Recreate the `llm` container in a maintenance window to clear its stale NVML (works now, fragile on restart).
+- Phase 1: seed Optuna (eliminate the winner drift), make memory reporting per-scenario/unambiguous, triage `npm audit`.
 
 ## 2026-07-10 — Phase 6 finished live: GPU unblocked, memory rebalanced, full suite run + Iteration 2 tie-up
 **Status:** Iteration 2 complete and verified on-device. **git ref: `38a989c`; merged to `main` (2026-07-10).**
