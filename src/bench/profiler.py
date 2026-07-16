@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import resource
 import subprocess
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -59,31 +59,58 @@ def _gpu_snapshot() -> dict:
 
 
 @contextmanager
-def profile_run(name: str, scenario: str):
+def profile_run(name: str, scenario: str, sample_interval_seconds: float = 0.05):
     process = psutil.Process()
     start = time.perf_counter()
     start_cpu = psutil.cpu_percent(interval=None)
     start_mem = process.memory_info().rss
     start_gpu = _gpu_snapshot()
+
+    # Sample the process's *current* RSS throughout this stage and keep the
+    # window peak. The previous implementation used `ru_maxrss`, which is a
+    # process-lifetime high-water mark: because the suite runs every scenario
+    # in one process, that value is monotonic and saturates after the first
+    # scenario, so it could not be read as a per-scenario/per-stage figure.
+    # Sampling current RSS over just this stage's window gives an honest
+    # per-invocation peak (still API-process RSS, not device-level unified
+    # memory or the LLM/Qdrant container footprint).
+    peak_rss = start_mem
+    stop = threading.Event()
+
+    def _sample_rss() -> None:
+        nonlocal peak_rss
+        try:
+            rss = process.memory_info().rss
+            if rss > peak_rss:
+                peak_rss = rss
+        except Exception:  # noqa: BLE001 - sampling must never break the run
+            pass
+
+    def _worker() -> None:
+        while not stop.wait(sample_interval_seconds):
+            _sample_rss()
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
     yield_data: dict = {}
     try:
         yield yield_data
     finally:
+        stop.set()
+        thread.join(timeout=max(1.0, sample_interval_seconds * 4))
         end = time.perf_counter()
         end_mem = process.memory_info().rss
+        _sample_rss()
         end_gpu = _gpu_snapshot()
         latency = end - start
-        # ru_maxrss is the OS-maintained high-water mark for this process, so
-        # it captures transient spikes (e.g. mid-training) that a start/end
-        # RSS snapshot would miss entirely. Linux reports it in KB.
-        peak_rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
         yield_data.update(
             {
                 "name": name,
                 "scenario": scenario,
                 "wall_clock_seconds": round(latency, 6),
-                # This is the API process high-water RSS, not device-level
-                # unified-memory use and not the LLM/Qdrant container footprint.
+                # Per-stage sampled peak of this API process's current RSS
+                # (see note above). Not device-level unified-memory use and
+                # not the LLM/Qdrant container footprint.
                 "peak_process_rss_mb": round(peak_rss / (1024 * 1024), 6),
                 # A start/end RSS delta divided by time is only a coarse
                 # net-allocation-rate proxy. It is not measured DRAM bandwidth.

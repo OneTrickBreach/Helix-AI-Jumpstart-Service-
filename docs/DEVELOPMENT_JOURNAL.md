@@ -18,27 +18,62 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
-- **Phase:** **Iteration 3, Phase 0 (orientation & green baseline) complete and verified on-device
-  (2026-07-15).** Stack healthy, `make test` 49/49, `make bench-all` re-baselined. Awaiting go-ahead
-  for Phase 1 (reproducibility & integrity hardening). Executing one phase per session per the PoA.
+- **Phase:** **Iteration 3, Phase 1 (reproducibility & integrity hardening) complete and verified
+  on-device (2026-07-16).** Optuna seeded (results now reproducible), per-scenario process-RSS fixed,
+  `npm audit` cleared to 0. Stack healthy, `make test` 49/49, two consecutive `make bench-all` runs
+  produced **identical** objectives. Awaiting go-ahead for Phase 2 (real-corpus RAG). One phase per session.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
   current solver path, served in-process by `api` at `/cuopt/*`.
-- **Live benchmark headline (2026-07-15 re-baseline, seed 12345, horizon 8, ppo-timesteps 128):**
-  `baseline` → **naive baseline wins** (tuned classical only tied it this run); `component-shortage-shock`,
-  `demand-surge`, `stress-large` → **tuned classical wins**. **PPO lost in all four** — reported honestly.
-  Winners flipped on 2/4 scenarios vs the 2026-07-10 handoff table because **Optuna is unseeded** in
-  `optimize_classical` (Phase 1 fix). Device peak 67–69 GiB of ~121 GiB (≥52 GiB headroom); single-node
-  retained. Shared LLM ~47 tok/s.
-- **Next:** Phase 1 — seed Optuna (kill the winner drift), fix per-scenario memory reporting, triage `npm audit`.
+- **Live benchmark headline (2026-07-16, seeded, seed 12345, horizon 8, ppo-timesteps 128):**
+  **tuned classical wins ALL FOUR** scenarios (`baseline`, `component-shortage-shock`, `demand-surge`,
+  `stress-large`); **PPO lost in all four** — reported honestly. With Optuna now seeded the tuned-classical
+  search deterministically finds params that beat the naive baseline in every scenario, including the
+  component-shortage-shock that previously reported "no improvement." Numbers are now stable run-to-run.
+  Device peak ~67 GiB of ~121 GiB (≥53 GiB headroom); single-node retained. Shared LLM ~47 tok/s.
+- **Next:** Phase 2 — ground RAG on a real/realistic supplier-docs corpus; keep advisory-only boundary +
+  retrieval-time injection scan; add Qdrant TTL/cleanup for stale `extra-N` points.
 
 ---
 
 ## Entries (newest first)
 
+## 2026-07-16 — Iteration 3, Phase 1: reproducibility & integrity hardening
+**Status:** Phase 1 complete, verified on-device. **git ref: committed as `5a2c9a9` (journal hash backfilled via amend).** Branch `feat/iteration3`.
+
+**Scope (per the PoA):** make results deterministic and honestly labeled so a live demo can't contradict itself — (1) seed Optuna in `optimize_classical`, (2) fix per-scenario process-RSS reporting, (3) triage `npm audit`. After all `src/` edits the `api` image was rebuilt (`docker compose build api && docker compose up -d --no-deps api`) before testing, per the baked-`COPY` gotcha.
+
+**1. Seeded Optuna — killed the tuned-classical winner drift (`src/optimize/classical/tuned.py`).**
+The tuned-classical objective (and therefore the headline winner) drifted between otherwise-identical `make bench-all` runs because `optuna.create_study(direction="minimize")` used a `TPESampler` seeded from entropy — a different trial sequence every run. Fix: `TPESampler(seed=DEFAULT_TUNING_SEED)` with `DEFAULT_TUNING_SEED = 12345` (the canonical project data seed — *not* cherry-picked to pick winners), plumbed through a new `seed` kwarg on `optimize_classical`. `build_plan` and the OR-Tools GLOP LP were already deterministic, so this was the sole nondeterminism source.
+- **Verified:** two consecutive full `make bench-all` runs produced **identical objectives for all 12 rows** (baseline/classical/ppo × 4 scenarios), confirmed by a programmatic diff of the two `suite-summary.json` files (e.g. `baseline/classical` = 81789.35946 both runs; `stress-large/classical` = 2521615.068565 both runs). Before this fix the classical objective changed run-to-run.
+
+**2. Per-scenario process-RSS (`src/bench/profiler.py`, caveat in `src/bench/suite.py`).**
+`peak_process_rss_mb` came from `resource.getrusage(...).ru_maxrss`, a **process-lifetime** high-water mark. Because the suite runs all four scenarios in one process it was monotonic and saturated at a constant (~2249 MB from scenario 2 on) — not readable as per-scenario. Fix: a background thread samples the process's *current* RSS every 50 ms over each stage's own window and keeps the window peak (removed `import resource`, added `import threading`). This is a genuine per-stage figure; still API-process RSS only (not device-level unified memory or the LLM/Qdrant containers), which the updated suite caveat states plainly while keeping the device-level `/proc/meminfo` column as the authoritative per-scenario device measure.
+- **Verified:** RSS now varies per scenario/approach and is non-monotonic across scenarios — e.g. within `baseline`: baseline 261 MB, classical 289 MB, ppo 1011 MB; across scenarios it *drops* from `component-shortage-shock` ~1896 MB to `demand-surge` ~1453 MB (impossible for the old lifetime mark, proving it is now per-window). Objectives stayed identical across runs, confirming the sampler thread adds no compute nondeterminism.
+
+**3. `npm audit` — fixed, not just documented (`web/package.json`, `web/package-lock.json`).**
+Baseline audit: **5 vulns (3 moderate, 1 high, 1 critical)**, all rooted in the dev/test toolchain (`vitest` → `vite`/`esbuild`/`vite-node`/`@vitest/mocker`; critical = "Vitest UI server arbitrary file read/exec", which we never run — we use `vitest run`; high = Windows-specific vite dev-server path traversal). None are present in the shipped static nginx bundle. Rather than merely documenting, I tested the fix: bumping `vitest` to `^4.1.10` dedupes to `vite@6.4.3` (patched, **no forced vite 7**) and `esbuild@0.25.x`.
+- **Verified in the exact `node:22-bookworm-slim` build image:** `npm ci` from the committed lockfile → **0 vulnerabilities**, `npm run build` (vite 6.4.3) succeeds, `npm test` 6/6 pass. Also confirmed a **`docker compose build --no-cache web`** → `npm install` reports "found 0 vulnerabilities" and the production build completes. So the fix is real end-to-end, not a lockfile-only claim.
+
+**4. Honest finding — winners flipped again vs Phase 0 / the 2026-07-10 handoff.**
+With the seed applied, tuned classical now beats the naive baseline in **all four** scenarios (baseline 88022.76→81789.36; component-shortage-shock 102834.79→95445.45; demand-surge 100734.74→94165.36; stress-large 2622335.22→2521615.07). Notably `component-shortage-shock`, previously reported as "tuned classical could not beat naive under a zero-supply shock," is now a ~7% classical win. This is **not** a bug or a masked result: seeding only fixes *which* deterministic trial sequence Optuna explores; `build_plan` is unchanged. The prior unseeded runs simply failed to discover the better param set on those scenarios. The seed (12345) is the project's canonical data seed, not selected to produce wins. **PPO still lost all four** (highest objective and latency every time) — guardrail intact. The Iteration-2 handoff/README numbers are now stale and should be refreshed when the demo/narrative doc is built (Phase 3); flagging here rather than editing external docs mid-Phase-1.
+
+**Brutal-truth review of Phase 1.**
+- Re-verified everything against *actual* on-device runs, not the build report: `make test` 49/49 after the `api` rebuild+recreate (GPU visible: `/health` `gpu_visible:true`, driver 580.159.03); two live `make bench-all` runs diffed to identical objectives; RSS spread inspected directly from `suite-summary.json`; npm 0-vuln confirmed by both `npm ci` and a no-cache docker build.
+- Guardrails: PPO reported losing (not hidden); naive-baseline-as-target-to-beat framing preserved (and the tuned classical legitimately beats it, which is the allowed "does not collapse" behavior, not the forbidden baseline-collapse artifact); bandwidth-not-capacity framing untouched; no hospital claim; data on-device; retrieval-time injection scan untouched.
+- Swept the edited files: no leftover `resource` references in `profiler.py` (only the docstring word); `allocation_rate_gbps_proxy` and latency math unchanged; field names (`peak_process_rss_mb`) unchanged so CLI/web/API/tests still line up (all 49 pass).
+- One caveat I am NOT masking: the per-stage RSS floor still rises *within* a scenario as Python retains freed memory, so cross-approach RSS deltas inside one scenario are small; the suite markdown says this and points to the device-level column as authoritative.
+
+**DoD assessment: met.** Two consecutive `make bench-all` runs → identical classical (and all) objectives; memory reporting is per-scenario/per-stage and unambiguous (with the device-level column marked authoritative); audit findings fixed (0 vulns) and verified in the real build image.
+
+**Open follow-ups:**
+- Refresh the Iteration-2 handoff/README §9 numbers to the seeded results when Phase 3 builds the demo/narrative (deliberately not edited mid-Phase-1).
+- Recreate the `llm` container in a maintenance window to clear its still-stale NVML (carried over from Phase 0; works now, fragile on restart).
+- Phase 2: real-corpus RAG + Qdrant TTL/cleanup for stale `extra-N` points.
+
 ## 2026-07-15 — Iteration 3, Phase 0: orientation & green baseline (stale-GPU found + fixed)
-**Status:** Phase 0 complete, verified on-device. **git ref: uncommitted at time of writing (this entry is the Phase 0 commit).** Branch `feat/iteration3`.
+**Status:** Phase 0 complete, verified on-device. **git ref: committed as `8f26041`.** Branch `feat/iteration3`.
 
 **Scope (no feature code, per the PoA):** load context (`README.md`, this journal, `docs/Iteration3_Plan_of_Action.md`, `.devin/rules/helix-sco.md`, plus `Makefile`/`docker-compose.yml`), confirm the repo is in a known-good state, and capture a fresh four-scenario baseline for later before/after comparison.
 
