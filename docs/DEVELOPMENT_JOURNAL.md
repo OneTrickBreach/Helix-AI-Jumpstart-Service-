@@ -40,7 +40,7 @@
 ## Entries (newest first)
 
 ## 2026-07-16 — Iteration 3, Phase 1: reproducibility & integrity hardening
-**Status:** Phase 1 complete, verified on-device. **git ref: Phase 1 work committed as `f4145c4`; this journal hash correction is a small follow-up commit.** Branch `feat/iteration3`.
+**Status:** Phase 1 complete, verified on-device. **git ref: Phase 1 work committed as `f4145c4` (pushed); journal hash backfill `6b57506` (pushed).** Branch `feat/iteration3`.
 
 **Scope (per the PoA):** make results deterministic and honestly labeled so a live demo can't contradict itself — (1) seed Optuna in `optimize_classical`, (2) fix per-scenario process-RSS reporting, (3) triage `npm audit`. After all `src/` edits the `api` image was rebuilt (`docker compose build api && docker compose up -d --no-deps api`) before testing, per the baked-`COPY` gotcha.
 
@@ -73,7 +73,7 @@ With the seed applied, tuned classical now beats the naive baseline in **all fou
 - Phase 2: real-corpus RAG + Qdrant TTL/cleanup for stale `extra-N` points.
 
 ## 2026-07-15 — Iteration 3, Phase 0: orientation & green baseline (stale-GPU found + fixed)
-**Status:** Phase 0 complete, verified on-device. **git ref: committed as `8f26041`.** Branch `feat/iteration3`.
+**Status:** Phase 0 complete, verified on-device. **git ref: committed as `8f26041` (pushed).** Branch `feat/iteration3`.
 
 **Scope (no feature code, per the PoA):** load context (`README.md`, this journal, `docs/Iteration3_Plan_of_Action.md`, `.devin/rules/helix-sco.md`, plus `Makefile`/`docker-compose.yml`), confirm the repo is in a known-good state, and capture a fresh four-scenario baseline for later before/after comparison.
 
