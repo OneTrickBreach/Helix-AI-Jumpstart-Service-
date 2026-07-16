@@ -40,7 +40,7 @@
 ## Entries (newest first)
 
 ## 2026-07-16 — Iteration 3, Phase 1: reproducibility & integrity hardening
-**Status:** Phase 1 complete, verified on-device. **git ref: committed as `5a2c9a9` (journal hash backfilled via amend).** Branch `feat/iteration3`.
+**Status:** Phase 1 complete, verified on-device. **git ref: Phase 1 work committed as `f4145c4`; this journal hash correction is a small follow-up commit.** Branch `feat/iteration3`.
 
 **Scope (per the PoA):** make results deterministic and honestly labeled so a live demo can't contradict itself — (1) seed Optuna in `optimize_classical`, (2) fix per-scenario process-RSS reporting, (3) triage `npm audit`. After all `src/` edits the `api` image was rebuilt (`docker compose build api && docker compose up -d --no-deps api`) before testing, per the baked-`COPY` gotcha.
 
