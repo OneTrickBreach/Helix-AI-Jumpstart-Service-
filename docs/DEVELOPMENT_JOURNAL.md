@@ -45,7 +45,7 @@
 ## Entries (newest first)
 
 ## 2026-07-17 — Iteration 3, Phase 2: RAG on a real corpus
-**Status:** Phase 2 complete, verified on-device. **git ref: uncommitted at time of writing (hash backfilled below on commit).** Branch `feat/iteration3`.
+**Status:** Phase 2 complete, verified on-device. **git ref: Phase 2 work committed as `ef237c9`; journal hash backfill in the follow-up commit. Not yet pushed (push from a credentialed terminal).** Branch `feat/iteration3`.
 
 **Scope (per the PoA):** ground the advisory layer on real documents instead of the synthesized/hard-coded SOP string; keep the hard ADVISORY-ONLY boundary (LLM explains, never computes/overrides a metric); keep retrieval-time prompt-injection scanning; add the Qdrant stale-point cleanup for `extra-N` accumulation. After every `src/` edit the `api` image was rebuilt (`docker compose build api && docker compose up -d --no-deps api`) before testing, per the baked-`COPY` gotcha.
 
