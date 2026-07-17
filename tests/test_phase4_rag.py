@@ -132,6 +132,27 @@ def test_advisory_finalizer_removes_model_scratchpad():
     assert text == "ADVISORY ONLY: The classical plan is preferred on benchmark evidence [C1]."
 
 
+def test_advisory_finalizer_strips_reasoning_think_block():
+    raw = (
+        "<think>We need to produce one short advisory paragraph. Must start with "
+        "ADVISORY ONLY: and cite [C1]. Let's craft it now.</think>\n"
+        "ADVISORY ONLY: The classical plan is reasonable on benchmark evidence [C1]."
+    )
+    text = advisory.finalize_advisory_text(raw)
+    assert text == "ADVISORY ONLY: The classical plan is reasonable on benchmark evidence [C1]."
+    assert "<think>" not in text and "think" not in text.lower()
+
+
+def test_advisory_finalizer_handles_think_block_without_open_tag():
+    # This vLLM build emits only the closing </think> tag inline in content.
+    raw = (
+        "We need to respond with a cited paragraph.</think>\n"
+        "ADVISORY ONLY: The classical plan minimizes objective cost [C2]."
+    )
+    text = advisory.finalize_advisory_text(raw)
+    assert text == "ADVISORY ONLY: The classical plan minimizes objective cost [C2]."
+
+
 def test_short_llm_text_gets_benchmark_template_fallback(
     monkeypatch: pytest.MonkeyPatch,
     generated_rag_baseline: Path,
