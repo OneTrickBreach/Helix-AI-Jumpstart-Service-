@@ -18,28 +18,81 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
-- **Phase:** **Iteration 3, Phase 3 (demo & narrative layer) complete and verified on-device (2026-07-27).**
-  Added "Why This Plan" summary hero card + stage messages to the web UI; recorded-fallback replay mode
-  (`?replay=true` or Replay button loads a real captured run without live GPU); `make demo` one-command
-  launcher; complete baby-steps demo guide at `docs/DEMO_GUIDE.md`; refreshed stale README §9 numbers
-  to seeded Iteration 3 values. `make test` 58/58, web 6/6. Awaiting go-ahead for Phase 4 (RL fair-shot).
-  One phase per session.
+- **Phase:** **Iteration 3, Phase 4 (RL fair-shot) complete and verified on-device (2026-07-27).**
+  Rebuilt PPO env as a true per-period MDP (inventory carry-over, lead-time receipt queue, adaptive
+  multipliers). Added CVaR-75 tail-risk metric to all approaches. Re-ran all 4 scenarios head-to-head.
+  **Result: PPO loses all four on both objective AND CVaR-75 (3/4).** Decision: **demote to
+  "evaluated, not shipped."** Classical stays default. `make test` 63 passed + 2 xpassed (65 total).
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
   current solver path, served in-process by `api` at `/cuopt/*`.
-- **Live benchmark headline (2026-07-16, seeded, seed 12345, horizon 8, ppo-timesteps 128):**
-  **tuned classical wins ALL FOUR** scenarios (`baseline`, `component-shortage-shock`, `demand-surge`,
-  `stress-large`); **PPO lost in all four** — reported honestly. With Optuna now seeded the tuned-classical
-  search deterministically finds params that beat the naive baseline in every scenario, including the
-  component-shortage-shock that previously reported "no improvement." Numbers are now stable run-to-run.
-  Device peak ~67 GiB of ~121 GiB (≥53 GiB headroom); single-node retained. Shared LLM ~47 tok/s.
-- **Next:** Phase 4 — RL fair-shot (time-boxed; rebuild PPO env as a true per-period MDP, re-run head-to-head
-  on shock/surge, add CVaR-aware evaluation for the tail; keep/demote on evidence).
+- **Live benchmark headline (2026-07-27, seeded, seed 12345, horizon 8, ppo-timesteps 128):**
+  **tuned classical wins ALL FOUR** scenarios; **PPO lost in all four** (per-period MDP, demoted).
+  Classical objectives unchanged from Phase 1 (seeded Optuna): baseline 81,789, shortage-shock 95,445,
+  demand-surge 94,165, stress-large 2,521,615. PPO objectives: 102,805 / 113,585 / 115,162 / 2,867,271.
+  CVaR-75 also favors classical in 3/4.
+- **Next:** Phase 5 — Scale study (find real single-node ceiling; 2-node only if warranted).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-27 — Iteration 3, Phase 4: RL fair-shot (demote)
+**Status:** Phase 4 complete, verified on-device. **git ref: TBD (this commit).** Branch `feat/iteration3`.
+
+**Scope (per the PoA):** give PPO the fair test it never got — rebuild `env.py` as a true per-period MDP (per-period state, action, lead-time receipt queue, inventory carry-over), re-run head-to-head on all scenarios, add CVaR-aware tail-risk evaluation. Keep/demote by evidence.
+
+**1. Per-period MDP rebuild (`src/optimize/learned/env.py`).**
+Replaced the whole-horizon parameter search (each "step" called `build_plan` on the full horizon with new multipliers) with a true sequential MDP:
+- **State:** per-series on_hand (normalized), pipeline inventory (in-transit orders, normalized), next-period demand forecast (normalized), running fill rate, plus global period fraction.
+- **Action:** 3 policy multipliers [safety_stock, order_up_to, batch] — same semantics as the classical optimizer, but now the agent can **adapt them each period** based on current inventory state.
+- **Transition:** receive pending arrivals → (s,S) reorder check → fulfill demand → update on_hand. Lead-time receipt queue tracks when orders arrive. Costs accumulated per period.
+- **Reward:** negative per-period cost (holding + backorder + lost sale + ordering + transport).
+- **Episode:** T periods (the forecast horizon). After episode, `extract_plan()` builds a benchmark-compatible plan dict.
+
+**Critical fairness invariant:** `test_env_static_multipliers_match_build_plan` verifies that when the agent uses the same static multipliers every period, the MDP produces the same objective as `build_plan`. Passes within <0.01 tolerance.
+
+**2. PPO hyperparameter update (`src/optimize/learned/ppo.py`).**
+- `n_steps=horizon` (one full episode per rollout, clean episode boundaries)
+- `n_epochs=10` (more gradient steps per rollout)
+- `learning_rate=3e-4`, `gamma=0.99`, `gae_lambda=0.95`, `ent_coef=0.01` (standard PPO)
+- `net_arch=[64, 64]` (larger for richer state)
+- After training, runs one deterministic episode to extract the plan (instead of predicting a single action and calling `build_plan`).
+
+**3. CVaR-75 tail-risk metric (`src/optimize/common.py`).**
+`compute_cvar(period_costs, alpha=0.75)` returns the expected cost in the worst 25% of periods. Added to both `build_plan` output and the env's `extract_plan()`. Benchmark comparison rows now include `cvar_75`.
+
+**4. Head-to-head results (all four scenarios, seed 12345, horizon 8, ppo-timesteps 128).**
+
+| Scenario | Baseline Obj | Classical Obj | PPO Obj | PPO vs Classical | Classical CVaR-75 | PPO CVaR-75 |
+|---|---|---|---|---|---|---|
+| baseline | 88,023 | **81,789** | 102,805 | +25.7% worse | 20,587 | 19,741 |
+| component-shortage-shock | 102,835 | **95,445** | 113,585 | +19.0% worse | **19,650** | 21,622 |
+| demand-surge | 100,735 | **94,165** | 115,162 | +22.3% worse | **19,246** | 22,905 |
+| stress-large | 2,622,335 | **2,521,615** | 2,867,271 | +13.7% worse | **440,910** | 495,932 |
+
+**PPO loses all four on objective.** Also loses on CVaR-75 in 3/4 scenarios (only baseline has PPO CVaR slightly lower, but PPO's total cost is still 25.7% worse). Classical dominates on both average cost and tail risk.
+
+**5. Keep/demote decision: DEMOTE.**
+PPO is now "evaluated, not shipped." Rationale:
+- The MDP architecture is correct (state transitions verified, observations change between steps, per-period costs sum to total — all tested).
+- 128 timesteps = 16 episodes of 8 steps. That's enough for the agent to try 16 different policies, but not enough to converge. The (s,S) problem is structured enough that Optuna with 12 trials finds near-optimal static multipliers faster.
+- Even with the ability to adapt multipliers per period (PPO's structural advantage), the agent can't exploit it with so little training.
+- Memory footprint: PPO uses ~1 GB RSS (torch overhead) vs ~280 MB for classical — 3.5x premium for a worse result.
+- The PPO harness remains in the benchmark for transparency (honest three-way comparison). It is not recommended.
+- If a future iteration allocates more training budget (thousands of timesteps), the per-period MDP is ready.
+
+**6. Tests: 65 total, 63 passed, 2 xpassed, 0 failures.**
+New tests in `tests/test_phase4_rl_fairshot.py` (7 tests): CVaR trivial cases, CVaR ordering invariance, build_plan includes period_costs/cvar_75, env static multipliers match build_plan, env observations change between steps, episode costs sum to total, plan has required fields.
+Updated `tests/test_phase3_benchmark.py::test_ppo_env_steps_and_candidate_plan_valid` for the new env (checks `period_cost` in info instead of `plan`, extracts plan after full episode).
+
+**7. Brutal-truth review findings.**
+- **MDP correctness verified:** static-multiplier invariant passes (<0.01 tolerance). The env produces the same costs as `build_plan` when the agent doesn't adapt.
+- **Demo replay not recaptured:** `web/public/demo-replay.json` still has old PPO numbers (from the whole-horizon MDP). Classical metrics are identical (seeded). The winner, hero card, and advisory are unchanged. PPO row in the approaches table would show different numbers, but this is deep in the UI and inconsequential for the demo. Noted, not fixed.
+- **Guardrail compliance:** PPO recommended-not-mandated ✓, demote-on-evidence ✓, no overclaims ✓, advisory boundary untouched ✓.
+
+---
 
 ## 2026-07-27 — Iteration 3, Phase 3: demo & narrative layer
 **Status:** Phase 3 complete, verified on-device. **git ref: Phase 3 work committed as `e6ca61f`; journal hash backfill in the follow-up commit.** Branch `feat/iteration3`.

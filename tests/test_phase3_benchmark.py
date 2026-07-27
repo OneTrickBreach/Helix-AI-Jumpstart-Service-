@@ -62,12 +62,22 @@ def test_ppo_env_steps_and_candidate_plan_valid(generated_phase3: Path):
     assert obs.shape == next_obs.shape
     assert np.isfinite(reward)
     assert not truncated
-    assert "plan" in info
-    forecast = forecast_finished_goods(state, horizon=4)
-    plan = optimize_ppo_candidate(state, forecast, total_timesteps=16)
+    assert "period_cost" in info
+    assert np.isfinite(info["period_cost"])
+    # Complete the episode and extract a plan
+    obs2, reward2, terminated2, _, _ = env.step(np.array([0.9, 1.0, 0.8]))
+    assert terminated2
+    plan = env.extract_plan()
     assert plan["method"] == "ppo_candidate"
     assert plan["metrics"]["total_cost"] >= 0
     assert 0 <= plan["metrics"]["fill_rate"] <= 1
+    assert "period_costs" in plan["metrics"]
+    assert "cvar_75" in plan["metrics"]
+    # Also test the full optimize path
+    forecast = forecast_finished_goods(state, horizon=4)
+    full_plan = optimize_ppo_candidate(state, forecast, total_timesteps=16)
+    assert full_plan["method"] == "ppo_candidate"
+    assert full_plan["metrics"]["total_cost"] >= 0
 
 
 @pytest.mark.parametrize("scenario", ["baseline", "component-shortage-shock"])

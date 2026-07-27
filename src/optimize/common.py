@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Sequence
 
 import polars as pl
 
@@ -202,6 +203,18 @@ def select_ortools_lanes(state: ScenarioState) -> dict[str, dict]:
     return assignments
 
 
+def compute_cvar(period_costs: Sequence[float], alpha: float = 0.75) -> float:
+    """Expected cost in the worst (1-alpha) fraction of periods.
+
+    alpha=0.75 → average of the costliest 25% of periods (tail risk).
+    """
+    if not period_costs:
+        return 0.0
+    sorted_desc = sorted(period_costs, reverse=True)
+    n_tail = max(1, math.ceil(len(sorted_desc) * (1.0 - alpha)))
+    return sum(sorted_desc[:n_tail]) / n_tail
+
+
 def build_plan(
     state: ScenarioState,
     forecast: dict,
@@ -229,6 +242,9 @@ def build_plan(
         forecast_by_series.setdefault((row["customer_id"], row["sku_id"]), []).append(
             float(row["forecast_quantity_units"])
         )
+
+    n_periods = max((len(q) for q in forecast_by_series.values()), default=0)
+    period_costs_accum = [0.0] * n_periods
 
     for key, quantities in sorted(forecast_by_series.items()):
         customer_id, sku_id = key
@@ -280,9 +296,16 @@ def build_plan(
             shortage = max(0.0, demand_t - on_hand)
             on_hand = max(0.0, on_hand - demand_t)
 
-            series_holding_cost += on_hand * cost["unit_holding_cost"]
-            series_backorder_cost += shortage * cost["backorder_penalty"] * 0.65
-            series_lost_sale_cost += shortage * cost["lost_sale_penalty"] * 0.35
+            h = on_hand * cost["unit_holding_cost"]
+            b = shortage * cost["backorder_penalty"] * 0.65
+            ls = shortage * cost["lost_sale_penalty"] * 0.35
+            series_holding_cost += h
+            series_backorder_cost += b
+            series_lost_sale_cost += ls
+            step_cost = h + b + ls
+            if order_qty > 0:
+                step_cost += cost["ordering_cost"] + order_qty * avg_transport_cost
+            period_costs_accum[step - 1] += step_cost
             series_fulfilled += fulfilled
             series_demand += demand_t
             ending_inventory = on_hand
@@ -327,6 +350,7 @@ def build_plan(
         "transport": round(transport, 6),
     }
     total_cost = round(sum(cost_breakdown.values()), 6)
+    period_costs_rounded = [round(c, 6) for c in period_costs_accum]
     return {
         "scenario": state.scenario,
         "method": method,
@@ -344,5 +368,7 @@ def build_plan(
             "days_of_inventory": round(days_inventory, 6),
             "total_order_units": round(total_order, 6),
             "objective": round(total_cost + max(0.0, 0.95 - fill_rate) * 100000.0, 6),
+            "period_costs": period_costs_rounded,
+            "cvar_75": round(compute_cvar(period_costs_rounded, alpha=0.75), 6),
         },
     }
