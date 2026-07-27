@@ -42,7 +42,7 @@
 ## Entries (newest first)
 
 ## 2026-07-27 — Iteration 3, Phase 3: demo & narrative layer
-**Status:** Phase 3 complete, verified on-device. **git ref: uncommitted at time of writing (hash backfilled below on commit).** Branch `feat/iteration3`.
+**Status:** Phase 3 complete, verified on-device. **git ref: Phase 3 work committed as `e6ca61f`; journal hash backfill in the follow-up commit.** Branch `feat/iteration3`.
 
 **Scope (per the PoA):** a clean, repeatable ~10-minute live demo on the GB10 telling the "rack → desk" story end to end; a one-screen "why this plan" summary; a recorded fallback run; a pitch-aligned narrative with real numbers only. Demo runs start-to-finish from one command; every on-screen number traces to a real run; a non-technical viewer gets the value in the first two minutes.
 
