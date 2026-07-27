@@ -225,7 +225,7 @@ CLI, the web comparison view, and an all-scenario on-device benchmark suite.
   from the device/host unified pool; GPU utilization remains `null` when the GB10 probe reports N/A.
 
 **Latest live-run status (2026-07-17): Iteration 3 Phase 2 complete and verified on-device.**
-`make up` → `make test` (**56 passed, 2 xfail**) → `make bench-all` (all four scenarios) → `make rag` all pass on
+`make up` → `make test` (**69 passed, 2 xfail**) → `make bench-all` (all four scenarios) → `make rag` all pass on
 the GB10. Real results (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded — reproducible):
 
 - **Winners by evidence:** tuned classical wins **all four** scenarios: `baseline` (obj 88 022 → 81 789,

@@ -18,11 +18,10 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
-- **Phase:** **Iteration 3, Phase 4 (RL fair-shot) complete and verified on-device (2026-07-27).**
-  Rebuilt PPO env as a true per-period MDP (inventory carry-over, lead-time receipt queue, adaptive
-  multipliers). Added CVaR-75 tail-risk metric to all approaches. Re-ran all 4 scenarios head-to-head.
-  **Result: PPO loses all four on both objective AND CVaR-75 (3/4).** Decision: **demote to
-  "evaluated, not shipped."** Classical stays default. `make test` 63 passed + 2 xpassed (65 total).
+- **Phase:** **Iteration 3, Phase 5 (Scale study) complete and verified on-device (2026-07-27).**
+  Ran 6-level scale study from 288 to 28,800 series. Device memory stays at ~54% of envelope at every
+  level (55+ GiB headroom). **Ceiling is forecast latency (~25ms/series), not memory.** The optimizer
+  takes <1s even at 100x. Single node retained; 2-node deferred. `make test` 69 passed + 2 xpassed (71 total).
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
@@ -30,13 +29,55 @@
 - **Live benchmark headline (2026-07-27, seeded, seed 12345, horizon 8, ppo-timesteps 128):**
   **tuned classical wins ALL FOUR** scenarios; **PPO lost in all four** (per-period MDP, demoted).
   Classical objectives unchanged from Phase 1 (seeded Optuna): baseline 81,789, shortage-shock 95,445,
-  demand-surge 94,165, stress-large 2,521,615. PPO objectives: 102,805 / 113,585 / 115,162 / 2,867,271.
-  CVaR-75 also favors classical in 3/4.
-- **Next:** Phase 5 — Scale study (find real single-node ceiling; 2-node only if warranted).
+  demand-surge 94,165, stress-large 2,521,615.
+- **Next:** Phase 6 — cuOpt re-check (dated NGC check for arm64/CUDA-13 cuOpt build).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-27 — Iteration 3, Phase 5: Scale study (single-node ceiling)
+**Status:** Phase 5 complete, verified on-device. **git ref: pending commit.** Branch `feat/iteration3`.
+
+**Scope (per the PoA):** push a larger-than-prototype workload to find the real ~121 GiB single-node limit. Validate 2-node 256 GB RoCE/NCCL path only if the ceiling is hit and a second unit + 200G DAC are available.
+
+**1. Scale study infrastructure.**
+- **`src/bench/scale_study.py`** — new module. Defines 6 scale levels from 1x (288 series = 12 FG × 24 customers) to 100x (28,800 series = 120 FG × 240 customers). Each level: writes a temporary scenario YAML, generates data via the existing seeded generator, loads state, runs forecast + optimizer, measures RSS/device memory/latency per stage. Cleanup in `try/finally`.
+- **`tests/test_phase5_scale_study.py`** — 6 new tests: config builder validity, estimate monotonicity, one end-to-end run at 1x, envelope math.
+- **`make scale-study`** — new Makefile target runs the study inside the API container.
+
+**2. Results (all 6 levels ran, seed 12345, forecast horizon 8, 52-period history).**
+
+| Level | Series | Peak RSS (MB) | Forecast (s) | Optimizer (s) | Total (s) | Device (GiB) | Headroom (GiB) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1x-ref | 288 | 307 | 7.4 | 0.045 | 7.6 | 64.9 | 56.1 |
+| 5x | 1,440 | 347 | 36.1 | 0.034 | 36.9 | 65.0 | 56.0 |
+| 10x | 2,880 | 391 | 72.9 | 0.053 | 74.4 | 65.0 | 56.0 |
+| 25x | 7,200 | 517 | 182.1 | 0.095 | 185.5 | 65.1 | 55.9 |
+| 50x | 14,400 | 698 | 361.6 | 0.201 | 368.2 | 65.3 | 55.7 |
+| 100x | 28,800 | 940 | 716.0 | 0.363 | 728.8 | 65.5 | 55.5 |
+
+**3. Key findings.**
+- **Memory is NOT the ceiling.** Device memory stays at ~54% of the 121 GiB envelope at every level. The LLM container (~30 GiB) plus OS/Qdrant (~35 GiB) is the fixed cost. The optimizer adds <1 GB even at 100x.
+- **Forecast latency IS the ceiling.** `statsforecast` (AutoETS + CrostonSBA per series) grows linearly at ~25ms/series. At 100x the forecast alone takes 12 minutes. A 5-minute forecast budget gives ~12,000 series — a reasonable mid-size manufacturer.
+- **The optimizer is trivially fast.** `build_plan` (OR-Tools LP + (s,S) simulation) takes <0.4s at 100x. It does not become the bottleneck at any tested scale.
+- **Demand row estimates match exactly.** The theoretical `estimate_footprint()` matched actual row counts at all 6 levels (verified programmatically).
+- **Binding constraint distinction:** the 273 GB/s memory bandwidth matters for LLM token generation, not the optimizer/forecast which are CPU-bound and latency-limited.
+
+**4. Two-node decision: DEFERRED.**
+- Single-node headroom is 55+ GiB at every level. No realistic SCO workload approaches the envelope.
+- Second GB10 unit + 200G DAC not currently available.
+- Deferred to Iteration 4 if a real customer workload exceeds the envelope.
+
+**5. Brutal-truth review findings + fixes.**
+- **Bottleneck was hard-coded** to `"forecast_latency"` — fixed: now derived from measured timing fractions via `_identify_bottleneck()`.
+- **Two-node reasoning omitted bandwidth guardrail** — fixed: explicitly states "273 GB/s memory bandwidth matters for LLM token generation, not the optimizer."
+- **Cleanup on error** — fixed: moved to `try/finally` so temp data is cleaned even if artifact writing fails.
+- **`demand_comp` formula questioned by review** — verified correct: component demand IS per-plant (not per-customer), and estimates match actual counts at all 6 levels.
+- **Unused variable `max_completed`** — removed.
+- Test count: 69 passed + 2 xpassed (71 total). Updated README and DEMO_GUIDE.
+
+---
 
 ## 2026-07-27 — Iteration 3, Phase 4: RL fair-shot (demote)
 **Status:** Phase 4 complete, verified on-device. **git ref: Phase 4 work committed as `1ea80a5`.** Branch `feat/iteration3`.

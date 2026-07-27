@@ -5,7 +5,7 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build web test test-data logs ps clean data run bench bench-all rag cli cli-list check-api-running demo demo-data
+.PHONY: up down build web test test-data logs ps clean data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -95,6 +95,10 @@ bench-all: check-api-running
 		docker compose exec api python3 data/generator/generate.py --seed $(SEED) --scenario $$scenario --output-dir data/generated/$$scenario || exit 1; \
 	done
 	docker compose exec api python3 -m src.bench.suite --horizon $(HORIZON) --ppo-timesteps $(PPO_TIMESTEPS) --top-k $(TOP_K)
+
+## Run Phase 5 single-node scale ceiling study
+scale-study: check-api-running
+	docker compose exec api python3 -m src.bench.scale_study --timeout 600
 
 ## Run Phase 4 RAG advisory rationale for the benchmark-selected plan
 rag: check-api-running data
