@@ -5,7 +5,7 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build web test test-data logs ps clean data run bench bench-all rag cli cli-list check-api-running
+.PHONY: up down build web test test-data logs ps clean data run bench bench-all rag cli cli-list check-api-running demo demo-data
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -99,6 +99,36 @@ bench-all: check-api-running
 ## Run Phase 4 RAG advisory rationale for the benchmark-selected plan
 rag: check-api-running data
 	docker compose exec api python3 -m src.rag.advisory --scenario $(SCENARIO)
+
+# ---------------------------------------------------------------------------
+# Demo
+# ---------------------------------------------------------------------------
+
+DEMO_SCENARIO ?= component-shortage-shock
+
+## Generate synthetic data for all four demo scenarios (idempotent)
+demo-data: check-api-running
+	@for scenario in baseline component-shortage-shock demand-surge stress-large; do \
+		docker compose exec api python3 data/generator/generate.py --seed $(SEED) --scenario $$scenario --output-dir data/generated/$$scenario || exit 1; \
+	done
+	@echo "✓ Demo data generated for all four scenarios"
+
+## One-command demo launcher: rebuild web, generate data, print URL
+demo: demo-data
+	docker compose up -d --build web
+	@echo ""
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo "  HELIX AI JUMPSTART DEMO"
+	@echo "═══════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "  Live demo:     http://localhost:8081"
+	@echo "  Recorded demo: http://localhost:8081?replay=true"
+	@echo ""
+	@echo "  Recommended:   pick '$(DEMO_SCENARIO)' from the dropdown"
+	@echo "  Parameters:    horizon=8, PPO timesteps=128, top-k=5"
+	@echo ""
+	@echo "  Full guide:    docs/DEMO_GUIDE.md"
+	@echo "═══════════════════════════════════════════════════════════════"
 
 ## List scenarios through the secure API using the thin CLI
 cli-list: check-api-running

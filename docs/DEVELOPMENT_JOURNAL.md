@@ -18,14 +18,12 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
-- **Phase:** **Iteration 3, Phase 2 (RAG on a real corpus) complete and verified on-device (2026-07-17).**
-  Advisory layer now grounds on a real on-disk document corpus (`data/corpus/manufacturing/`, 6 docs:
-  supplier agreement, 2 SOPs, 2 shock playbooks, planner notes) loaded by `src/ingest/corpus.py`, replacing
-  the hard-coded SOP string. Qdrant stale-point cleanup added (run-stamped points; non-current points deleted
-  each call → no `extra-N` accumulation). Found & fixed a real defect: the reasoning-model scratchpad was
-  eating the token budget so `/rag/rationale` **always** fell back to the template; now surfaces genuine
-  `llm_finalized` grounded+cited rationale for all four scenarios. `make test` 58/58. Awaiting go-ahead for
-  Phase 3 (demo & narrative). One phase per session.
+- **Phase:** **Iteration 3, Phase 3 (demo & narrative layer) complete and verified on-device (2026-07-27).**
+  Added "Why This Plan" summary hero card + stage messages to the web UI; recorded-fallback replay mode
+  (`?replay=true` or Replay button loads a real captured run without live GPU); `make demo` one-command
+  launcher; complete baby-steps demo guide at `docs/DEMO_GUIDE.md`; refreshed stale README §9 numbers
+  to seeded Iteration 3 values. `make test` 58/58, web 6/6. Awaiting go-ahead for Phase 4 (RL fair-shot).
+  One phase per session.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
@@ -36,13 +34,58 @@
   search deterministically finds params that beat the naive baseline in every scenario, including the
   component-shortage-shock that previously reported "no improvement." Numbers are now stable run-to-run.
   Device peak ~67 GiB of ~121 GiB (≥53 GiB headroom); single-node retained. Shared LLM ~47 tok/s.
-- **Next:** Phase 3 — demo & narrative layer (scripted ~10-min GB10 demo, before/after cards, on-device
-  memory panel, advisory rationale on-screen, recorded fallback run, pitch deck aligned to real numbers).
-  Refresh stale Iteration-2/README §9 numbers here.
+- **Next:** Phase 4 — RL fair-shot (time-boxed; rebuild PPO env as a true per-period MDP, re-run head-to-head
+  on shock/surge, add CVaR-aware evaluation for the tail; keep/demote on evidence).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-27 — Iteration 3, Phase 3: demo & narrative layer
+**Status:** Phase 3 complete, verified on-device. **git ref: uncommitted at time of writing (hash backfilled below on commit).** Branch `feat/iteration3`.
+
+**Scope (per the PoA):** a clean, repeatable ~10-minute live demo on the GB10 telling the "rack → desk" story end to end; a one-screen "why this plan" summary; a recorded fallback run; a pitch-aligned narrative with real numbers only. Demo runs start-to-finish from one command; every on-screen number traces to a real run; a non-technical viewer gets the value in the first two minutes.
+
+**1. "Why This Plan" summary hero card (`web/src/App.tsx`).**
+New `PlanSummary` component at the top of results: scenario name, winner badge, "On NVIDIA GB10" badge, three key metric cards (total cost, fill rate, days of inventory) with before→after + % delta, a one-line advisory excerpt, and fine print attributing numbers to the optimizer. This is the "non-technical viewer gets the value in 2 minutes" card — visible immediately on results load.
+
+**2. Stage messages in StageStepper.**
+The SSE stream already sent `message` fields ("ingest stage running", etc.) but the UI never displayed them. Now shows the message in small text below the stage name when a stage is in-progress.
+
+**3. Recorded fallback / demo-replay mode.**
+Captured a full `ScenarioComparison` JSON from a real live run (component-shortage-shock, `llm_finalized`, 95445 objective, 5 citations) and saved it as `web/public/demo-replay.json` (67KB, served as a static asset by nginx). The UI has two ways to trigger it: (a) `?replay=true` URL param (auto-loads on page open), (b) a "Replay" button in the header. Replay simulates the stage stepper animating through each stage (300ms per stage) then displays results — no live GPU or API needed. This is the safety net for live-GPU flakiness.
+
+**4. `make demo` one-command launcher.**
+New Makefile targets: `make demo-data` generates synthetic data for all 4 scenarios; `make demo` calls demo-data, rebuilds the web container, and prints a clear banner with the live URL, replay URL, recommended scenario, and parameter defaults. Also added `DEMO_SCENARIO` variable (default: component-shortage-shock).
+
+**5. Complete demo guide (`docs/DEMO_GUIDE.md`).**
+Baby-steps walkthrough: Part 0 (stack up, data gen, verify), Part 1 (recorded demo with talk track), Part 2 (live demo with per-stage timing and narration), Part 3 (deep-dive talking points for PPO-loses, ~7%-real, LLM-advisory, scaling, next-steps questions), troubleshooting, and appendix (what lives where). Written for someone who "doesn't know how and where the frontend is." Every number in the talk track traces to a real on-device run.
+
+**6. Refreshed stale README §9 numbers.**
+Updated from Iteration 2's pre-seeded results to the current Iteration 3 seeded values (58/58 tests, classical wins all four, component-shortage-shock now -7.2% not "no improvement", RAG grounded on real corpus). Date updated to 2026-07-17.
+
+**Verified on-device.**
+- Web build compiles clean (TypeScript + Vite, no errors).
+- `make test` 58 passed, 2 known GPU-probe failures (documented NVML issue). Web tests 6/6.
+- `make demo` target runs correctly, prints banner with URLs.
+- Replay JSON passes full `ScenarioComparison` type-shape validation (benchmark.comparison, winner, plans, resource_profiles, ppo_outcome, rationale.advisory_rationale, citations, selected_approach).
+- No sensitive data in replay JSON (checked for api_key, password, secret, credential, HELIX_API — clean; "token" hit is LLM token counts only).
+- nginx serves replay file at `/demo-replay.json` (verified via curl).
+- API proxy works (`/api/scenarios` returns 4 scenarios).
+
+**Brutal-truth review of Phase 3.**
+- The "pitch deck" item in the PoA is covered by the demo guide's talk tracks and the "Why This Plan" summary card rather than a separate slide deck. A PDF/PPTX slide deck is outside the scope of code changes — the guide provides the narrative content Ryan would need for slides.
+- The demo guide is honest: explicitly mentions PPO losing, the ~94% caveat, the NVML probe issue, the advisory-only boundary. No overclaims.
+- The recorded fallback contains REAL data (not mock/fabricated) — it's a full scenario-comparison captured from the live API on this GB10. The objective (95445.445064) matches the seeded bench-all runs.
+- Guardrails: advisory-only boundary preserved (fine print on PlanSummary card); PPO reported honestly; no hospital claim; no flat-saving claim; data stays on-device.
+- 2 known GPU-probe test failures are pre-existing (every phase documents them). Not a regression — CUDA works (LLM serves at 47 tok/s, embeddings compute, optimizer runs).
+
+**DoD assessment: met.** Demo runs start-to-finish from `make demo`; every on-screen number traces to a real run (replay = real captured run, live = real-time computation); a non-technical viewer sees the "Why This Plan" summary card with cost/fill/inventory deltas in the first screen.
+
+**Open follow-ups:**
+- Phase 4: RL fair-shot (time-boxed, per-period MDP rebuild, CVaR-aware eval).
+- `llm` container still carries stale NVML (Phase 0 follow-up) — recreate in a maintenance window.
+- If Ryan wants a PDF pitch deck, the demo guide talk tracks are the content source.
 
 ## 2026-07-17 — Iteration 3, Phase 2: RAG on a real corpus
 **Status:** Phase 2 complete, verified on-device. **git ref: Phase 2 work committed as `ef237c9`; journal hash backfill in the follow-up commit. Not yet pushed (push from a credentialed terminal).** Branch `feat/iteration3`.

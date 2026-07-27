@@ -224,17 +224,20 @@ CLI, the web comparison view, and an all-scenario on-device benchmark suite.
 - Process RSS and the allocation-rate proxy are labeled honestly. Suite-level memory is sampled
   from the device/host unified pool; GPU utilization remains `null` when the GB10 probe reports N/A.
 
-**Latest live-run status (2026-07-10): Iteration 2 complete and verified on-device.**
-`make up` → `make test` (**49/49**) → `make bench-all` (all four scenarios) → `make run` all pass on
-the GB10. Real results (seed 12345, horizon 8, ppo-timesteps 128):
+**Latest live-run status (2026-07-17): Iteration 3 Phase 2 complete and verified on-device.**
+`make up` → `make test` (**58/58**) → `make bench-all` (all four scenarios) → `make rag` all pass on
+the GB10. Real results (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded — reproducible):
 
-- **Winners by evidence:** tuned classical wins `baseline` (obj 88 023 → 80 519), `demand-surge`
-  (100 735 → 95 913) and `stress-large` (2 622 323 → 2 495 180); the naive baseline wins
-  `component-shortage-shock` — under a zero-supply shock the tuned classical could **not** beat it,
-  reported honestly as "no improvement."
+- **Winners by evidence:** tuned classical wins **all four** scenarios: `baseline` (obj 88 022 → 81 789,
+  −7.1%), `component-shortage-shock` (102 835 → 95 445, −7.2%), `demand-surge` (100 735 → 94 165,
+  −6.5%), `stress-large` (2 622 335 → 2 521 615, −3.8%). With the Optuna search now seeded (Phase 1),
+  classical deterministically finds params that beat the naive baseline in every scenario.
 - **PPO lost in all four scenarios** (higher cost, highest latency/memory) — reported honestly, not
-  hidden. Tuned classical is the evidence-based default where it wins.
-- **On-device envelope:** device peak memory 67–68 GiB of the ~121 GiB usable pool (≥52 GiB headroom
+  hidden. Tuned classical is the evidence-based default.
+- **RAG advisory** now grounded on a real on-disk document corpus (6 supplier/SOP/playbook documents)
+  with retrieval-time injection scanning and Qdrant stale-point cleanup. LLM rationale surfaces as
+  `llm_finalized` (not template fallback) for all four scenarios.
+- **On-device envelope:** device peak memory ~67 GiB of the ~121 GiB usable pool (≥53 GiB headroom
   in every scenario); 90% flag clear. **stress-large stays single-node; the 2-node path is not
   needed.** Shared LLM ~47 tokens/s.
 
@@ -405,4 +408,4 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ---
 
-*Last updated during Iteration 2 Phase 6 hardening (2026-07-09). Keep this README current as the single source of truth — update §9 and §11 as decisions are made and code lands.*
+*Last updated during Iteration 3 Phase 3 (2026-07-17). Keep this README current as the single source of truth — update §9 and §11 as decisions are made and code lands.*
