@@ -37,7 +37,7 @@
 ## Entries (newest first)
 
 ## 2026-07-27 — Iteration 3, Phase 5: Scale study (single-node ceiling)
-**Status:** Phase 5 complete, verified on-device. **git ref: pending commit.** Branch `feat/iteration3`.
+**Status:** Phase 5 complete, verified on-device. **git ref: Phase 5 work committed as `ed30e72`.** Branch `feat/iteration3`.
 
 **Scope (per the PoA):** push a larger-than-prototype workload to find the real ~121 GiB single-node limit. Validate 2-node 256 GB RoCE/NCCL path only if the ceiling is hit and a second unit + 200G DAC are available.
 
