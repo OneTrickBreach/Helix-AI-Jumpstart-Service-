@@ -39,7 +39,7 @@
 ## Entries (newest first)
 
 ## 2026-07-27 — Iteration 3, Phase 4: RL fair-shot (demote)
-**Status:** Phase 4 complete, verified on-device. **git ref: TBD (this commit).** Branch `feat/iteration3`.
+**Status:** Phase 4 complete, verified on-device. **git ref: Phase 4 work committed as `1ea80a5`.** Branch `feat/iteration3`.
 
 **Scope (per the PoA):** give PPO the fair test it never got — rebuild `env.py` as a true per-period MDP (per-period state, action, lead-time receipt queue, inventory carry-over), re-run head-to-head on all scenarios, add CVaR-aware tail-risk evaluation. Keep/demote by evidence.
 
