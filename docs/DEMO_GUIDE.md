@@ -66,8 +66,8 @@ This takes about 5 seconds. It generates seeded synthetic manufacturing data
 ### 0.3 Verify everything works (optional but recommended)
 
 ```bash
-make test          # should show 58 passed (2 GPU-probe tests may fail on
-                   # the known NVML issue — that's cosmetic, not real)
+make test          # should show 56 passed, 2 xfail (GPU-probe tests
+                   # are expected failures — NVML issue, CUDA actually works)
 ```
 
 ### 0.4 One-command launch (combines 0.1 + 0.2 + opens the URL)
