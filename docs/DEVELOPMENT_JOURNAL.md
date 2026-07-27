@@ -18,23 +18,78 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
-- **Phase:** **Iteration 3, Phase 5 (Scale study) complete and verified on-device (2026-07-27).**
-  Ran 6-level scale study from 288 to 28,800 series. Device memory stays at ~54% of envelope at every
-  level (55+ GiB headroom). **Ceiling is forecast latency (~25ms/series), not memory.** The optimizer
-  takes <1s even at 100x. Single node retained; 2-node deferred. `make test` 69 passed + 2 xpassed (71 total).
+- **Phase:** **Iteration 3, Phase 6 (cuOpt re-check) complete and verified on-device (2026-07-27).**
+  cuOpt 26.06.00 now installs and runs on arm64/CUDA-13 (pip `cuopt-cu13`). VRP benchmark:
+  OR-Tools CPU wins below ~100 locations (our scale); cuOpt GPU wins at 200+ (27.8x at 500).
+  Main optimizer uses OR-Tools GLOP for transportation LP — cuOpt is VRP, not a replacement.
+  Decision: keep OR-Tools. `make test` 69 passed + 2 xpassed (71 total).
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
-  cuOpt remains unavailable for this arm64/CUDA environment; OR-Tools CPU fallback is the honest
-  current solver path, served in-process by `api` at `/cuopt/*`.
+  cuOpt 26.06.00 is NOW available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains
+  the lane-routing engine — cuOpt VRP crossover is at ~100 locations, above our prototype scale.
+  Smoke endpoint updated for cuOpt 26.x API.
 - **Live benchmark headline (2026-07-27, seeded, seed 12345, horizon 8, ppo-timesteps 128):**
   **tuned classical wins ALL FOUR** scenarios; **PPO lost in all four** (per-period MDP, demoted).
   Classical objectives unchanged from Phase 1 (seeded Optuna): baseline 81,789, shortage-shock 95,445,
   demand-surge 94,165, stress-large 2,521,615.
-- **Next:** Phase 6 — cuOpt re-check (dated NGC check for arm64/CUDA-13 cuOpt build).
+- **Next:** All Iteration 3 phases (0–6) complete. Phase 7 (Production track) deferred to post-Ryan meeting / Iteration 4.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-27 — Iteration 3, Phase 6: cuOpt re-check — arm64/CUDA-13 now available
+**Status:** Phase 6 complete, verified on-device. **git ref: Phase 6 work committed as `47b84ee`.** Branch `feat/iteration3`.
+
+**Scope (per the PoA):** re-check NGC for a current arm64/CUDA-13 cuOpt build. If it runs, benchmark GPU routing vs OR-Tools CPU honestly. If not, keep OR-Tools and record the dated availability check.
+
+**1. NGC / Docker Hub availability check (2026-07-27).**
+- **cuOpt is NOW available for arm64/CUDA-13.** This is a change from all prior checks (Phases 0, Iteration 2).
+- Docker Hub: `nvidia/cuopt:26.8.0a-cu13` — multi-arch (amd64 3.02 GB, arm64 3.28 GB). Nightly.
+- Docker Hub: `nvidia/cuopt:26.6.0-cuda12.9-py3.14` — stable, multi-arch.
+- NGC: `catalog.ngc.nvidia.com/orgs/nvidia/teams/cuopt/containers/cuopt` — 26.6.0, multi-arch.
+- pip: `pip install cuopt-cu13 --extra-index-url https://pypi.nvidia.com` installs 26.06.00 with all arm64 wheels.
+- Dependencies: cudf-cu13, cupy-cuda13x, numba, pyarrow, cuda-bindings, RAPIDS stack (~28 packages).
+- **Dependency impact:** numpy downgraded 2.5.1 → 2.4.6, pyarrow 25.0.0 → 23.0.1. Torch 2.13.0+cu130 works fine with the downgrades.
+
+**2. cuOpt API change.**
+- `set_task_locations()` → `set_order_locations()` in cuOpt 26.x (was the Phase 0 stub API).
+- `SolverSettings.time_limit` defaults to `3.4e38` (effectively infinite) — must set explicitly or the smoke test hangs.
+- Updated `src/api/cuopt_smoke.py` for the new API + 0.1s time limit.
+
+**3. VRP benchmark: cuOpt GPU vs OR-Tools CPU (on-device, GB10).**
+
+| Locations | OR-Tools (ms) | cuOpt (ms) | Winner | Ratio |
+|---:|---:|---:|---|---|
+| 4 | 37.0 | 61.6 | OR-Tools | 1.7x |
+| 10 | 1.7 | 115.8 | OR-Tools | 67.8x |
+| 25 | 12.4 | 120.8 | OR-Tools | 9.7x |
+| 50 | 29.9 | 129.3 | OR-Tools | 4.3x |
+| 100 | 187.4 | 171.7 | cuOpt | 1.1x |
+| 200 | 854.8 | 197.2 | cuOpt | 4.3x |
+| 500 | 9,509.5 | 341.6 | cuOpt | 27.8x |
+
+- **Crossover at ~100 locations.** cuOpt has ~100-120ms fixed GPU overhead (kernel launch + data transfer). OR-Tools scales super-linearly; cuOpt scales sublinearly after the fixed cost.
+- **At our prototype scale (≤152 lanes), OR-Tools CPU wins.** No reason to switch.
+- **At 500+ locations, cuOpt is dramatically faster (27.8x).** Relevant for future fleet-routing use cases, not the current transportation LP.
+
+**4. Critical distinction: cuOpt is VRP, not LP.**
+- Our main optimizer (`select_ortools_lanes` in `src/optimize/common.py`) solves a **capacitated min-cost transportation LP** using OR-Tools GLOP. cuOpt is a **vehicle routing problem** solver (TSP/VRP/PDP). These are different problem classes.
+- cuOpt does NOT replace the main optimizer's lane routing. It only applies to the VRP smoke endpoint (`/cuopt/solve`).
+- Even if cuOpt's LP/MILP APIs existed, they are "Not supported under NVAIE" per the NGC catalog.
+
+**5. Decision: keep OR-Tools as the lane-routing engine.**
+- cuOpt available but not advantageous at this problem scale.
+- cuOpt not added to `requirements-api.txt` — remains optional (~28 packages, numpy downgrade).
+- Smoke endpoint (`/cuopt/*`) gracefully falls back to OR-Tools when cuOpt is not installed.
+- Revisit if a production use case has 100+ stop fleet routing.
+
+**6. Brutal-truth review.**
+- No guardrail violations. Benchmark is honest (latency comparison with respective defaults).
+- API update verified on-device. Test suite passes (69 passed + 2 xpassed).
+- Benchmark artifact: `benchmark/cuopt-recheck.json`.
+
+---
 
 ## 2026-07-27 — Iteration 3, Phase 5: Scale study (single-node ceiling)
 **Status:** Phase 5 complete, verified on-device. **git ref: Phase 5 work committed as `ed30e72`.** Branch `feat/iteration3`.
