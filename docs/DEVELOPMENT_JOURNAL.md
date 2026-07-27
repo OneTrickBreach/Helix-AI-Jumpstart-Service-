@@ -17,22 +17,21 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration3` (branched from `main` @ `82342f7`, 2026-07-15). Iteration 2 is merged to `main`.
-- **Phase:** **Iteration 3, Phase 6 (cuOpt re-check) complete and verified on-device (2026-07-27).**
-  cuOpt 26.06.00 now installs and runs on arm64/CUDA-13 (pip `cuopt-cu13`). VRP benchmark:
-  OR-Tools CPU wins below ~100 locations (our scale); cuOpt GPU wins at 200+ (27.8x at 500).
-  Main optimizer uses OR-Tools GLOP for transportation LP — cuOpt is VRP, not a replacement.
-  Decision: keep OR-Tools. `make test` 69 passed + 2 xpassed (71 total).
+- **Branch:** `feat/iteration3` → merged to `main` (2026-07-27). Iteration 3 complete.
+- **Phase:** **Iteration 3 COMPLETE — all phases (0–6) verified on-device (2026-07-27).** Demo/pilot-ready.
+  Phase 7 (production track) deferred to Iteration 4.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
-  cuOpt 26.06.00 is NOW available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains
-  the lane-routing engine — cuOpt VRP crossover is at ~100 locations, above our prototype scale.
-  Smoke endpoint updated for cuOpt 26.x API.
-- **Live benchmark headline (2026-07-27, seeded, seed 12345, horizon 8, ppo-timesteps 128):**
-  **tuned classical wins ALL FOUR** scenarios; **PPO lost in all four** (per-period MDP, demoted).
-  Classical objectives unchanged from Phase 1 (seeded Optuna): baseline 81,789, shortage-shock 95,445,
-  demand-surge 94,165, stress-large 2,521,615.
-- **Next:** All Iteration 3 phases (0–6) complete. Phase 7 (Production track) deferred to post-Ryan meeting / Iteration 4.
+  cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
+  lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
+- **Tests:** `make test` 69 passed + 2 xpassed (71 total).
+- **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
+  **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
+  Classical objectives: baseline 81,789; shortage-shock 95,445; demand-surge 94,165; stress-large 2,521,615.
+- **On-device envelope:** peak 65–68 GiB of ~121 GiB (55+ GiB headroom). Scale study: ceiling is
+  forecast latency (~25ms/series), not memory. Single-node holds at all tested scales (up to 100x).
+- **Next:** Iteration 4 (production track) — real customer-data onboarding, hardening, multi-tenant
+  isolation, licensing, packaging. Pending post-Ryan meeting direction.
 
 ---
 
