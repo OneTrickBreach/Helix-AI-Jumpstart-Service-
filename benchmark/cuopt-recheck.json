@@ -1,0 +1,40 @@
+{
+  "phase": "Phase 6 — cuOpt re-check",
+  "date": "2026-07-27",
+  "device": "NVIDIA GB10 (arm64, Grace Blackwell, CUDA 13.0)",
+  "cuopt_version": "26.06.00",
+  "cuopt_source": "pip install cuopt-cu13 --extra-index-url https://pypi.nvidia.com",
+  "cuopt_docker_tag": "nvidia/cuopt:26.8.0a-cu13 (multi-arch, arm64 3.28 GB)",
+  "ortools_version": "9.11+",
+  "finding": "cuOpt arm64/CUDA-13 is NOW available and runs on the GB10. API changed since Phase 0 (set_task_locations → set_order_locations). Crossover at ~100 locations: cuOpt GPU wins at scale, OR-Tools CPU wins below 100 locations.",
+  "benchmark_type": "VRP (vehicle routing problem, 1 vehicle, symmetric distance matrix)",
+  "solver_settings": "cuOpt: 0.1s time limit. OR-Tools: PATH_CHEAPEST_ARC default.",
+  "results": [
+    {"locations": 4,   "ortools_ms": 37.0,   "cuopt_ms": 61.6,   "winner": "OR-Tools", "ratio": "1.7x"},
+    {"locations": 10,  "ortools_ms": 1.7,    "cuopt_ms": 115.8,  "winner": "OR-Tools", "ratio": "67.8x"},
+    {"locations": 25,  "ortools_ms": 12.4,   "cuopt_ms": 120.8,  "winner": "OR-Tools", "ratio": "9.7x"},
+    {"locations": 50,  "ortools_ms": 29.9,   "cuopt_ms": 129.3,  "winner": "OR-Tools", "ratio": "4.3x"},
+    {"locations": 100, "ortools_ms": 187.4,  "cuopt_ms": 171.7,  "winner": "cuOpt",    "ratio": "1.1x"},
+    {"locations": 200, "ortools_ms": 854.8,  "cuopt_ms": 197.2,  "winner": "cuOpt",    "ratio": "4.3x"},
+    {"locations": 500, "ortools_ms": 9509.5, "cuopt_ms": 341.6,  "winner": "cuOpt",    "ratio": "27.8x"}
+  ],
+  "key_observations": [
+    "cuOpt has ~100-120ms fixed GPU overhead (kernel launch + data transfer)",
+    "OR-Tools scales super-linearly (~O(n²)); cuOpt scales sublinearly after fixed cost",
+    "Crossover at ~100 locations — below that, OR-Tools CPU is faster",
+    "At 500 locations, cuOpt is 27.8x faster than OR-Tools",
+    "Default cuOpt time_limit is effectively infinite (3.4e38) — must set explicitly"
+  ],
+  "prototype_impact": {
+    "main_optimizer": "Uses OR-Tools GLOP for transportation LP (select_ortools_lanes in common.py). cuOpt is a VRP solver, NOT an LP solver — it does not replace this. OR-Tools LP stays.",
+    "smoke_endpoint": "cuopt_smoke.py now works with updated API (set_order_locations). cuOpt detected and usable at /cuopt/solve when installed.",
+    "lane_count": "Prototype max is ~152 lanes (from scale study). This is below the crossover — OR-Tools CPU is the right choice.",
+    "recommendation": "Keep OR-Tools as the lane-routing engine. cuOpt is available for future VRP use cases (fleet routing with 100+ stops) if needed."
+  },
+  "dependency_notes": {
+    "numpy_downgrade": "cuopt-cu13 requires numpy 2.4.x (container had 2.5.1). Torch 2.13.0+cu130 works with 2.4.6.",
+    "pyarrow_downgrade": "25.0.0 → 23.0.1. No issues observed.",
+    "cuda_bindings_downgrade": "13.3.1 → 13.2.0. No issues observed.",
+    "not_in_requirements": "cuopt-cu13 is NOT added to requirements-api.txt — it's optional and adds ~28 packages. The smoke endpoint falls back to OR-Tools gracefully."
+  }
+}
