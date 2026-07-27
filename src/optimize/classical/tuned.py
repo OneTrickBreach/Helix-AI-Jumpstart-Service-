@@ -6,6 +6,14 @@ from src.ingest.state import ScenarioState
 from src.optimize.baseline.policy import optimize_baseline
 from src.optimize.common import PolicyParams, build_plan
 
+# Fixed sampler seed so the Optuna search is reproducible run-to-run. Without
+# it, TPESampler seeds itself from entropy, the trial sequence differs every
+# run, and the tuned-classical objective (and therefore the headline winner)
+# drifts between otherwise-identical `make bench-all` runs — which contradicts
+# the "seeded/reproducible" promise and can make a live demo disagree with the
+# committed handoff numbers. Matches the project data seed (12345).
+DEFAULT_TUNING_SEED = 12345
+
 
 def _candidate_params() -> list[PolicyParams]:
     return [
@@ -18,7 +26,12 @@ def _candidate_params() -> list[PolicyParams]:
     ]
 
 
-def optimize_classical(state: ScenarioState, forecast: dict, n_trials: int = 12) -> dict:
+def optimize_classical(
+    state: ScenarioState,
+    forecast: dict,
+    n_trials: int = 12,
+    seed: int = DEFAULT_TUNING_SEED,
+) -> dict:
     baseline = optimize_baseline(state, forecast)
     best_plan = baseline
     best_value = float(baseline["metrics"]["objective"])
@@ -51,7 +64,10 @@ def optimize_classical(state: ScenarioState, forecast: dict, n_trials: int = 12)
             )
             return float(plan["metrics"]["objective"])
 
-        study = optuna.create_study(direction="minimize")
+        study = optuna.create_study(
+            direction="minimize",
+            sampler=optuna.samplers.TPESampler(seed=seed),
+        )
         study.optimize(objective, n_trials=max(1, n_trials), show_progress_bar=False)
         params = PolicyParams(**study.best_params)
         plan = build_plan(

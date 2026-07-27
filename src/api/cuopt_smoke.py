@@ -132,15 +132,16 @@ def _solve_vrp_cuopt() -> dict:
 
         n_locations = 4
         n_vehicles = 1
-        n_tasks = 3  # locations 1, 2, 3
+        n_orders = 3  # locations 1, 2, 3
 
-        dm = routing.DataModel(n_locations, n_vehicles, n_tasks)
+        dm = routing.DataModel(n_locations, n_vehicles, n_orders)
         dm.add_cost_matrix(cost_matrix)
 
-        task_locations = cudf.Series([1, 2, 3])
-        dm.set_task_locations(task_locations)
+        order_locations = cudf.Series([1, 2, 3])
+        dm.set_order_locations(order_locations)
 
         ss = routing.SolverSettings()
+        ss.set_time_limit(0.1)
         sol = routing.Solve(dm, ss)
 
         route_df = sol.get_route()

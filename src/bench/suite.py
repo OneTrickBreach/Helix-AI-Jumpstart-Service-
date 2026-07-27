@@ -248,12 +248,17 @@ def render_markdown(summary: dict[str, Any]) -> str:
     lines.extend(
         [
             "",
-            "> **Reading the memory columns:** the suite runs all scenarios in one "
-            "process, and `API peak RSS` comes from `ru_maxrss` — a process-lifetime "
-            "high-water mark. It is therefore monotonic and saturates after the first "
-            "scenario, so it is **not** a per-scenario/per-approach figure. The "
-            "per-scenario memory measure is the device-level `/proc/meminfo` column "
-            "(`Device peak (GiB)`), which is sampled fresh during each scenario.",
+            "> **Reading the memory columns:** `API peak RSS` is now the peak "
+            "*current* resident-set size of the api process sampled over each "
+            "stage's own window, so it is a genuine per-scenario/per-approach "
+            "figure (the earlier `ru_maxrss` process-lifetime high-water mark "
+            "saturated after the first scenario and has been replaced). It still "
+            "reflects only the api process — not the LLM/Qdrant containers — and "
+            "because Python rarely returns freed memory to the OS the per-stage "
+            "floor can rise within a run. The **authoritative device-level** "
+            "measure remains the `/proc/meminfo` column (`Device peak (GiB)`), "
+            "which is sampled fresh during each scenario and captures the whole "
+            "unified pool.",
             "",
             "## Envelope and bandwidth finding",
             "",

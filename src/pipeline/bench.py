@@ -22,6 +22,7 @@ def _row(approach: str, plan: dict, profile: dict) -> dict:
         "objective": metrics["objective"],
         "fill_rate": metrics["fill_rate"],
         "days_of_inventory": metrics["days_of_inventory"],
+        "cvar_75": metrics.get("cvar_75", 0.0),
         "latency_seconds": profile["wall_clock_seconds"],
         "peak_process_rss_mb": profile["peak_process_rss_mb"],
         "allocation_rate_gbps_proxy": profile["allocation_rate_gbps_proxy"],

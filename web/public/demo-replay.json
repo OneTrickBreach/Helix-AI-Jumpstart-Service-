@@ -1,0 +1,1804 @@
+{
+  "benchmark": {
+    "artifacts": {
+      "comparison_path": "/app/benchmark/component-shortage-shock-head-to-head-comparison.json"
+    },
+    "comparison": [
+      {
+        "allocation_rate_gbps_proxy": 0.001181,
+        "approach": "baseline",
+        "days_of_inventory": 0.941751,
+        "fill_rate": 0.798662,
+        "gpu_utilization_percent": null,
+        "latency_seconds": 0.013867,
+        "objective": 102834.785064,
+        "peak_process_rss_mb": 2130.988281,
+        "total_cost": 87700.993193
+      },
+      {
+        "allocation_rate_gbps_proxy": 0.009149,
+        "approach": "classical",
+        "days_of_inventory": 2.919964,
+        "fill_rate": 0.8247,
+        "gpu_utilization_percent": null,
+        "latency_seconds": 0.109685,
+        "objective": 95445.445064,
+        "peak_process_rss_mb": 2131.945312,
+        "total_cost": 82915.472858
+      },
+      {
+        "allocation_rate_gbps_proxy": 0.248681,
+        "approach": "ppo",
+        "days_of_inventory": 0.096038,
+        "fill_rate": 0.768381,
+        "gpu_utilization_percent": null,
+        "latency_seconds": 2.280628,
+        "objective": 113584.863463,
+        "peak_process_rss_mb": 2132.191406,
+        "total_cost": 95422.989913
+      }
+    ],
+    "objective_tie_across_approaches": false,
+    "plans": {
+      "baseline": {
+        "lane_assignments": [
+          {
+            "cost_per_unit": 4.156293,
+            "effective_lead_time_days": 11.070065,
+            "engine": "greedy_shortest_route",
+            "from_node_id": "SUP-005",
+            "lane_id": "LANE-0009",
+            "lane_type": "inbound_raw",
+            "to_node_id": "PLANT-001"
+          },
+          {
+            "cost_per_unit": 3.14474,
+            "effective_lead_time_days": 3.381779,
+            "engine": "greedy_shortest_route",
+            "from_node_id": "PLANT-001",
+            "lane_id": "LANE-0012",
+            "lane_type": "plant_to_dc",
+            "to_node_id": "DC-002"
+          },
+          {
+            "cost_per_unit": 1.4387910000000002,
+            "effective_lead_time_days": 2.036787,
+            "engine": "greedy_shortest_route",
+            "from_node_id": "DC-001",
+            "lane_id": "LANE-0022",
+            "lane_type": "dc_to_customer",
+            "to_node_id": "CUST-008"
+          }
+        ],
+        "method": "baseline_sS_greedy",
+        "metrics": {
+          "cost_breakdown": {
+            "backorder": 27294.924703,
+            "holding": 6708.587019,
+            "lost_sale": 27761.504613,
+            "ordering": 6208.0,
+            "transport": 19727.976858
+          },
+          "days_of_inventory": 0.941751,
+          "fill_rate": 0.798662,
+          "objective": 102834.785064,
+          "total_cost": 87700.993193,
+          "total_order_units": 6771.753135
+        },
+        "plan": [
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 26.765507,
+            "inventory_position_units": 137.0,
+            "mean_forecast_units": 55.57257,
+            "order_quantity_units": 251.977279,
+            "order_up_to_units": 112.388433,
+            "projected_fill_rate": 0.814727,
+            "reorder_point_units": 56.815863,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 108.0,
+            "mean_forecast_units": 34.334456,
+            "order_quantity_units": 166.675648,
+            "order_up_to_units": 68.668912,
+            "projected_fill_rate": 0.768191,
+            "reorder_point_units": 34.334456,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 4.921918,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 39.307306,
+            "order_quantity_units": 162.151142,
+            "order_up_to_units": 78.614612,
+            "projected_fill_rate": 0.859348,
+            "reorder_point_units": 39.307306,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 118.0,
+            "mean_forecast_units": 36.868073,
+            "order_quantity_units": 176.944584,
+            "order_up_to_units": 73.736146,
+            "projected_fill_rate": 0.775075,
+            "reorder_point_units": 36.868073,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 47.837146,
+            "order_quantity_units": 233.697168,
+            "order_up_to_units": 95.674292,
+            "projected_fill_rate": 0.764342,
+            "reorder_point_units": 47.837146,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 111.0,
+            "mean_forecast_units": 31.477793,
+            "order_quantity_units": 140.808821,
+            "order_up_to_units": 62.983916,
+            "projected_fill_rate": 0.815949,
+            "reorder_point_units": 31.506123,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 33.995647,
+            "order_quantity_units": 158.965176,
+            "order_up_to_units": 67.991294,
+            "projected_fill_rate": 0.790494,
+            "reorder_point_units": 33.995647,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 48.960778,
+            "inventory_position_units": 140.0,
+            "mean_forecast_units": 62.986926,
+            "order_quantity_units": 300.908482,
+            "order_up_to_units": 125.973852,
+            "projected_fill_rate": 0.777835,
+            "reorder_point_units": 62.986926,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 175.0,
+            "mean_forecast_units": 52.226195,
+            "order_quantity_units": 242.80956,
+            "order_up_to_units": 104.45239,
+            "projected_fill_rate": 0.793851,
+            "reorder_point_units": 52.226195,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 128.0,
+            "mean_forecast_units": 42.096249,
+            "order_quantity_units": 208.769992,
+            "order_up_to_units": 84.192498,
+            "projected_fill_rate": 0.755081,
+            "reorder_point_units": 42.096249,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 145.0,
+            "mean_forecast_units": 45.373072,
+            "order_quantity_units": 217.964281,
+            "order_up_to_units": 90.805922,
+            "projected_fill_rate": 0.77468,
+            "reorder_point_units": 45.432849,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 168.0,
+            "mean_forecast_units": 47.478231,
+            "order_quantity_units": 211.825848,
+            "order_up_to_units": 94.956462,
+            "projected_fill_rate": 0.817308,
+            "reorder_point_units": 47.478231,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 15.462105,
+            "inventory_position_units": 171.0,
+            "mean_forecast_units": 62.154035,
+            "order_quantity_units": 264.078245,
+            "order_up_to_units": 124.30807,
+            "projected_fill_rate": 0.843904,
+            "reorder_point_units": 62.154035,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 129.0,
+            "mean_forecast_units": 42.789601,
+            "order_quantity_units": 213.316808,
+            "order_up_to_units": 85.579202,
+            "projected_fill_rate": 0.751844,
+            "reorder_point_units": 42.789601,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 145.0,
+            "mean_forecast_units": 37.848097,
+            "order_quantity_units": 157.784776,
+            "order_up_to_units": 75.696194,
+            "projected_fill_rate": 0.853888,
+            "reorder_point_units": 37.848097,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 43.234645,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 64.078215,
+            "order_quantity_units": 299.547505,
+            "order_up_to_units": 128.15643,
+            "projected_fill_rate": 0.79066,
+            "reorder_point_units": 64.078215,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 23.121912,
+            "inventory_position_units": 155.0,
+            "mean_forecast_units": 60.366375,
+            "order_quantity_units": 267.533653,
+            "order_up_to_units": 121.986576,
+            "projected_fill_rate": 0.827058,
+            "reorder_point_units": 61.620201,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 36.979183,
+            "order_quantity_units": 182.833464,
+            "order_up_to_units": 73.958366,
+            "projected_fill_rate": 0.756972,
+            "reorder_point_units": 36.979183,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 119.0,
+            "mean_forecast_units": 33.331138,
+            "order_quantity_units": 147.649104,
+            "order_up_to_units": 66.662276,
+            "projected_fill_rate": 0.821279,
+            "reorder_point_units": 33.331138,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 8.158596,
+            "inventory_position_units": 135.0,
+            "mean_forecast_units": 47.719532,
+            "order_quantity_units": 199.036724,
+            "order_up_to_units": 95.439064,
+            "projected_fill_rate": 0.853629,
+            "reorder_point_units": 47.719532,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 44.149721,
+            "order_quantity_units": 204.197768,
+            "order_up_to_units": 88.299442,
+            "projected_fill_rate": 0.79686,
+            "reorder_point_units": 44.149721,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 24.232701,
+            "inventory_position_units": 118.0,
+            "mean_forecast_units": 50.537558,
+            "order_quantity_units": 235.665327,
+            "order_up_to_units": 105.025404,
+            "projected_fill_rate": 0.814821,
+            "reorder_point_units": 54.487846,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 136.0,
+            "mean_forecast_units": 37.988744,
+            "order_quantity_units": 167.909952,
+            "order_up_to_units": 75.977488,
+            "projected_fill_rate": 0.822501,
+            "reorder_point_units": 37.988744,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 152.0,
+            "mean_forecast_units": 78.658346,
+            "order_quantity_units": 471.950076,
+            "order_up_to_units": 157.316692,
+            "projected_fill_rate": 0.75,
+            "reorder_point_units": 78.658346,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 162.0,
+            "mean_forecast_units": 50.032617,
+            "order_quantity_units": 238.260936,
+            "order_up_to_units": 100.065234,
+            "projected_fill_rate": 0.779736,
+            "reorder_point_units": 50.032617,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 119.0,
+            "mean_forecast_units": 33.371181,
+            "order_quantity_units": 147.969448,
+            "order_up_to_units": 66.742362,
+            "projected_fill_rate": 0.820744,
+            "reorder_point_units": 33.371181,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 131.0,
+            "mean_forecast_units": 36.719594,
+            "order_quantity_units": 162.756752,
+            "order_up_to_units": 73.439188,
+            "projected_fill_rate": 0.820947,
+            "reorder_point_units": 36.719594,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 140.0,
+            "mean_forecast_units": 39.391919,
+            "order_quantity_units": 175.135352,
+            "order_up_to_units": 78.783838,
+            "projected_fill_rate": 0.819254,
+            "reorder_point_units": 39.391919,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 155.0,
+            "mean_forecast_units": 46.905373,
+            "order_quantity_units": 220.242984,
+            "order_up_to_units": 93.810746,
+            "projected_fill_rate": 0.788066,
+            "reorder_point_units": 46.905373,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 110.0,
+            "mean_forecast_units": 35.3054,
+            "order_quantity_units": 172.4432,
+            "order_up_to_units": 70.6108,
+            "projected_fill_rate": 0.764459,
+            "reorder_point_units": 35.3054,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 132.0,
+            "mean_forecast_units": 40.520161,
+            "order_quantity_units": 192.161288,
+            "order_up_to_units": 81.040322,
+            "projected_fill_rate": 0.782205,
+            "reorder_point_units": 40.520161,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 142.0,
+            "mean_forecast_units": 39.972724,
+            "order_quantity_units": 177.781792,
+            "order_up_to_units": 79.945448,
+            "projected_fill_rate": 0.819053,
+            "reorder_point_units": 39.972724,
+            "sku_id": "FG-004"
+          }
+        ],
+        "policy": {
+          "order_batch_multiplier": 1.0,
+          "order_up_to_multiplier": 1.0,
+          "safety_stock_multiplier": 1.0
+        },
+        "scenario": "component-shortage-shock"
+      },
+      "classical": {
+        "lane_assignments": [
+          {
+            "cost_per_unit": 4.611070832129442,
+            "effective_lead_time_days": 10.71911890080089,
+            "engine": "ortools_transportation_lp",
+            "from_node_id": "SUP-001",
+            "lane_id": "LANE-0002",
+            "lane_splits": [
+              {
+                "flow_units": 3611.942308,
+                "lane_id": "LANE-0001"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0002"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0004"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0005"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0007"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0009"
+              }
+            ],
+            "lane_type": "inbound_raw",
+            "required_flow_units": 27711.942308,
+            "to_node_id": "PLANT-002"
+          },
+          {
+            "cost_per_unit": 3.1552508202567764,
+            "effective_lead_time_days": 3.4182194434481357,
+            "engine": "ortools_transportation_lp",
+            "from_node_id": "PLANT-001",
+            "lane_id": "LANE-0012",
+            "lane_splits": [
+              {
+                "flow_units": 489.0,
+                "lane_id": "LANE-0012"
+              },
+              {
+                "flow_units": 489.0,
+                "lane_id": "LANE-0013"
+              },
+              {
+                "flow_units": 248.75,
+                "lane_id": "LANE-0014"
+              }
+            ],
+            "lane_type": "plant_to_dc",
+            "required_flow_units": 1226.75,
+            "to_node_id": "DC-002"
+          },
+          {
+            "cost_per_unit": 1.5524096178928062,
+            "effective_lead_time_days": 2.1909451872834724,
+            "engine": "ortools_transportation_lp",
+            "from_node_id": "DC-001",
+            "lane_id": "LANE-0015",
+            "lane_splits": [
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0015"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0017"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0019"
+              },
+              {
+                "flow_units": 119.75,
+                "lane_id": "LANE-0021"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0022"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0023"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0025"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0027"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0029"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0030"
+              }
+            ],
+            "lane_type": "dc_to_customer",
+            "required_flow_units": 1226.75,
+            "to_node_id": "CUST-001"
+          }
+        ],
+        "method": "classical_tuned_sS_ortools",
+        "metrics": {
+          "cost_breakdown": {
+            "backorder": 23764.966254,
+            "holding": 7574.217472,
+            "lost_sale": 24171.204994,
+            "ordering": 5632.0,
+            "transport": 21773.084138
+          },
+          "days_of_inventory": 2.919964,
+          "fill_rate": 0.8247,
+          "objective": 95445.445064,
+          "total_cost": 82915.472858,
+          "total_order_units": 7009.457674
+        },
+        "plan": [
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 39.342086,
+            "inventory_position_units": 137.0,
+            "mean_forecast_units": 55.57257,
+            "order_quantity_units": 277.446522,
+            "order_up_to_units": 126.420755,
+            "projected_fill_rate": 0.843727,
+            "reorder_point_units": 56.843581,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 39.300516,
+            "inventory_position_units": 108.0,
+            "mean_forecast_units": 34.334456,
+            "order_quantity_units": 144.999008,
+            "order_up_to_units": 77.32139,
+            "projected_fill_rate": 0.778003,
+            "reorder_point_units": 34.334456,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 14.374254,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 39.307306,
+            "order_quantity_units": 180.520698,
+            "order_up_to_units": 88.520276,
+            "projected_fill_rate": 0.887705,
+            "reorder_point_units": 39.307306,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 44.177442,
+            "inventory_position_units": 118.0,
+            "mean_forecast_units": 36.868073,
+            "order_quantity_units": 155.6722,
+            "order_up_to_units": 83.02711,
+            "projected_fill_rate": 0.778094,
+            "reorder_point_units": 36.868073,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 53.321989,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 47.837146,
+            "order_quantity_units": 202.041985,
+            "order_up_to_units": 107.729525,
+            "projected_fill_rate": 0.777952,
+            "reorder_point_units": 47.837146,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 111.0,
+            "mean_forecast_units": 31.477793,
+            "order_quantity_units": 155.234692,
+            "order_up_to_units": 70.91713,
+            "projected_fill_rate": 0.844874,
+            "reorder_point_units": 31.506754,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 33.995647,
+            "order_quantity_units": 174.361503,
+            "order_up_to_units": 76.55839,
+            "projected_fill_rate": 0.819754,
+            "reorder_point_units": 33.995647,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 13.841812,
+            "inventory_position_units": 140.0,
+            "mean_forecast_units": 62.986926,
+            "order_quantity_units": 265.938532,
+            "order_up_to_units": 141.846915,
+            "projected_fill_rate": 0.778131,
+            "reorder_point_units": 62.986926,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 175.0,
+            "mean_forecast_units": 52.226195,
+            "order_quantity_units": 266.499109,
+            "order_up_to_units": 117.613688,
+            "projected_fill_rate": 0.823067,
+            "reorder_point_units": 52.226195,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 43.886531,
+            "inventory_position_units": 128.0,
+            "mean_forecast_units": 42.096249,
+            "order_quantity_units": 177.835967,
+            "order_up_to_units": 94.800992,
+            "projected_fill_rate": 0.777829,
+            "reorder_point_units": 42.096249,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 54.327213,
+            "inventory_position_units": 145.0,
+            "mean_forecast_units": 45.373072,
+            "order_quantity_units": 191.705252,
+            "order_up_to_units": 102.241526,
+            "projected_fill_rate": 0.777934,
+            "reorder_point_units": 45.434182,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 168.0,
+            "mean_forecast_units": 47.478231,
+            "order_quantity_units": 233.595318,
+            "order_up_to_units": 106.921246,
+            "projected_fill_rate": 0.846216,
+            "reorder_point_units": 47.478231,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 30.106477,
+            "inventory_position_units": 171.0,
+            "mean_forecast_units": 62.154035,
+            "order_quantity_units": 292.923479,
+            "order_up_to_units": 139.97124,
+            "projected_fill_rate": 0.872463,
+            "reorder_point_units": 62.154035,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 43.530376,
+            "inventory_position_units": 129.0,
+            "mean_forecast_units": 42.789601,
+            "order_quantity_units": 180.779564,
+            "order_up_to_units": 96.362425,
+            "projected_fill_rate": 0.777786,
+            "reorder_point_units": 42.789601,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 145.0,
+            "mean_forecast_units": 37.848097,
+            "order_quantity_units": 175.429057,
+            "order_up_to_units": 85.23413,
+            "projected_fill_rate": 0.882317,
+            "reorder_point_units": 37.848097,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 57.259096,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 64.078215,
+            "order_quantity_units": 328.570192,
+            "order_up_to_units": 144.304504,
+            "projected_fill_rate": 0.819918,
+            "reorder_point_units": 64.078215,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 37.018083,
+            "inventory_position_units": 155.0,
+            "mean_forecast_units": 60.366375,
+            "order_quantity_units": 295.354602,
+            "order_up_to_units": 137.227198,
+            "projected_fill_rate": 0.855891,
+            "reorder_point_units": 61.648154,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 39.096299,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 36.979183,
+            "order_quantity_units": 156.211548,
+            "order_up_to_units": 83.27733,
+            "projected_fill_rate": 0.777854,
+            "reorder_point_units": 36.979183,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 119.0,
+            "mean_forecast_units": 33.331138,
+            "order_quantity_units": 162.959686,
+            "order_up_to_units": 75.061912,
+            "projected_fill_rate": 0.850136,
+            "reorder_point_units": 33.331138,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 19.547987,
+            "inventory_position_units": 135.0,
+            "mean_forecast_units": 47.719532,
+            "order_quantity_units": 221.280342,
+            "order_up_to_units": 107.464657,
+            "projected_fill_rate": 0.882061,
+            "reorder_point_units": 47.719532,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 44.149721,
+            "order_quantity_units": 224.251728,
+            "order_up_to_units": 99.425423,
+            "projected_fill_rate": 0.826036,
+            "reorder_point_units": 44.149721,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 35.655371,
+            "inventory_position_units": 118.0,
+            "mean_forecast_units": 50.537558,
+            "order_quantity_units": 258.869905,
+            "order_up_to_units": 117.849225,
+            "projected_fill_rate": 0.843963,
+            "reorder_point_units": 54.575915,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 136.0,
+            "mean_forecast_units": 37.988744,
+            "order_quantity_units": 185.369727,
+            "order_up_to_units": 85.550867,
+            "projected_fill_rate": 0.851341,
+            "reorder_point_units": 37.988744,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 152.0,
+            "mean_forecast_units": 78.658346,
+            "order_quantity_units": 507.528613,
+            "order_up_to_units": 177.139042,
+            "projected_fill_rate": 0.808605,
+            "reorder_point_units": 78.658346,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 162.0,
+            "mean_forecast_units": 50.032617,
+            "order_quantity_units": 260.807373,
+            "order_up_to_units": 112.673738,
+            "projected_fill_rate": 0.809137,
+            "reorder_point_units": 50.032617,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 119.0,
+            "mean_forecast_units": 33.371181,
+            "order_quantity_units": 163.294675,
+            "order_up_to_units": 75.152089,
+            "projected_fill_rate": 0.849607,
+            "reorder_point_units": 33.371181,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 131.0,
+            "mean_forecast_units": 36.719594,
+            "order_quantity_units": 179.621255,
+            "order_up_to_units": 82.692734,
+            "projected_fill_rate": 0.849808,
+            "reorder_point_units": 36.719594,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 140.0,
+            "mean_forecast_units": 39.391919,
+            "order_quantity_units": 193.213203,
+            "order_up_to_units": 88.710825,
+            "projected_fill_rate": 0.848136,
+            "reorder_point_units": 39.391919,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 155.0,
+            "mean_forecast_units": 46.905373,
+            "order_quantity_units": 241.46212,
+            "order_up_to_units": 105.631167,
+            "projected_fill_rate": 0.817357,
+            "reorder_point_units": 46.905373,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 39.385583,
+            "inventory_position_units": 110.0,
+            "mean_forecast_units": 35.3054,
+            "order_quantity_units": 149.113252,
+            "order_up_to_units": 79.507961,
+            "projected_fill_rate": 0.777953,
+            "reorder_point_units": 35.3054,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 132.0,
+            "mean_forecast_units": 40.520161,
+            "order_quantity_units": 210.442062,
+            "order_up_to_units": 91.251633,
+            "projected_fill_rate": 0.811573,
+            "reorder_point_units": 40.520161,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 142.0,
+            "mean_forecast_units": 39.972724,
+            "order_quantity_units": 196.124504,
+            "order_up_to_units": 90.018802,
+            "projected_fill_rate": 0.847938,
+            "reorder_point_units": 39.972724,
+            "sku_id": "FG-004"
+          }
+        ],
+        "policy": {
+          "order_batch_multiplier": 0.9867165589513885,
+          "order_up_to_multiplier": 1.2520056828956347,
+          "safety_stock_multiplier": 1.0222942660957348
+        },
+        "scenario": "component-shortage-shock",
+        "tuning": {
+          "baseline_objective": 102834.785064,
+          "best_objective": 95445.445064,
+          "matched_or_beat_baseline": true,
+          "trials": [
+            {
+              "number": 0,
+              "objective": 102834.785064,
+              "params": {
+                "order_batch_multiplier": 1.0,
+                "order_up_to_multiplier": 1.0,
+                "safety_stock_multiplier": 1.0
+              },
+              "source": "baseline_seed"
+            },
+            {
+              "number": 1,
+              "objective": 115777.030856,
+              "params": {
+                "order_batch_multiplier": 0.7143715840869831,
+                "order_up_to_multiplier": 0.9240065550199823,
+                "safety_stock_multiplier": 1.397212069612861
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 2,
+              "objective": 106018.043605,
+              "params": {
+                "order_batch_multiplier": 0.8584406460427381,
+                "order_up_to_multiplier": 1.0622487659949278,
+                "safety_stock_multiplier": 0.8534202089147798
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 3,
+              "objective": 104878.133456,
+              "params": {
+                "order_batch_multiplier": 0.9121173231368691,
+                "order_up_to_multiplier": 1.109247403279364,
+                "safety_stock_multiplier": 1.4233858898017162
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 4,
+              "objective": 98415.272274,
+              "params": {
+                "order_batch_multiplier": 0.9864573576254875,
+                "order_up_to_multiplier": 1.1612431450992007,
+                "safety_stock_multiplier": 1.1901774031388015
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 5,
+              "objective": 113177.439455,
+              "params": {
+                "order_batch_multiplier": 0.7545462998192836,
+                "order_up_to_multiplier": 0.8085444071837457,
+                "safety_stock_multiplier": 0.7062912234561651
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 6,
+              "objective": 98890.356334,
+              "params": {
+                "order_batch_multiplier": 0.9552615698034991,
+                "order_up_to_multiplier": 1.195396903897514,
+                "safety_stock_multiplier": 1.1923083873117024
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 7,
+              "objective": 105860.530197,
+              "params": {
+                "order_batch_multiplier": 0.8748663647635444,
+                "order_up_to_multiplier": 1.1480269408059744,
+                "safety_stock_multiplier": 1.4234856980289476
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 8,
+              "objective": 111871.228451,
+              "params": {
+                "order_batch_multiplier": 0.7639546371387822,
+                "order_up_to_multiplier": 1.0071794539706131,
+                "safety_stock_multiplier": 1.23809021560931
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 9,
+              "objective": 98185.629283,
+              "params": {
+                "order_batch_multiplier": 0.9979051050649868,
+                "order_up_to_multiplier": 1.1513289955107684,
+                "safety_stock_multiplier": 1.029733454413607
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 10,
+              "objective": 110637.163156,
+              "params": {
+                "order_batch_multiplier": 0.7098199902273521,
+                "order_up_to_multiplier": 1.1849523848162837,
+                "safety_stock_multiplier": 1.2076552838303274
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 11,
+              "objective": 111220.460769,
+              "params": {
+                "order_batch_multiplier": 0.6557245915864421,
+                "order_up_to_multiplier": 1.2717532522470896,
+                "safety_stock_multiplier": 1.0315265542971204
+              },
+              "source": "optuna"
+            },
+            {
+              "number": 12,
+              "objective": 95445.445064,
+              "params": {
+                "order_batch_multiplier": 0.9867165589513885,
+                "order_up_to_multiplier": 1.2520056828956347,
+                "safety_stock_multiplier": 1.0222942660957348
+              },
+              "source": "optuna"
+            }
+          ]
+        }
+      },
+      "ppo": {
+        "lane_assignments": [
+          {
+            "cost_per_unit": 4.611070832129442,
+            "effective_lead_time_days": 10.71911890080089,
+            "engine": "ortools_transportation_lp",
+            "from_node_id": "SUP-001",
+            "lane_id": "LANE-0002",
+            "lane_splits": [
+              {
+                "flow_units": 3611.942308,
+                "lane_id": "LANE-0001"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0002"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0004"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0005"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0007"
+              },
+              {
+                "flow_units": 4820.0,
+                "lane_id": "LANE-0009"
+              }
+            ],
+            "lane_type": "inbound_raw",
+            "required_flow_units": 27711.942308,
+            "to_node_id": "PLANT-002"
+          },
+          {
+            "cost_per_unit": 3.1552508202567764,
+            "effective_lead_time_days": 3.4182194434481357,
+            "engine": "ortools_transportation_lp",
+            "from_node_id": "PLANT-001",
+            "lane_id": "LANE-0012",
+            "lane_splits": [
+              {
+                "flow_units": 489.0,
+                "lane_id": "LANE-0012"
+              },
+              {
+                "flow_units": 489.0,
+                "lane_id": "LANE-0013"
+              },
+              {
+                "flow_units": 248.75,
+                "lane_id": "LANE-0014"
+              }
+            ],
+            "lane_type": "plant_to_dc",
+            "required_flow_units": 1226.75,
+            "to_node_id": "DC-002"
+          },
+          {
+            "cost_per_unit": 1.5524096178928062,
+            "effective_lead_time_days": 2.1909451872834724,
+            "engine": "ortools_transportation_lp",
+            "from_node_id": "DC-001",
+            "lane_id": "LANE-0015",
+            "lane_splits": [
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0015"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0017"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0019"
+              },
+              {
+                "flow_units": 119.75,
+                "lane_id": "LANE-0021"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0022"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0023"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0025"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0027"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0029"
+              },
+              {
+                "flow_units": 123.0,
+                "lane_id": "LANE-0030"
+              }
+            ],
+            "lane_type": "dc_to_customer",
+            "required_flow_units": 1226.75,
+            "to_node_id": "CUST-001"
+          }
+        ],
+        "method": "ppo_candidate",
+        "metrics": {
+          "cost_breakdown": {
+            "backorder": 31400.027721,
+            "holding": 5264.416115,
+            "lost_sale": 31936.780332,
+            "ordering": 8704.0,
+            "transport": 18117.765745
+          },
+          "days_of_inventory": 0.096038,
+          "fill_rate": 0.768381,
+          "objective": 113584.863463,
+          "total_cost": 95422.989913,
+          "total_order_units": 5832.692848
+        },
+        "plan": [
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 137.0,
+            "mean_forecast_units": 55.57257,
+            "order_quantity_units": 270.040773,
+            "order_up_to_units": 111.953281,
+            "projected_fill_rate": 0.818887,
+            "reorder_point_units": 56.38071,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 108.0,
+            "mean_forecast_units": 34.334456,
+            "order_quantity_units": 122.356896,
+            "order_up_to_units": 68.668912,
+            "projected_fill_rate": 0.689678,
+            "reorder_point_units": 34.334456,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 39.307306,
+            "order_quantity_units": 184.572147,
+            "order_up_to_units": 78.614612,
+            "projected_fill_rate": 0.846996,
+            "reorder_point_units": 39.307306,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-001",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 118.0,
+            "mean_forecast_units": 36.868073,
+            "order_quantity_units": 130.366355,
+            "order_up_to_units": 73.736146,
+            "projected_fill_rate": 0.694996,
+            "reorder_point_units": 36.868073,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 47.837146,
+            "order_quantity_units": 171.215792,
+            "order_up_to_units": 95.674292,
+            "projected_fill_rate": 0.686704,
+            "reorder_point_units": 47.837146,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 111.0,
+            "mean_forecast_units": 31.477793,
+            "order_quantity_units": 127.619309,
+            "order_up_to_units": 62.974001,
+            "projected_fill_rate": 0.845305,
+            "reorder_point_units": 31.496207,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 33.995647,
+            "order_quantity_units": 118.103734,
+            "order_up_to_units": 67.991294,
+            "projected_fill_rate": 0.706907,
+            "reorder_point_units": 33.995647,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-002",
+            "ending_inventory_units": 10.745287,
+            "inventory_position_units": 140.0,
+            "mean_forecast_units": 62.986926,
+            "order_quantity_units": 222.024818,
+            "order_up_to_units": 125.973852,
+            "projected_fill_rate": 0.697128,
+            "reorder_point_units": 62.986926,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 175.0,
+            "mean_forecast_units": 52.226195,
+            "order_quantity_units": 180.73397,
+            "order_up_to_units": 104.45239,
+            "projected_fill_rate": 0.7095,
+            "reorder_point_units": 52.226195,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 128.0,
+            "mean_forecast_units": 42.096249,
+            "order_quantity_units": 152.234267,
+            "order_up_to_units": 84.192498,
+            "projected_fill_rate": 0.67955,
+            "reorder_point_units": 42.096249,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 145.0,
+            "mean_forecast_units": 45.373072,
+            "order_quantity_units": 160.548502,
+            "order_up_to_units": 90.785,
+            "projected_fill_rate": 0.694522,
+            "reorder_point_units": 45.411927,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-003",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 168.0,
+            "mean_forecast_units": 47.478231,
+            "order_quantity_units": 192.241665,
+            "order_up_to_units": 94.956462,
+            "projected_fill_rate": 0.846337,
+            "reorder_point_units": 47.478231,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 171.0,
+            "mean_forecast_units": 62.154035,
+            "order_quantity_units": 294.64875,
+            "order_up_to_units": 124.30807,
+            "projected_fill_rate": 0.838342,
+            "reorder_point_units": 62.154035,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 129.0,
+            "mean_forecast_units": 42.789601,
+            "order_quantity_units": 155.298138,
+            "order_up_to_units": 85.579202,
+            "projected_fill_rate": 0.677049,
+            "reorder_point_units": 42.789601,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 145.0,
+            "mean_forecast_units": 37.848097,
+            "order_quantity_units": 148.379298,
+            "order_up_to_units": 75.696194,
+            "projected_fill_rate": 0.871079,
+            "reorder_point_units": 37.848097,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-004",
+            "ending_inventory_units": 9.125959,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 64.078215,
+            "order_quantity_units": 222.570365,
+            "order_up_to_units": 128.15643,
+            "projected_fill_rate": 0.707035,
+            "reorder_point_units": 64.078215,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 155.0,
+            "mean_forecast_units": 60.366375,
+            "order_quantity_units": 291.020837,
+            "order_up_to_units": 121.547737,
+            "projected_fill_rate": 0.826019,
+            "reorder_point_units": 61.181362,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 113.0,
+            "mean_forecast_units": 36.979183,
+            "order_quantity_units": 133.448432,
+            "order_up_to_units": 73.958366,
+            "projected_fill_rate": 0.681011,
+            "reorder_point_units": 36.979183,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 119.0,
+            "mean_forecast_units": 33.331138,
+            "order_quantity_units": 134.493822,
+            "order_up_to_units": 66.662276,
+            "projected_fill_rate": 0.849023,
+            "reorder_point_units": 33.331138,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-005",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 135.0,
+            "mean_forecast_units": 47.719532,
+            "order_quantity_units": 224.86799,
+            "order_up_to_units": 95.439064,
+            "projected_fill_rate": 0.843791,
+            "reorder_point_units": 47.719532,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 149.0,
+            "mean_forecast_units": 44.149721,
+            "order_quantity_units": 152.250905,
+            "order_up_to_units": 88.299442,
+            "projected_fill_rate": 0.711824,
+            "reorder_point_units": 44.149721,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 118.0,
+            "mean_forecast_units": 50.537558,
+            "order_quantity_units": 249.796244,
+            "order_up_to_units": 103.642803,
+            "projected_fill_rate": 0.811193,
+            "reorder_point_units": 53.105245,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 136.0,
+            "mean_forecast_units": 37.988744,
+            "order_quantity_units": 153.124416,
+            "order_up_to_units": 75.977488,
+            "projected_fill_rate": 0.849849,
+            "reorder_point_units": 37.988744,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-006",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 152.0,
+            "mean_forecast_units": 78.658346,
+            "order_quantity_units": 429.114676,
+            "order_up_to_units": 157.316692,
+            "projected_fill_rate": 0.82588,
+            "reorder_point_units": 78.658346,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 162.0,
+            "mean_forecast_units": 50.032617,
+            "order_quantity_units": 175.979749,
+            "order_up_to_units": 100.065234,
+            "projected_fill_rate": 0.698596,
+            "reorder_point_units": 50.032617,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 119.0,
+            "mean_forecast_units": 33.371181,
+            "order_quantity_units": 134.718252,
+            "order_up_to_units": 66.742362,
+            "projected_fill_rate": 0.848661,
+            "reorder_point_units": 33.371181,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 131.0,
+            "mean_forecast_units": 36.719594,
+            "order_quantity_units": 148.209417,
+            "order_up_to_units": 73.439188,
+            "projected_fill_rate": 0.848798,
+            "reorder_point_units": 36.719594,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-007",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 140.0,
+            "mean_forecast_units": 39.391919,
+            "order_quantity_units": 159.230237,
+            "order_up_to_units": 78.783838,
+            "projected_fill_rate": 0.847653,
+            "reorder_point_units": 39.391919,
+            "sku_id": "FG-004"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 155.0,
+            "mean_forecast_units": 46.905373,
+            "order_quantity_units": 163.410817,
+            "order_up_to_units": 93.810746,
+            "projected_fill_rate": 0.705031,
+            "reorder_point_units": 46.905373,
+            "sku_id": "FG-001"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 110.0,
+            "mean_forecast_units": 35.3054,
+            "order_quantity_units": 126.346332,
+            "order_up_to_units": 70.6108,
+            "projected_fill_rate": 0.686794,
+            "reorder_point_units": 35.3054,
+            "sku_id": "FG-002"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 132.0,
+            "mean_forecast_units": 40.520161,
+            "order_quantity_units": 142.119749,
+            "order_up_to_units": 81.040322,
+            "projected_fill_rate": 0.700503,
+            "reorder_point_units": 40.520161,
+            "sku_id": "FG-003"
+          },
+          {
+            "customer_id": "CUST-008",
+            "ending_inventory_units": 0.0,
+            "inventory_position_units": 142.0,
+            "mean_forecast_units": 39.972724,
+            "order_quantity_units": 161.606195,
+            "order_up_to_units": 79.945448,
+            "projected_fill_rate": 0.847517,
+            "reorder_point_units": 39.972724,
+            "sku_id": "FG-004"
+          }
+        ],
+        "policy": {
+          "order_batch_multiplier": 0.6499999761581421,
+          "order_up_to_multiplier": 0.6499999761581421,
+          "safety_stock_multiplier": 0.6499999761581421
+        },
+        "scenario": "component-shortage-shock",
+        "training": {
+          "engine": "stable-baselines3",
+          "fallback": false,
+          "total_timesteps": 128
+        }
+      }
+    },
+    "ppo_outcome": "lost_to_classical",
+    "resource_profiles": {
+      "baseline": {
+        "allocation_rate_gbps_proxy": 0.001181,
+        "cpu_utilization_percent": 7.5,
+        "gpu_memory_used_mb": null,
+        "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+        "gpu_start": {
+          "gpu_memory_used_mb": null,
+          "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+          "gpu_utilization_percent": null
+        },
+        "gpu_utilization_percent": null,
+        "name": "baseline",
+        "peak_process_rss_mb": 2130.988281,
+        "scenario": "component-shortage-shock",
+        "wall_clock_seconds": 0.013867
+      },
+      "classical": {
+        "allocation_rate_gbps_proxy": 0.009149,
+        "cpu_utilization_percent": 17.2,
+        "gpu_memory_used_mb": null,
+        "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+        "gpu_start": {
+          "gpu_memory_used_mb": null,
+          "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+          "gpu_utilization_percent": null
+        },
+        "gpu_utilization_percent": null,
+        "name": "classical",
+        "peak_process_rss_mb": 2131.945312,
+        "scenario": "component-shortage-shock",
+        "wall_clock_seconds": 0.109685
+      },
+      "ppo": {
+        "allocation_rate_gbps_proxy": 0.248681,
+        "cpu_utilization_percent": 18.6,
+        "gpu_memory_used_mb": null,
+        "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+        "gpu_start": {
+          "gpu_memory_used_mb": null,
+          "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+          "gpu_utilization_percent": null
+        },
+        "gpu_utilization_percent": null,
+        "name": "ppo",
+        "peak_process_rss_mb": 2132.191406,
+        "scenario": "component-shortage-shock",
+        "wall_clock_seconds": 2.280628
+      }
+    },
+    "scenario": "component-shortage-shock",
+    "winner": {
+      "allocation_rate_gbps_proxy": 0.009149,
+      "approach": "classical",
+      "days_of_inventory": 2.919964,
+      "fill_rate": 0.8247,
+      "gpu_utilization_percent": null,
+      "latency_seconds": 0.109685,
+      "objective": 95445.445064,
+      "peak_process_rss_mb": 2131.945312,
+      "total_cost": 82915.472858
+    }
+  },
+  "rationale": {
+    "advisory": true,
+    "advisory_rationale": "ADVISORY ONLY: The classical plan is selected because it yields the lowest objective (95445.44) and total cost (82915.47) while preserving a fill rate of 0.8247 and only 2.92 days of inventory, reflecting a balanced trade\u2011off between holding and service; its policy multipliers (order_batch \u22480.99, order_up_to \u22481.25, safety_stock \u22481.02) align with the response playbook\u2019s guidance to treat the shock as a supply\u2011availability constraint rather than an inventory\u2011policy issue [C2][C5], and the scenario context confirms the worst\u2011case component shortage where supply drops to zero, making this plan\u2019s modest cost increase over baseline justified despite unavoidable lost sales [C1].",
+    "advisory_text_source": "llm_finalized",
+    "artifacts": {
+      "rationale_path": "/app/benchmark/component-shortage-shock-rag-advisory-rationale.json"
+    },
+    "benchmark_comparison": [
+      {
+        "allocation_rate_gbps_proxy": 0.001181,
+        "approach": "baseline",
+        "days_of_inventory": 0.941751,
+        "fill_rate": 0.798662,
+        "gpu_utilization_percent": null,
+        "latency_seconds": 0.013867,
+        "objective": 102834.785064,
+        "peak_process_rss_mb": 2130.988281,
+        "total_cost": 87700.993193
+      },
+      {
+        "allocation_rate_gbps_proxy": 0.009149,
+        "approach": "classical",
+        "days_of_inventory": 2.919964,
+        "fill_rate": 0.8247,
+        "gpu_utilization_percent": null,
+        "latency_seconds": 0.109685,
+        "objective": 95445.445064,
+        "peak_process_rss_mb": 2131.945312,
+        "total_cost": 82915.472858
+      },
+      {
+        "allocation_rate_gbps_proxy": 0.248681,
+        "approach": "ppo",
+        "days_of_inventory": 0.096038,
+        "fill_rate": 0.768381,
+        "gpu_utilization_percent": null,
+        "latency_seconds": 2.280628,
+        "objective": 113584.863463,
+        "peak_process_rss_mb": 2132.191406,
+        "total_cost": 95422.989913
+      }
+    ],
+    "benchmark_winner": {
+      "allocation_rate_gbps_proxy": 0.009149,
+      "approach": "classical",
+      "days_of_inventory": 2.919964,
+      "fill_rate": 0.8247,
+      "gpu_utilization_percent": null,
+      "latency_seconds": 0.109685,
+      "objective": 95445.445064,
+      "peak_process_rss_mb": 2131.945312,
+      "total_cost": 82915.472858
+    },
+    "chosen_plan_metrics": {
+      "cost_breakdown": {
+        "backorder": 23764.966254,
+        "holding": 7574.217472,
+        "lost_sale": 24171.204994,
+        "ordering": 5632.0,
+        "transport": 21773.084138
+      },
+      "days_of_inventory": 2.919964,
+      "fill_rate": 0.8247,
+      "objective": 95445.445064,
+      "total_cost": 82915.472858,
+      "total_order_units": 7009.457674
+    },
+    "citations": [
+      {
+        "advisory_context": true,
+        "chunk_id": "scenario-context-1",
+        "citation_id": "C1",
+        "prompt_injection_flagged": false,
+        "score": 0.8073368,
+        "source_id": "scenario-context",
+        "source_type": "scenario_context",
+        "text_excerpt": "Scenario context for component-shortage-shock. Description: Worst-case inbound component shortage where key supplier lanes go to zero and lead times spike.. Rows and scope: {\"customers\": 8, \"finished_goods\": 4, \"horizon_periods\": 52, \"root\": \"/app/data/generated/component-shortage-shock\", \"row_counts\": {\"bom\": 24, \"demand\": 2912, \"initial_inventory\": 32, \"lane_periods\": 1560, \"lanes\": 30, \"nodes\": 17, \"production_lines\": 6, \"service_targets\": 32, \"skus\": 28}, \"scenario\": \"component-shortage-shock\"}. Configured shocks: {}.",
+        "title": "Scenario component-shortage-shock"
+      },
+      {
+        "advisory_context": true,
+        "chunk_id": "component-shortage-playbook-1",
+        "citation_id": "C2",
+        "prompt_injection_flagged": false,
+        "score": 0.7342603,
+        "source_id": "component-shortage-playbook",
+        "source_type": "playbook",
+        "text_excerpt": "# Component Shortage Response Playbook **Trigger.** A supplier declares allocation, a lane's effective capacity drops toward zero, or inbound receipts fall materially below the plan for a critical component. ## Immediate assessment 1. Identify which finished goods depend on the constrained component via the BOM. 2. Classify the constraint: is the limit **supply availability** (nothing to order) or **inventory policy** (stock on hand mis-positioned)? These require different responses and should be stated plainly to planners. 3. Quantify unavoidable lost sales: demand that cannot be met because supply, not policy, is gating. Do not present recoverable and unrecoverable shortfall as the same nu",
+        "title": "Component Shortage Response Playbook"
+      },
+      {
+        "advisory_context": true,
+        "chunk_id": "chosen-plan-summary-1",
+        "citation_id": "C3",
+        "prompt_injection_flagged": false,
+        "score": 0.72678304,
+        "source_id": "chosen-plan-summary",
+        "source_type": "plan_summary",
+        "text_excerpt": "Chosen plan summary for classical. Metrics: {\"cost_breakdown\": {\"backorder\": 23764.966254, \"holding\": 7574.217472, \"lost_sale\": 24171.204994, \"ordering\": 5632.0, \"transport\": 21773.084138}, \"days_of_inventory\": 2.919964, \"fill_rate\": 0.8247, \"objective\": 95445.445064, \"total_cost\": 82915.472858, \"total_order_units\": 7009.457674}. Policy: {\"order_batch_multiplier\": 0.9867165589513885, \"order_up_to_multiplier\": 1.2520056828956347, \"safety_stock_multiplier\": 1.0222942660957348}. Lane assignments: [{\"cost_per_unit\": 4.611070832129442, \"effective_lead_time_days\": 10.71911890080089, \"engine\": \"ortools_transportation_lp\", \"from_node_id\": \"SUP-001\", \"lane_id\": \"LANE-0002\", \"lane_splits\": [{\"flow_uni",
+        "title": "Chosen plan summary"
+      },
+      {
+        "advisory_context": true,
+        "chunk_id": "component-shortage-playbook-2",
+        "citation_id": "C4",
+        "prompt_injection_flagged": false,
+        "score": 0.71030354,
+        "source_id": "component-shortage-playbook",
+        "source_type": "playbook",
+        "text_excerpt": "order does not increase delivered units and inflates cancellation, holding, and expedite cost. - Do not claim an inventory-policy change \"recovered\" sales that were lost to zero supply. Under a genuine zero-supply shock the tuned policy may only be able to reduce cost, not restore fill. ## Reporting - Report the benchmark-selected plan's objective, fill rate, and days of inventory as computed by the optimizer. Narrative rationale is advisory and must not restate or override those numbers.",
+        "title": "Component Shortage Response Playbook"
+      },
+      {
+        "advisory_context": true,
+        "chunk_id": "supplier-quality-delivery-agreement-2",
+        "citation_id": "C5",
+        "prompt_injection_flagged": false,
+        "score": 0.69768727,
+        "source_id": "supplier-quality-delivery-agreement",
+        "source_type": "supplier_doc",
+        "text_excerpt": "g inspection; rejected lots do not count toward fill and are re-ordered at standard lead time. - Expedite (air/premium) freight is available for critical components at a significant per-unit cost premium and should be reserved for genuine service-risk situations, not routine replenishment. ## Planning implications - Treat committed capacity and lead time as constraints, not targets. - Under a component-shortage shock, the binding limitation is **supply availability**, not inventory policy; lost sales caused by zero supply cannot be recovered by ordering more.",
+        "title": "Supplier Quality & Delivery Agreement \u2014 Tier-1 Components"
+      }
+    ],
+    "label": "ADVISORY ONLY",
+    "llm_profile": {
+      "allocation_rate_gbps_proxy": 6e-06,
+      "completion_tokens": 874,
+      "cpu_utilization_percent": 5.8,
+      "gpu_memory_used_mb": null,
+      "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+      "gpu_start": {
+        "gpu_memory_used_mb": null,
+        "gpu_metrics_status": "unavailable: nvidia-smi returned no supported values",
+        "gpu_utilization_percent": null
+      },
+      "gpu_utilization_percent": null,
+      "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+      "name": "rag_rationale_llm",
+      "peak_process_rss_mb": 1593.652344,
+      "prompt_tokens": 1954,
+      "scenario": "component-shortage-shock",
+      "tokens_per_second": 47.368996,
+      "total_tokens": 2828,
+      "wall_clock_seconds": 18.450887
+    },
+    "llm_usage": {
+      "completion_tokens": 874,
+      "prompt_tokens": 1954,
+      "prompt_tokens_details": null,
+      "total_tokens": 2828
+    },
+    "numeric_metrics_generated_by": "optimizer_benchmark_not_llm",
+    "numeric_metrics_source": "src.pipeline.bench.run_head_to_head",
+    "prompt_injection_flags": [],
+    "retrieval": {
+      "backend": "qdrant",
+      "collection": "helix_sco_rag_component-shortage-shock",
+      "embedded_chunks": 19,
+      "embedding_dimension": 768,
+      "embedding_model": "nomic-ai/nomic-embed-text-v1.5",
+      "top_k": 5
+    },
+    "scenario": "component-shortage-shock",
+    "selected_approach": "classical"
+  }
+}

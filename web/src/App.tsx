@@ -1,11 +1,13 @@
-import { AlertTriangle, CheckCircle2, Cpu, DatabaseZap, Loader2, Play, ShieldAlert } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, Cpu, DatabaseZap, FileClock, Loader2, Play, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { fetchScenarios, scenarioStreamUrl } from "./lib/api";
 import { buildMetricComparisons, winnerMessage } from "./lib/deltas";
 import type { MetricComparison } from "./lib/deltas";
 import type { Benchmark, Rationale, ScenarioComparison, ScenarioSummary } from "./lib/types";
+
+const DEMO_REPLAY_URL = "/demo-replay.json";
 
 const STAGES = ["ingest", "forecast", "baseline", "classical", "ppo", "rag", "done"];
 
@@ -41,6 +43,40 @@ export default function App() {
   }, []);
 
   const selectedScenario = scenarios.find((item) => item.scenario === scenario);
+
+  const loadReplay = useCallback(async () => {
+    if (running) return;
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    setStages([]);
+    try {
+      const response = await fetch(DEMO_REPLAY_URL);
+      if (!response.ok) throw new Error(`Replay file not found (${response.status})`);
+      const payload = (await response.json()) as ScenarioComparison;
+      // Simulate stages one by one for visual effect
+      for (const stage of STAGES.filter((s) => s !== "done")) {
+        setStages((prev) => [...prev.filter((item) => item.stage !== stage), { stage, status: "running" }]);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        setStages((prev) => [...prev.filter((item) => item.stage !== stage), { stage, status: "complete" }]);
+      }
+      setStages((prev) => [...prev, { stage: "done", status: "complete" }]);
+      setResult(payload);
+      setScenario(payload.benchmark.scenario);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRunning(false);
+    }
+  }, [running]);
+
+  // Auto-replay when ?replay=true is in the URL (for recorded fallback demo)
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("replay") === "true") {
+      loadReplay();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function runScenario() {
     if (!scenario || running) {
@@ -93,15 +129,27 @@ export default function App() {
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-[#4d5c51]">{selectedScenario.description}</p>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={runScenario}
-              disabled={running || !scenario}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              Run
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={runScenario}
+                disabled={running || !scenario}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                Run
+              </button>
+              <button
+                type="button"
+                onClick={loadReplay}
+                disabled={running}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-medium text-[#536258] transition hover:bg-field disabled:cursor-not-allowed disabled:opacity-60"
+                title="Load a pre-recorded demo run (no live GPU required)"
+              >
+                <FileClock className="h-4 w-4" />
+                Replay
+              </button>
+            </div>
           </div>
           <div className="grid gap-3 md:grid-cols-[minmax(220px,1.2fr)_repeat(3,minmax(140px,0.5fr))]">
             <label className="control-label">
@@ -156,19 +204,22 @@ function ErrorBanner({ message }: { message: string }) {
 }
 
 function StageStepper({ stages, running }: { stages: StageState[]; running: boolean }) {
-  const statusByStage = new Map(stages.map((stage) => [stage.stage, stage.status]));
+  const stateByStage = new Map(stages.map((s) => [s.stage, s]));
   return (
     <section className="bg-white px-4 py-4 shadow-soft">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
         {STAGES.map((stage) => {
-          const status = statusByStage.get(stage);
-          const complete = status === "complete";
-          const inProgress = status === "running";
+          const s = stateByStage.get(stage);
+          const complete = s?.status === "complete";
+          const inProgress = s?.status === "running";
           const touched = complete || inProgress;
           return (
             <div key={stage} className={`flex min-h-14 items-center gap-2 border px-3 py-2 text-sm ${touched ? "border-[#b8cfbd] bg-[#f3faf4]" : "border-line bg-white"}`}>
-              {complete ? <CheckCircle2 className="h-4 w-4 text-good" /> : inProgress || running ? <Loader2 className="h-4 w-4 animate-spin text-[#6c786d]" /> : <span className="h-4 w-4 rounded-full border border-line" />}
-              <span className="font-medium capitalize">{stage}</span>
+              {complete ? <CheckCircle2 className="h-4 w-4 text-good" /> : inProgress ? <Loader2 className="h-4 w-4 animate-spin text-[#6c786d]" /> : <span className="h-4 w-4 rounded-full border border-line" />}
+              <div className="flex flex-col">
+                <span className="font-medium capitalize">{stage}</span>
+                {inProgress && s?.message ? <span className="text-[10px] leading-tight text-[#6c786d]">{s.message}</span> : null}
+              </div>
             </div>
           );
         })}
@@ -188,11 +239,67 @@ function EmptyState({ running }: { running: boolean }) {
   );
 }
 
+function PlanSummary({ benchmark, rationale }: { benchmark: Benchmark; rationale: Rationale }) {
+  const winner = benchmark.winner.approach;
+  const before = benchmark.plans.baseline.metrics;
+  const after = benchmark.plans[winner]?.metrics ?? before;
+  const costDelta = before.total_cost !== 0 ? ((after.total_cost - before.total_cost) / before.total_cost * 100) : 0;
+  const costBetter = costDelta < 0;
+  const advisory = rationale.advisory_rationale ?? "";
+  const shortAdvisory = advisory.replace(/^ADVISORY ONLY:\s*/i, "").slice(0, 280) + (advisory.length > 280 ? "..." : "");
+  return (
+    <section className="border-2 border-good/30 bg-gradient-to-br from-[#f3faf4] to-white px-5 py-5 shadow-soft">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-good">Why this plan</p>
+          <h2 className="mt-1 text-2xl font-bold capitalize">{benchmark.scenario.replace(/-/g, " ")}</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="rounded-md border border-good/30 bg-white px-3 py-1.5 text-sm font-bold capitalize text-good">
+            Winner: {winner}
+          </span>
+          <span className="rounded-md border border-line bg-white px-3 py-1.5 text-xs font-semibold text-[#536258]">
+            On NVIDIA GB10
+          </span>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-4 sm:grid-cols-3">
+        <div className="border border-line bg-white px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#667268]">Total cost</p>
+          <p className="mt-1 text-xl font-bold">{money(before.total_cost)} → {money(after.total_cost)}</p>
+          <p className={`mt-0.5 text-sm font-bold ${costBetter ? "text-good" : costDelta > 0 ? "text-bad" : "text-[#667268]"}`}>
+            {costDelta >= 0 ? "+" : ""}{costDelta.toFixed(1)}%
+          </p>
+        </div>
+        <div className="border border-line bg-white px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#667268]">Fill rate</p>
+          <p className="mt-1 text-xl font-bold">{(before.fill_rate * 100).toFixed(1)}% → {(after.fill_rate * 100).toFixed(1)}%</p>
+          <p className={`mt-0.5 text-sm font-bold ${after.fill_rate >= before.fill_rate ? "text-good" : "text-bad"}`}>
+            {after.fill_rate >= before.fill_rate ? "+" : ""}{((after.fill_rate - before.fill_rate) * 100).toFixed(1)} pts
+          </p>
+        </div>
+        <div className="border border-line bg-white px-4 py-3">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#667268]">Days of inventory</p>
+          <p className="mt-1 text-xl font-bold">{before.days_of_inventory.toFixed(1)} → {after.days_of_inventory.toFixed(1)} days</p>
+          <p className={`mt-0.5 text-sm font-bold ${after.days_of_inventory <= before.days_of_inventory ? "text-good" : "text-bad"}`}>
+            {after.days_of_inventory <= before.days_of_inventory ? "▼" : "▲"} {Math.abs(after.days_of_inventory - before.days_of_inventory).toFixed(1)}
+          </p>
+        </div>
+      </div>
+      <p className="mt-4 text-sm leading-6 text-[#334139]">{shortAdvisory}</p>
+      <p className="mt-2 text-[10px] text-[#667268]">
+        All numbers from the on-device optimizer benchmark. Advisory text is an LLM-generated explanation, not computed math.
+      </p>
+    </section>
+  );
+}
+
 function ResultsView({ benchmark, rationale }: { benchmark: Benchmark; rationale: Rationale }) {
   const metrics = useMemo(() => buildMetricComparisons(benchmark), [benchmark]);
   const winner = benchmark.winner.approach;
   return (
     <div className="grid gap-5">
+      <PlanSummary benchmark={benchmark} rationale={rationale} />
       <section className="grid gap-4 bg-white px-4 py-4 shadow-soft">
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
           <div>

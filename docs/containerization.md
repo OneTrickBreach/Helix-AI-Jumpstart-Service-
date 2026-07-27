@@ -1,15 +1,12 @@
 # Containerization — GB10 (arm64, CUDA 13)
 
-> **Status:** Phase 6 four-service PoC stack, **verified live on the GB10 (2026-07-10)**. All images
-> are arm64; the API and shared LLM declare GPU reservations. cuOpt/OR-Tools VRP capability is
-> integrated in the `api` service (`/cuopt/*`), not a separate container. `make up` →
-> `make test` (49/49) → `make bench-all` (4 scenarios) → `make run` all pass on-device.
->
-> The earlier `nvml error: gpu requires reset` wedge was a **unified-memory OOM**, not a driver
-> fault: vLLM's `--gpu-memory-utilization` was set too high for the shared 121 GiB pool. Fixed by
-> rebalancing it (0.6 → 0.45) after a host reboot; see the memory budget below.
+> **Status:** Four-service PoC stack, **verified live on the GB10 (2026-07-27, Iteration 3 complete)**.
+> All images are arm64; the API and shared LLM declare GPU reservations. cuOpt/OR-Tools VRP
+> capability is integrated in the `api` service (`/cuopt/*`), not a separate container. `make up` →
+> `make test` (**69 passed + 2 xpassed**, 71 total) → `make bench-all` (4 scenarios) → `make demo`
+> all pass on-device.
 
-_Last updated: **2026-07-10**_
+_Last updated: **2026-07-27** (Iteration 3 finalization)_
 
 ## Stack
 
@@ -59,16 +56,24 @@ docker compose build api
 docker compose up -d --no-deps api
 ```
 
-## cuOpt status
+## cuOpt / OR-Tools status (updated 2026-07-27)
 
-cuOpt was probed on the live GB10. No compatible `cuopt-cu13` binary wheel/arm64 package was
-available for this environment, so the working solver is **OR-Tools on CPU**. The fallback is
-reported by the `api` service at `/cuopt/health`; it is not relabeled as GPU cuOpt. The optimized
-transportation path uses a real OR-Tools capacitated LP, solved in-process inside `api`.
+**cuOpt 26.06.00 is now available** for arm64/CUDA-13 (`pip install cuopt-cu13 --extra-index-url
+https://pypi.nvidia.com`). Verified on-device — installs and runs on the GB10.
 
-A separate `cuopt` GPU container was intentionally NOT added: it would only re-serve the probe the
-`api` already exposes and reserve the scarce GPU for a solver that runs in-process. If a compatible
-arm64 cuOpt build later lands, the `/cuopt/*` capability can be split into its own GPU service then.
+However, the prototype **retains OR-Tools** as the lane-routing engine because:
+- cuOpt solves **VRP** (vehicle routing); the main optimizer uses OR-Tools GLOP for **transportation LP**
+  (capacitated min-cost flow). These are different problem classes — cuOpt does not replace the LP.
+- VRP benchmark crossover is at ~100 locations; OR-Tools CPU wins at prototype scale (≤152 lanes).
+- cuOpt adds ~28 packages and requires numpy downgrade (2.5→2.4). Not worth the dependency cost.
+
+cuOpt is **not added to `requirements-api.txt`** — it remains optional. The smoke endpoint
+(`/cuopt/health`, `/cuopt/solve`) uses cuOpt if installed, falls back to OR-Tools otherwise. The
+smoke endpoint was updated for the cuOpt 26.x API (`set_order_locations`, explicit `time_limit`).
+
+A separate `cuopt` GPU container is intentionally NOT added: the VRP capability is served in-process
+by `api` at `/cuopt/*`. If a production use case has 100+ stop fleet routing, cuOpt can be split
+into its own service then.
 
 ## Measurement caveats
 
@@ -97,7 +102,9 @@ arm64 cuOpt build later lands, the `/cuopt/*` capability can be split into its o
 - GPU visibility previously verified from the arm64 CUDA 13 container
 
 Current run evidence and the stress-large single-node decision live in `benchmark/suite-summary.md`
-(regenerate with `make bench-all`; the file itself is gitignored). As of the 2026-07-10 live run:
-all four scenarios peak 67–68 GiB of the ~121 GiB usable pool (≥52 GiB headroom), the 90% envelope
-flag is clear, and **stress-large stays single-node** (no 2-node path needed). PPO lost in all four
-scenarios. See `docs/DEVELOPMENT_JOURNAL.md` for the full table.
+(regenerate with `make bench-all`; the file itself is gitignored). As of the 2026-07-27 Iteration 3
+finalization: all four scenarios peak 65–68 GiB of the ~121 GiB usable pool (55+ GiB headroom), the
+90% envelope flag is clear, and **stress-large stays single-node** (no 2-node path needed). The
+scale study (Phase 5) pushed to 100x (28,800 series) — memory stays at ~54% at all levels; the
+ceiling is forecast latency, not memory. PPO lost all four scenarios (Phase 4: fair MDP, demoted).
+See `docs/DEVELOPMENT_JOURNAL.md` for the full table.
