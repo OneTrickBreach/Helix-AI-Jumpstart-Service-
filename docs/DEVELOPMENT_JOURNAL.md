@@ -37,6 +37,42 @@
 
 ## Entries (newest first)
 
+## 2026-07-29 — Docs: remote-access section added to the demo guide (doc-only)
+**Status:** Complete. **git ref: uncommitted at time of writing (committed with this change).** Branch `main`.
+
+**What changed.** Added a `## Remote Access (running the demo from a laptop)` section to
+[`docs/DEMO_GUIDE.md`](DEMO_GUIDE.md), between Quick Reference and Prerequisites. It documents the two
+working paths for reaching the UI from a laptop:
+1. **SSH local port-forward** — `ssh -L 8081:localhost:8081 -L 8080:localhost:8080 ishan@helix-gb10-intern`,
+   run *from the laptop*. Keeps every `localhost` URL in the guide valid. Records the pitfall: running it
+   from inside an existing GB10 SSH session fails with `bind: Address already in use`.
+2. **Tailscale direct** — `http://<gb10-tailscale-ip>:8081` (placeholder; no IP is hardcoded anywhere).
+   Notes the two preconditions: port published on `0.0.0.0` (already the default for the compose
+   mappings `8081:80` and `8080:8080`) and tailnet ACLs permitting the port.
+
+Also added a `curl -sI http://localhost:8081/` liveness check (run on the GB10) so a presenter can
+separate "container isn't serving" from "access path isn't set up", and replaced the vague line under
+the replay URL ("replace `localhost` with the GB10's IP address") with a link to the new section.
+
+**Why.** During demo prep the web UI at `localhost:8081` would not open from a laptop — `localhost`
+only resolves on the GB10 itself. The guide gestured at using the GB10's IP but did not cover either
+real access path or their failure modes, so this cost time mid-prep.
+
+**Verified.** `curl -sI http://localhost:8081/` on `helix-gb10-intern` returns `HTTP/1.1 200 OK`
+(`Server: nginx/1.27.5`) — the documented expectation is a real observed result, 2026-07-29. Compose
+port mappings confirmed in `docker-compose.yml` (`8081:80` line 27, `8080:8080` line 50).
+
+**Scope / honesty notes.**
+- **Doc-only.** No code, no compose, no image changes. No rebuild required.
+- **No result numbers were touched.** No IP addresses are hardcoded.
+- The two access paths are documented as configuration requirements. The SSH forward is the path used
+  in practice; the Tailscale path's ACL precondition was **not** re-verified end-to-end in this change.
+
+**Open follow-ups.**
+- Verify the Tailscale path end-to-end from a laptop before relying on it live, and record the result.
+
+---
+
 ## 2026-07-27 — Iteration 3, Phase 6: cuOpt re-check — arm64/CUDA-13 now available
 **Status:** Phase 6 complete, verified on-device. **git ref: Phase 6 work committed as `47b84ee`.** Branch `feat/iteration3`.
 

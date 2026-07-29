@@ -21,6 +21,54 @@
 
 ---
 
+## Remote Access (running the demo from a laptop)
+
+Every `localhost` URL in this guide resolves **only on the GB10 itself**. Opening
+`http://localhost:8081` in a laptop browser hits the laptop, not the GB10. Use one of the two paths
+below.
+
+### Option 1 — SSH local port-forward (keeps the `localhost` URLs)
+
+Run this **from the laptop**, in a terminal that is *not* already inside a GB10 SSH session:
+
+```bash
+ssh -L 8081:localhost:8081 -L 8080:localhost:8080 ishan@helix-gb10-intern
+```
+
+Then browse `http://localhost:8081` on the laptop. Every URL in this guide works unchanged, including
+`http://localhost:8081?replay=true`.
+
+**Pitfall:** running the command from *inside* an existing GB10 SSH session fails with
+`bind: Address already in use` — the GB10 is already listening on those ports, so the forward has
+nothing to bind to. Open a fresh local terminal instead.
+
+### Option 2 — Tailscale direct
+
+Browse to the GB10's tailnet address:
+
+```
+http://<gb10-tailscale-ip>:8081        # UI
+http://<gb10-tailscale-ip>:8080        # API
+```
+
+Requires both of:
+- The container port published on `0.0.0.0` — this is the default for the `docker compose` port
+  mappings used here (`8081:80`, `8080:8080`), so no change is needed.
+- Tailnet ACLs permitting the port for the laptop's identity.
+
+### Quick check: is the web container actually serving?
+
+Run **on the GB10**:
+
+```bash
+curl -sI http://localhost:8081/    # expect HTTP/1.1 200 OK
+```
+
+If this returns 200 but the laptop still can't connect, the problem is the access path (port-forward
+or ACL), not the stack.
+
+---
+
 ## Prerequisites
 
 ### 1. Verify the stack is running
@@ -90,7 +138,7 @@ Use this when:
 http://localhost:8081?replay=true
 ```
 
-From a remote machine, replace `localhost` with the GB10's IP address.
+From a laptop, set up access first — see [Remote Access](#remote-access-running-the-demo-from-a-laptop).
 
 ### Step 2: Watch the results load
 
