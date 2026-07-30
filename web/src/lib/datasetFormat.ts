@@ -104,6 +104,32 @@ export function humanizeKey(key: string): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
+/**
+ * A min–max money range that collapses when both ends are equal.
+ *
+ * The generator gives every SKU of a type the same cost, so a naive range renders
+ * "$1.05 – $1.05", which reads like a bug. One value means one value.
+ */
+export function moneyRange(min: number | null | undefined, max: number | null | undefined, digits = 2): string {
+  if (min === null || min === undefined || Number.isNaN(min)) return "—";
+  if (max === null || max === undefined || Number.isNaN(max) || min === max) return money(min, digits);
+  return `${money(min, digits)} – ${money(max, digits)}`;
+}
+
+/** As `moneyRange`, for plain numbers with a trailing unit word. */
+export function valueRange(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  suffix = "",
+): string {
+  if (min === null || min === undefined || Number.isNaN(min)) return "—";
+  const tail = suffix ? ` ${suffix}` : "";
+  if (max === null || max === undefined || Number.isNaN(max) || min === max) {
+    return `${min.toLocaleString("en-US")}${tail}`;
+  }
+  return `${min.toLocaleString("en-US")}–${max.toLocaleString("en-US")}${tail}`;
+}
+
 /** `117163` -> `114.4 KB`. Used for the "download this table" affordance. */
 export function bytes(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—";

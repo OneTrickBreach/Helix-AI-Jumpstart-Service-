@@ -373,6 +373,8 @@ export type DatasetScenarioDiff = {
 
 export type DatasetPipelineLink = {
   stage_inputs: Record<string, string[]>;
+  /** Human wording for each table name, supplied by the API so the UI never invents one. */
+  table_labels: Record<string, string>;
   note: string;
 };
 

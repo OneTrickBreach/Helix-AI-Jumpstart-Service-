@@ -28,15 +28,21 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import DemandChart from "./dataset/DemandChart";
+import Expander from "./dataset/Expander";
+import LanesTable from "./dataset/LanesTable";
+import NetworkMap from "./dataset/NetworkMap";
+import ProductTree from "./dataset/ProductTree";
 import { DatasetNotGenerated, fetchDatasetOverview } from "./lib/api";
 import {
   count,
   humanizeKey,
+  money,
+  moneyRange,
   percent,
-  pluralLabel,
   pluralize,
-  showingLabel,
   units,
+  valueRange,
 } from "./lib/datasetFormat";
 import type { DatasetOverview, ScenarioSummary } from "./lib/types";
 
@@ -107,7 +113,9 @@ export default function DatasetView({
         {state.status === "error" ? (
           <ErrorState message={state.message} onRetry={() => load(scenario)} />
         ) : null}
-        {state.status === "ready" ? <DatasetBody data={state.data} /> : null}
+        {state.status === "ready" ? (
+          <DatasetBody data={state.data} scenario={scenario} />
+        ) : null}
       </div>
     </main>
   );
@@ -241,28 +249,28 @@ function ErrorState({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
-function DatasetBody({ data }: { data: DatasetOverview }) {
+function DatasetBody({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-4">
       {/* ---------------- Level 1: everything above the fold ---------------- */}
       <HeroSummary data={data} />
       <GlanceTiles data={data} />
-      <NetworkStrip data={data} />
+      <NetworkSection data={data} scenario={scenario} />
 
       {/* ---------------- Level 2: scroll ---------------- */}
       <ScenarioCard data={data} />
-      <div className="grid gap-5 lg:grid-cols-2">
-        <ProductsCard data={data} />
-        <DemandCard data={data} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <ProductsCard data={data} scenario={scenario} />
+        <DemandCard data={data} scenario={scenario} />
       </div>
-      <div className="grid gap-5 lg:grid-cols-2">
-        <LanesCard data={data} />
-        <CapacityCard data={data} />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <LanesCard data={data} scenario={scenario} />
+        <CapacityCard data={data} scenario={scenario} />
       </div>
-      <div className="grid gap-5 lg:grid-cols-3">
-        <CostsCard data={data} />
-        <ServiceTargetsCard data={data} />
-        <InventoryCard data={data} />
+      <div className="grid gap-4 lg:grid-cols-3">
+        <CostsCard data={data} scenario={scenario} />
+        <ServiceTargetsCard data={data} scenario={scenario} />
+        <InventoryCard data={data} scenario={scenario} />
       </div>
       <PipelineCard data={data} />
       <ProvenanceFooter data={data} />
@@ -272,7 +280,7 @@ function DatasetBody({ data }: { data: DatasetOverview }) {
 
 function HeroSummary({ data }: { data: DatasetOverview }) {
   return (
-    <section className="border-2 border-[#b8cfbd] bg-white px-5 py-5 shadow-soft">
+    <section className="border-2 border-[#b8cfbd] bg-white px-5 py-4 shadow-soft">
       <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#587060]">
         {data.provenance.scenario.replace(/-/g, " ")}
       </p>
@@ -292,13 +300,13 @@ function GlanceTiles({ data }: { data: DatasetOverview }) {
       {data.at_a_glance.map((tile) => (
         <article
           key={tile.key}
-          className="border border-line bg-white px-4 py-3"
+          className="border border-line bg-white px-4 py-2.5"
           title={tile.plain_english_note}
         >
           <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#667268]">
             {tile.label}
           </p>
-          <p className="mt-1 text-2xl font-bold leading-tight">
+          <p className="mt-0.5 text-xl font-bold leading-tight">
             {typeof tile.value === "number" ? count(tile.value) : (tile.value ?? "—")}
           </p>
           <p className="mt-0.5 text-xs text-[#6d796f]">{tile.unit ?? " "}</p>
@@ -308,17 +316,8 @@ function GlanceTiles({ data }: { data: DatasetOverview }) {
   );
 }
 
-/**
- * Placeholder for Phase 4's network map: the real tiers and counts, drawn as a
- * left-to-right chain. Real data, simple rendering — not a mock.
- */
-function NetworkStrip({ data }: { data: DatasetOverview }) {
-  const icons: Record<string, typeof Factory> = {
-    supplier: Boxes,
-    plant: Factory,
-    distribution_center: PackageSearch,
-    customer: Truck,
-  };
+/** Level-1 hero visual: the real network, with this scenario's disruption marked. */
+function NetworkSection({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const disrupted = data.lanes.disrupted_lane_count;
   return (
     <section className="bg-white px-4 py-4 shadow-soft">
@@ -329,27 +328,44 @@ function NetworkStrip({ data }: { data: DatasetOverview }) {
           {disrupted > 0 ? ` · ${pluralize(disrupted, "lane")} disrupted in this scenario` : ""}
         </p>
       </div>
-      <div className="mt-4 flex flex-wrap items-stretch gap-2">
-        {data.network.tiers.map((tier, index) => {
-          const Icon = icons[tier.tier] ?? Boxes;
-          return (
-            <div key={tier.tier} className="flex flex-1 items-stretch gap-2">
-              <div className="flex min-w-36 flex-1 flex-col items-center justify-center gap-1 border border-line bg-field px-3 py-4 text-center">
-                <Icon className="h-6 w-6 text-[#2f6f4e]" />
-                <p className="text-2xl font-bold leading-none">{count(tier.count)}</p>
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#667268]">
-                  {pluralLabel(tier.plain_label, tier.count)}
-                </p>
-              </div>
-              {index < data.network.tiers.length - 1 ? (
-                <div className="flex items-center text-xl text-[#9fb0a4]" aria-hidden="true">
-                  →
-                </div>
-              ) : null}
-            </div>
-          );
-        })}
+      <div className="mt-3">
+        <NetworkMap
+          network={data.network}
+          lanes={data.lanes}
+          periodUnit={data.demand.period_unit}
+        />
       </div>
+      <Expander
+        label="every location"
+        scenario={scenario}
+        table="nodes"
+        tableLabel="nodes"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-sm">
+            <thead className="text-left text-xs uppercase tracking-[0.1em] text-[#667268]">
+              <tr>
+                <th scope="col" className="border-b border-line py-2">Location</th>
+                <th scope="col" className="border-b border-line py-2">Kind</th>
+                <th scope="col" className="border-b border-line py-2">Region</th>
+                <th scope="col" className="border-b border-line py-2 text-right">Storage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.network.node_list.map((node) => (
+                <tr key={node.node_id}>
+                  <td className="border-b border-line py-2 font-medium">{node.node_id}</td>
+                  <td className="border-b border-line py-2">{node.plain_label}</td>
+                  <td className="border-b border-line py-2">{node.region}</td>
+                  <td className="border-b border-line py-2 text-right tabular-nums">
+                    {count(node.storage_capacity_units)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Expander>
     </section>
   );
 }
@@ -421,7 +437,7 @@ function ScenarioCard({ data }: { data: DatasetOverview }) {
   );
 }
 
-function ProductsCard({ data }: { data: DatasetOverview }) {
+function ProductsCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const products = data.products;
   return (
     <Card
@@ -444,11 +460,14 @@ function ProductsCard({ data }: { data: DatasetOverview }) {
         {pluralize(products.bom_row_count, "recipe line")} across{" "}
         {pluralize(products.bom_parent_count, "parent product")}.
       </p>
+      <Expander label="what each product is made of" scenario={scenario} table="bom" tableLabel="bom">
+        <ProductTree products={products} />
+      </Expander>
     </Card>
   );
 }
 
-function DemandCard({ data }: { data: DatasetOverview }) {
+function DemandCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const demand = data.demand;
   return (
     <Card
@@ -458,34 +477,45 @@ function DemandCard({ data }: { data: DatasetOverview }) {
         demand.period_unit,
       )}, ${count(demand.total_rows)} rows in all.`}
     >
-      <dl className="grid gap-2 sm:grid-cols-3">
-        <Stat label="Total units ordered" value={units(demand.total_units_finished_goods)} />
-        <Stat
-          label="Demand shock window"
-          value={
-            demand.shock_window
-              ? `${demand.period_unit}s ${demand.shock_window.from_period}–${demand.shock_window.to_period}`
-              : "none"
-          }
-        />
-        <Stat label="Forecast method" value={demand.lumpy_series_count ? "mixed" : "AutoETS"} />
-      </dl>
+      <DemandChart demand={demand} products={data.products} />
       <p className="mt-3 text-sm leading-6 text-[#536258]">
         {data.narrative.forecast_method_sentence}
       </p>
+      <Expander label="the exact numbers" scenario={scenario} table="demand" tableLabel="demand">
+        <dl className="grid gap-2 sm:grid-cols-3">
+          <Stat label="Total units ordered" value={units(demand.total_units_finished_goods)} />
+          <Stat
+            label="Demand shock window"
+            value={
+              demand.shock_window
+                ? `${demand.period_unit}s ${demand.shock_window.from_period}–${demand.shock_window.to_period}`
+                : "none"
+            }
+          />
+          <Stat
+            label="Forecast split"
+            value={`${count(demand.forecast_method_split.auto_ets)} AutoETS / ${count(
+              demand.forecast_method_split.croston_sba,
+            )} Croston-SBA`}
+          />
+        </dl>
+        <p className="mt-2 text-xs leading-5 text-[#6d796f]">{demand.forecast_method_note}</p>
+        <p className="mt-2 text-xs text-[#6d796f]">
+          The download is the full demand table — {count(demand.total_rows)} rows.
+        </p>
+      </Expander>
     </Card>
   );
 }
 
-function LanesCard({ data }: { data: DatasetOverview }) {
+function LanesCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const lanes = data.lanes;
   return (
     <Card
       title="Shipping lanes"
-      line={`${pluralize(lanes.lane_count, "lane")} carry goods between locations, tracked for ${pluralize(
-        lanes.periods_covered,
-        "period",
-      )}.`}
+      line={`${pluralize(lanes.lane_count, "lane")} carry goods between locations. Delivery takes ${
+        lanes.lead_time_days_range.min
+      } to ${lanes.lead_time_days_range.max} days depending on the lane.`}
     >
       <dl className="grid gap-2 sm:grid-cols-3">
         {Object.entries(lanes.count_by_type).map(([type, value]) => (
@@ -496,15 +526,14 @@ function LanesCard({ data }: { data: DatasetOverview }) {
           />
         ))}
       </dl>
-      <p className="mt-3 text-xs text-[#6d796f]">
-        Delivery takes {lanes.lead_time_days_range.min}–{lanes.lead_time_days_range.max} days
-        depending on the lane. {showingLabel(lanes.table_showing)}.
-      </p>
+      <Expander label="every lane and when it is disrupted" scenario={scenario} table="lanes" tableLabel="lanes">
+        <LanesTable lanes={lanes} periodUnit={data.demand.period_unit} />
+      </Expander>
     </Card>
   );
 }
 
-function CapacityCard({ data }: { data: DatasetOverview }) {
+function CapacityCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const capacity = data.capacity;
   return (
     <Card
@@ -512,7 +541,7 @@ function CapacityCard({ data }: { data: DatasetOverview }) {
       line={`${pluralize(
         capacity.production_line_count,
         "production line",
-      )} can build up to ${units(capacity.total_throughput_units_per_period)} each period.`}
+      )} can build up to ${units(capacity.total_throughput_units_per_period)} each period — that is the ceiling on how fast demand can be met.`}
     >
       <dl className="grid gap-2 sm:grid-cols-2">
         {capacity.storage_by_node_type
@@ -525,16 +554,53 @@ function CapacityCard({ data }: { data: DatasetOverview }) {
             />
           ))}
       </dl>
+      <Expander
+        label="each production line"
+        scenario={scenario}
+        table="production_lines"
+        tableLabel="production_lines"
+      >
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[420px] border-collapse text-sm">
+            <thead className="text-left text-xs uppercase tracking-[0.1em] text-[#667268]">
+              <tr>
+                <th scope="col" className="border-b border-line py-2">Line</th>
+                <th scope="col" className="border-b border-line py-2">At factory</th>
+                <th scope="col" className="border-b border-line py-2">Builds</th>
+                <th scope="col" className="border-b border-line py-2 text-right">Units / period</th>
+              </tr>
+            </thead>
+            <tbody>
+              {capacity.lines.map((line) => (
+                <tr key={line.line_id}>
+                  <td className="border-b border-line py-2 font-medium">{line.line_id}</td>
+                  <td className="border-b border-line py-2">{line.plant_id}</td>
+                  <td className="border-b border-line py-2">{line.sku_id}</td>
+                  <td className="border-b border-line py-2 text-right tabular-nums">
+                    {count(line.max_throughput_units_per_period)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Expander>
     </Card>
   );
 }
 
-function CostsCard({ data }: { data: DatasetOverview }) {
+function CostsCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const costs = data.costs;
+  const PARAM_ORDER = [
+    "unit_holding_cost",
+    "ordering_cost",
+    "backorder_penalty",
+    "lost_sale_penalty",
+  ];
   return (
     <Card
       title="Where the money is"
-      line="The cost settings fed into the optimizer — these are inputs, not results."
+      line="These are the cost settings fed into the optimizer. Trading them off against each other is exactly what it does."
     >
       {/* Never let input costs be mistaken for the measured costs on the results screen. */}
       <p className="mb-3 border-l-4 border-[#9fb0a4] bg-field px-3 py-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#4d5c51]">
@@ -543,7 +609,7 @@ function CostsCard({ data }: { data: DatasetOverview }) {
       <dl className="grid gap-2">
         <Stat
           label="Transport cost per unit"
-          value={`$${costs.transport.cost_per_unit_min} – $${costs.transport.cost_per_unit_max}`}
+          value={moneyRange(costs.transport.cost_per_unit_min, costs.transport.cost_per_unit_max)}
         />
         {costs.by_sku_type.map((entry) => {
           const holding = entry.parameters.find((p) => p.parameter === "unit_holding_cost");
@@ -551,24 +617,67 @@ function CostsCard({ data }: { data: DatasetOverview }) {
             <Stat
               key={entry.sku_type}
               label={`${entry.plain_label} holding cost`}
-              value={`$${holding.min} – $${holding.max}`}
+              value={moneyRange(holding.min, holding.max)}
             />
           ) : null;
         })}
       </dl>
+      <Expander label="every cost setting" scenario={scenario} table="skus" tableLabel="skus">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[520px] border-collapse text-sm">
+            <thead className="text-left text-xs uppercase tracking-[0.1em] text-[#667268]">
+              <tr>
+                <th scope="col" className="border-b border-line py-2">Cost</th>
+                {costs.by_sku_type.map((entry) => (
+                  <th key={entry.sku_type} scope="col" className="border-b border-line py-2 text-right">
+                    {entry.plain_label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {PARAM_ORDER.map((param) => {
+                const label = costs.by_sku_type
+                  .flatMap((entry) => entry.parameters)
+                  .find((p) => p.parameter === param)?.plain_label;
+                return (
+                  <tr key={param}>
+                    <td className="border-b border-line py-2">{label ?? humanizeKey(param)}</td>
+                    {costs.by_sku_type.map((entry) => {
+                      const value = entry.parameters.find((p) => p.parameter === param);
+                      return (
+                        <td
+                          key={`${entry.sku_type}-${param}`}
+                          className="border-b border-line py-2 text-right tabular-nums"
+                        >
+                          {value ? moneyRange(value.min, value.max) : "—"}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-2 text-xs text-[#6d796f]">
+          Transport also costs {money(costs.transport.cost_per_km_min, 4)}–
+          {money(costs.transport.cost_per_km_max, 4)} per km travelled.
+        </p>
+      </Expander>
     </Card>
   );
 }
 
-function ServiceTargetsCard({ data }: { data: DatasetOverview }) {
+function ServiceTargetsCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const targets = data.service_targets;
   return (
     <Card
       title="Service promises"
-      line={`${pluralize(targets.customer_count, "customer")} with promised service levels on ${pluralize(
-        targets.sku_count,
-        "product",
-      )}.`}
+      line={`${pluralize(targets.customer_count, "customer")} expect ${percent(
+        targets.fill_rate_target_range.min,
+        1,
+      )} of their orders filled on time — missing that is what the penalties price.`}
     >
       <dl className="grid gap-2">
         <Stat
@@ -582,33 +691,69 @@ function ServiceTargetsCard({ data }: { data: DatasetOverview }) {
                 )}`
           }
         />
+        <Stat
+          label="Target days of stock"
+          value={valueRange(
+            targets.days_inventory_target_range.min,
+            targets.days_inventory_target_range.max,
+            "days",
+          )}
+        />
         {Object.entries(targets.criticality_tiers).map(([tier, value]) => (
-          <Stat key={tier} label={`${humanizeKey(tier)} tier`} value={count(value)} />
+          <Stat
+            key={tier}
+            label={`Promises at "${humanizeKey(tier).toLowerCase()}" priority`}
+            value={count(value)}
+          />
         ))}
       </dl>
+      <Expander
+        label="the full promise list"
+        scenario={scenario}
+        table="service_targets"
+        tableLabel="service_targets"
+      >
+        <p className="text-sm leading-6 text-[#536258]">
+          {count(targets.row_count)} customer-and-product promises in total, covering{" "}
+          {pluralize(targets.sku_count, "product")}. Download the CSV for every row.
+        </p>
+      </Expander>
     </Card>
   );
 }
 
-function InventoryCard({ data }: { data: DatasetOverview }) {
+function InventoryCard({ data, scenario }: { data: DatasetOverview; scenario: string }) {
   const inventory = data.initial_inventory;
   return (
     <Card
       title="Stock on day one"
-      line={`${units(inventory.total_on_hand_units)} on hand before the plan starts.`}
+      line={`${units(
+        inventory.total_on_hand_units,
+      )} are already on hand before the plan starts — about ${
+        inventory.days_of_cover_estimate ?? "—"
+      } days of demand.`}
     >
       <dl className="grid gap-2">
         <Stat label="Already shipped, in transit" value={units(inventory.total_in_transit_units)} />
-        <Stat
-          label="Days of cover"
-          value={
-            inventory.days_of_cover_estimate === null
-              ? "—"
-              : `${inventory.days_of_cover_estimate} days`
-          }
-        />
+        <Stat label="Owed to customers (backlog)" value={units(inventory.total_backlog_units)} />
       </dl>
       <p className="mt-3 text-xs leading-5 text-[#6d796f]">{inventory.basis}</p>
+      <Expander
+        label="starting stock detail"
+        scenario={scenario}
+        table="initial_inventory"
+        tableLabel="initial_inventory"
+      >
+        <dl className="grid gap-2 sm:grid-cols-2">
+          {inventory.on_hand_by_node_type.map((row) => (
+            <Stat
+              key={row.node_type}
+              label={`On hand at ${row.plain_label.toLowerCase()}`}
+              value={units(row.on_hand_units)}
+            />
+          ))}
+        </dl>
+      </Expander>
     </Card>
   );
 }
@@ -623,7 +768,9 @@ function PipelineCard({ data }: { data: DatasetOverview }) {
               {humanizeKey(stage)}
             </p>
             <p className="mt-1 text-sm leading-6">
-              {tables.map((table) => humanizeKey(table)).join(", ")}
+              {tables
+                .map((table) => data.pipeline_link.table_labels[table] ?? humanizeKey(table))
+                .join(", ")}
             </p>
           </div>
         ))}

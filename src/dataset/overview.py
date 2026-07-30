@@ -31,7 +31,7 @@ from typing import Any
 
 import polars as pl
 
-from src.dataset.narrative import build_narrative, change_sentence
+from src.dataset.narrative import TABLE_WORDS, build_narrative, change_sentence, humanize
 from src.forecast.statistical import LUMPY_ZERO_FRACTION_THRESHOLD, zero_fraction
 from src.ingest.state import (
     DEFAULT_DATA_ROOT,
@@ -269,9 +269,9 @@ def _network(state: ScenarioState) -> dict:
             if tier in by_type
         ],
         "node_list": node_list,
-        "node_list_showing": _showing(len(node_list), nodes.height, "node_type, then node_id"),
+        "node_list_showing": _showing(len(node_list), nodes.height, "kind of place, then name"),
         "edges": edges,
-        "edges_showing": _showing(len(edges), lanes.height, "lane_type, then lane_id"),
+        "edges_showing": _showing(len(edges), lanes.height, "kind of lane, then name"),
     }
 
 
@@ -344,7 +344,7 @@ def _products(state: ScenarioState) -> dict:
         if bom.height
         else 0,
         "bom_tree": bom_tree,
-        "bom_tree_showing": _showing(len(bom_tree), len(parents), "parent_sku_id"),
+        "bom_tree_showing": _showing(len(bom_tree), len(parents), "parent product"),
         "top_by_demand_share": top_by_demand,
         "top_by_demand_share_showing": _showing(
             len(top_by_demand), demand_by_sku.height, "total finished-good demand units"
@@ -564,7 +564,7 @@ def _lanes(state: ScenarioState) -> dict:
         },
         "table": table,
         "table_showing": _showing(
-            len(table), lanes.height, "capacity_units_per_period x cost_per_unit"
+            len(table), lanes.height, "capacity per period multiplied by cost per unit"
         ),
         "disruption_timeline": timeline,
         "disrupted_lane_count": disrupted.select("lane_id").n_unique()
@@ -612,7 +612,7 @@ def _capacity(state: ScenarioState) -> dict:
         ),
         "lines": line_rows,
         "lines_showing": _showing(
-            len(line_rows), lines.height, "max_throughput_units_per_period"
+            len(line_rows), lines.height, "units built per period"
         ),
         "storage_by_node_type": [
             {
@@ -872,7 +872,7 @@ def _scenario_diff(
         "config_changes_showing": _showing(
             min(len(config_changes), MAX_SECTION_ROWS),
             len(config_changes),
-            "config group, then parameter name",
+            "setting group, then setting name",
         ),
     }
 
@@ -985,6 +985,11 @@ def build_dataset_overview(
         "scenario_diff": scenario_diff,
         "pipeline_link": {
             "stage_inputs": STAGE_TABLE_READS,
+            # Human labels travel with the payload so the browser never has to
+            # invent one and drift from the wording used in the narrative.
+            "table_labels": {
+                name: humanize(name, TABLE_WORDS) for name in sorted(REQUIRED_TABLES)
+            },
             "note": (
                 "Tables each stage actually reads, verified against the source. "
                 "nodes, bom and production_lines are loaded and validated at ingest "

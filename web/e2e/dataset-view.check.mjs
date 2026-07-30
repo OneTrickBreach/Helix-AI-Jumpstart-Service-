@@ -90,6 +90,72 @@ console.log(`ERR  unknown scenario shows error state: ${errorShown > 0}`);
 await page.screenshot({ path: `${SHOT_DIR}/error-state.png` });
 if (errorShown === 0) failures++;
 
+
+// --- Phase 4: visuals, disclosure, accessibility -----------------------------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(e.message));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+
+  for (const scenario of SCENARIOS) {
+    await page.goto(`${BASE}/?view=dataset&scenario=${scenario}`, { waitUntil: "networkidle" });
+    await page.waitForSelector("svg[role=img]", { timeout: 15000 });
+
+    // Overlay: the payload's disrupted lane count must match what is drawn amber.
+    const payload = await page.evaluate(async (name) => {
+      const r = await fetch(`/api/dataset/overview?scenario=${name}`);
+      const j = await r.json();
+      return j.data.dataset_overview;
+    }, scenario);
+    const drawnDisrupted = await page.locator('svg[role="img"] path[stroke="#a15c07"]').count();
+    const nodeRects = await page.locator('svg[role="img"] rect').count();
+    // The overlay is the point of the map: every disrupted lane in the payload must
+    // be drawn, which also proves its endpoints survived the per-tier row cap.
+    const overlayOk = drawnDisrupted === payload.lanes.disrupted_lane_count;
+    const nodesOk = nodeRects > 0 && nodeRects <= payload.network.node_list.length + 4;
+
+    // Level 3: expanders are real buttons and toggle.
+    const expanders = page.locator('button[aria-expanded]');
+    const expanderCount = await expanders.count();
+    let toggleOk = false;
+    if (expanderCount) {
+      const first = expanders.first();
+      const before = await first.getAttribute("aria-expanded");
+      await first.focus();
+      await page.keyboard.press("Enter");           // keyboard-only, no mouse
+      await page.waitForTimeout(200);
+      const after = await first.getAttribute("aria-expanded");
+      toggleOk = before !== after;
+    }
+
+    const ok = overlayOk && nodesOk && expanderCount > 0 && toggleOk && errs.length === 0;
+    if (!ok) failures++;
+    console.log(
+      `${ok ? "PASS" : "FAIL"} visuals ${scenario.padEnd(26)} ` +
+      `mapNodes=${nodeRects}/${payload.network.node_list.length} ` +
+      `disruptedDrawn=${drawnDisrupted}/${payload.lanes.disrupted_lane_count} ` +
+      `expanders=${expanderCount} keyboardToggle=${toggleOk} errors=${errs.length}`
+    );
+    if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+    await page.screenshot({ path: `${SHOT_DIR}/full-${scenario}.png`, fullPage: true });
+    errs.length = 0;
+  }
+
+  // CSV download path works through the proxy.
+  const csv = await page.evaluate(async () => {
+    const r = await fetch("/api/dataset/table?scenario=baseline&table=lanes");
+    return { status: r.status, type: r.headers.get("content-type"), head: (await r.text()).slice(0, 8) };
+  });
+  const csvOk = csv.status === 200 && (csv.type || "").includes("text/csv") && csv.head.startsWith("lane_id");
+  if (!csvOk) failures++;
+  console.log(`${csvOk ? "PASS" : "FAIL"} csv download status=${csv.status} type=${csv.type}`);
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

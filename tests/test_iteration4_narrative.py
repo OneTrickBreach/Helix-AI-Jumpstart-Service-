@@ -250,6 +250,31 @@ def test_no_schema_names_leak_into_prose(scenario: str):
 
 
 @pytest.mark.parametrize("scenario", ALL_SCENARIOS)
+def test_no_schema_names_leak_into_user_facing_labels(scenario: str):
+    """Anything a viewer reads must be words, not column names.
+
+    Phase 4 caught `capacity_units_per_period x cost_per_unit` rendered verbatim
+    under a table. Labels are as user-facing as prose, so they get the same rule.
+    """
+    if not _generated(scenario):
+        pytest.skip(f"{scenario} not generated")
+    overview = build_dataset_overview(scenario)
+
+    labels: list[str] = [tile["label"] for tile in overview["at_a_glance"]]
+    labels += [tile["plain_english_note"] for tile in overview["at_a_glance"]]
+    for section in overview.values():
+        if not isinstance(section, dict):
+            continue
+        for key, value in section.items():
+            if key.endswith("_showing") and isinstance(value, dict):
+                labels.append(value["ranked_by"])
+                labels.append(value["note"])
+    for text in labels:
+        leaked = re.findall(r"\b[a-z]+_[a-z_]+\b", text)
+        assert not leaked, f"schema names leaked into a label: {leaked} in {text!r}"
+
+
+@pytest.mark.parametrize("scenario", ALL_SCENARIOS)
 def test_summary_matches_the_actual_counts(scenario: str):
     """The sentence must agree with the numbers in the same payload."""
     if not _generated(scenario):
