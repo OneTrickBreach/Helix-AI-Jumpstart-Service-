@@ -17,8 +17,8 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–2 done.
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 2 complete (2026-07-30).** Iteration 3 is
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–3 done.
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 3 complete (2026-07-30).** Iteration 3 is
   complete and merged to `main` (2026-07-27); demo/pilot-ready.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
@@ -29,7 +29,8 @@
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
 - **Tests:** `make test` **141 passed + 2 xpassed (143 total)** — 72 added by Iteration 4 Phases 1–2.
-  Web: **34 Vitest tests**, `npm audit` 0 vulnerabilities.
+  Web: **39 Vitest tests**, `npm audit` 0 vulnerabilities, plus `make web-check` (headless
+  Chromium render verification, 8/8 scenario x viewport passes).
 - **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
   `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
@@ -42,11 +43,130 @@
   memory. Single-node holds at all tested scales (up to 100x).
 - **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
   follow-up carried since Iteration 3 Phase 0 is closed.
-- **Next:** Iteration 4 Phase 3 — web dataset view: navigation, layout & Level-1 hero.
+- **Web dataset view:** `?view=dataset&scenario=<name>` on port 8081 — Level 1 fits above the
+  fold at 1920x1080 and 1440x900. Bundle 570.61 kB (+20.3 kB for the view, no new dependencies).
+- **Next:** Iteration 4 Phase 4 — visuals, progressive disclosure & polish (the network map).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-30 — Iteration 4, Phase 3: web dataset view — navigation, layout & Level-1 hero
+**Status:** Phase 3 complete, verified on-device in a real browser engine. **git ref: Phase 3 work
+committed as `9eaee6f`; hash backfilled in the follow-up commit.**
+Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** the view exists, is reachable, is honest about provenance, and delivers the
+"ohh — that's my dataset" moment above the fold. Phase 4 owns the network map, charts, BOM tree,
+full tables and CSV download.
+
+**1. `web/src/DatasetView.tsx` — the "Know Your Data" view.**
+Level 1 (no scrolling): provenance badge · one-sentence summary · scenario sentence · six tiles ·
+network tier strip. Level 2 (scroll): scenario-diff card, products, demand, lanes, capacity, costs,
+service targets, starting inventory, pipeline, provenance footer. Level 3 is Phase 4.
+- **The tier strip is real data simply drawn**, not a mock: actual tier counts from
+  `network.tiers`, laid out supplier → factory → distribution center → customer. Phase 4 upgrades it
+  to the lane-level map with the scenario overlay.
+- `App.tsx` grew by ~50 lines (view switch + URL helpers) rather than absorbing the view, per the
+  standing note that it is already monolithic.
+
+**2. Navigation without a router (decision 2 upheld).** `?view=dataset` and
+`?view=dataset&scenario=X`, written with `history.pushState` and read back on `popstate`, so browser
+back/forward work and the URL is bookmarkable — Ryan can be sent a link that opens on the exact
+scenario. A "View the dataset" button sits next to Run/Replay on the results screen; "Back to
+results" returns and clears the params. No `react-router`, no nginx rewrite change, no new dependency.
+
+**3. Provenance badge in the sticky header *and* the footer.** Amber, not green — this is a caveat,
+not a reassurance. It reads *"Synthetic demo dataset · seed 12345 · generated on-device · not
+customer data"*, text supplied by the API rather than hardcoded in the UI. Verified present on all
+eight scenario × viewport renders.
+
+**4. All three non-happy states are real and reachable.** Loading (named scenario, spinner that
+resolves), empty (**HTTP 409** → "No data generated yet" plus the literal `make demo-data` command),
+and error (message + working "Try again"). The 409/404 split from Phase 1 pays off here: a viewer
+who has not generated data gets an instruction, not a stack trace.
+
+**5. 🔴 New verification capability: `make web-check` (headless Chromium).**
+`web/e2e/dataset-view.check.mjs` runs Playwright against the live container and asserts what neither
+a unit test nor a screenshot can: **the measured pixel height of Level 1**, console cleanliness, badge
+presence, URL round-tripping, and honest error handling. It also writes screenshots — which
+**Phase 4's DoD explicitly requires**, and which the journal has repeatedly flagged as a recurring
+gap ("no manual browser screenshot captured"). This closes that gap with a repeatable command rather
+than a one-off.
+
+**Measured results (real browser engine, not assumed):**
+
+| Viewport | Scenario | Level-1 bottom | Fits above fold | Badge | Tiles | Console errors |
+|---|---|---:|---|---:|---:|---:|
+| 1920×1080 | baseline | 613 px | ✅ | 2 | 6 | 0 |
+| 1920×1080 | component-shortage-shock | 637 px | ✅ | 2 | 6 | 0 |
+| 1920×1080 | demand-surge | 637 px | ✅ | 2 | 6 | 0 |
+| 1920×1080 | stress-large | 661 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | baseline | 613 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | component-shortage-shock | 637 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | demand-surge | 637 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | stress-large | 661 px | ✅ | 2 | 6 | 0 |
+
+Level 1 ends at **613–661 px** — comfortably inside both a 1080p display and a 1440×900 laptop, with
+room for Phase 4's taller network map. Navigation: button → `?view=dataset&scenario=baseline`, back →
+clean URL, **0 page errors**.
+
+**Brutal-truth review of Phase 3 — what I went looking for and what I found.**
+- **🔴 The worst defect of this iteration so far, found by the browser check.** `?view=dataset&
+  scenario=not-a-real-scenario` **silently rendered baseline data**. `App.tsx` resolved an unknown
+  URL scenario by falling back to the first in the list, so the page cheerfully showed one dataset
+  under a URL naming another. On a view whose entire purpose is *"know exactly which data you are
+  looking at"*, that is the one unforgivable bug in the whole iteration. Fixed by **keeping** the bad
+  name: the API returns 404 and the UI shows "Unknown scenario 'not-a-real-scenario'" with the
+  dropdown reading "(not found)". A graceful fallback would have been the friendlier choice and the
+  wrong one.
+- **Screenshots caught two things the assertions did not.** Reading the rendered PNG showed
+  **"FACTORYS"** in the network strip and **"32 demand seriess"** on the demand card — I fixed exactly
+  this plural bug in Python in Phase 2 and then reintroduced it in TypeScript. Added `pluralLabel`
+  (`-y` → `-ies`, sibilant → `-es`) with six test cases. This is the argument for screenshots over
+  assertions alone: the automated checks were all green while the page said "FACTORYS".
+- **One clarity fix from reading the render:** the demand card's "Shock window: none" on
+  *component-shortage-shock* invited the reading "no shock at all", when in fact that scenario's shock
+  is a lane disruption, not a demand shock. Relabelled "Demand shock window".
+- **A bug in my own tooling, caught before commit.** My script for prepending a docstring to the
+  check file duplicated the entire body (`s.split("\n", 0)[0]` returns the whole string). `make
+  web-check` failed loudly with a duplicate-import error rather than silently, which is how it should
+  fail. Rewritten and re-run green.
+- **Bundle delta measured, not guessed:** built the committed `HEAD` in a clean container for a true
+  baseline. **550.31 → 570.61 kB (+20.3 kB, +3.7%)**, gzip 159.21 → 164.13 kB (+4.9 kB), CSS +2.5 kB.
+  That is an entire new view with **no new dependencies** — no router, no graph library, per decision 2
+  and the bundle risk in §5. The pre-existing 500 kB Vite warning is unchanged in kind.
+- **No regression on the results screen:** `make test` **141 passed + 2 xpassed**, `/demo-replay.json`
+  200, `/api/scenarios` 200, and grepping the shipped JS bundle for `helix_api`/`x-api-key`/`api_key`
+  returns **0** — the key still never reaches the browser.
+- **Guardrails:** no LLM text on the dataset view; every rendered number comes from the API payload
+  (nothing is computed in the browser); provenance badge always visible; the costs card is explicitly
+  fenced as *"Input parameters — not measured results"* so it can never be confused with the results
+  screen's measured costs; data never leaves the box.
+
+**DoD assessment: met, with one honest caveat.** The view loads and renders correctly for all four
+scenarios at 1920×1080 **and** at laptop size; Level 1 fits above the fold on both, measured in pixels;
+the provenance badge is always visible; **0 console errors**; the TypeScript/Vite build is clean.
+- **Caveat:** verification used a **headless Chromium (Playwright) on the GB10**, not a human-driven
+  browser over Tailscale from the laptop. It is a real browser engine performing real layout, and it
+  measures more than a human could eyeball — but it is not the literal "open it on the laptop" check
+  the PoA describes, and the Tailscale path itself remains unverified end-to-end (open since
+  2026-07-29). Ishan should open
+  `http://<gb10-tailscale-ip>:8081/?view=dataset&scenario=component-shortage-shock` once to close it.
+
+**Open follow-ups.**
+- **Ishan: open the dataset view over Tailscale once** to close both this caveat and the 2026-07-29
+  remote-access follow-up.
+- Phase 4: network map with the scenario overlay (the tier strip is the placeholder), demand chart,
+  BOM tree, lanes table, Level-3 expanders with CSV download, accessibility and projector-safe colors.
+- Minor, for Phase 4: on `stress-large` the scenario card lists five itemized change bullets while the
+  hero sentence groups them; consider grouping the card too.
+- Screenshots live in `web/e2e/shots/` and are **gitignored** (14 MB). Phase 4's DoD asks for
+  screenshots attached to the journal — decide then whether to commit a few compressed ones or link
+  them out.
+- Unchanged: pin the vLLM base image; stale host `web/node_modules`.
+
+---
 
 ## 2026-07-30 — Iteration 4, Phase 2: plain-English narrative & scenario-diff layer
 **Status:** Phase 2 complete, verified on-device. **git ref: Phase 2 work committed as `b975412`;
