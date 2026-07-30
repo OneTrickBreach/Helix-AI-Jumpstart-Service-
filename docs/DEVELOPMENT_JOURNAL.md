@@ -17,8 +17,8 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–1 done.
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 1 complete (2026-07-30).** Iteration 3 is
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–2 done.
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 2 complete (2026-07-30).** Iteration 3 is
   complete and merged to `main` (2026-07-27); demo/pilot-ready.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
@@ -28,7 +28,8 @@
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **Tests:** `make test` **103 passed + 2 xpassed (105 total)** — 34 added by Iteration 4 Phase 1.
+- **Tests:** `make test` **141 passed + 2 xpassed (143 total)** — 72 added by Iteration 4 Phases 1–2.
+  Web: **34 Vitest tests**, `npm audit` 0 vulnerabilities.
 - **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
   `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
@@ -41,12 +42,141 @@
   memory. Single-node holds at all tested scales (up to 100x).
 - **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
   follow-up carried since Iteration 3 Phase 0 is closed.
-- **Next:** Iteration 4 Phase 2 — plain-English narrative & scenario-diff layer (deterministic, no
-  LLM). Carries one open decision: the lumpiness callout measures 0 on every scenario.
+- **Next:** Iteration 4 Phase 3 — web dataset view: navigation, layout & Level-1 hero.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-30 — Iteration 4, Phase 2: plain-English narrative & scenario-diff layer
+**Status:** Phase 2 complete, verified on-device. **git ref: Phase 2 work committed as `b975412`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** turn correct-but-technical numbers into sentences a non-specialist reads
+once and understands. Deterministic template text only — **no LLM on this path** (decision 4).
+Plus the reusable glossary and formatting helpers the web phases will consume.
+
+**1. `src/dataset/narrative.py` — new module, wired into the overview as a `narrative` section.**
+Five strings per scenario (one-sentence summary, scenario sentence, forecast-method sentence,
+pipeline sentence, provenance sentence), plus a `plain_english` line attached to every structured
+change in `scenario_diff`. Kept out of `overview.py` so neither file becomes the next `App.tsx`.
+
+**Real output, all four scenarios (this is the DoD's readability review material):**
+```
+baseline / shock / surge:
+  This is one manufacturing network: 5 suppliers ship parts to 2 factories running 6 production
+  lines, which send finished goods through 2 distribution centers out to 8 customers — 28
+  products and 52 weeks of demand history.
+
+stress-large:
+  This is one manufacturing network: 10 suppliers ship parts to 4 factories running 20 production
+  lines, which send finished goods through 4 distribution centers out to 24 customers — 156
+  products and 104 weeks of demand history.
+
+component-shortage-shock scenario sentence:
+  From week 18, 2 inbound lanes from supplier SUP-001 carrying RC-001 and RC-002 (LANE-0001 and
+  LANE-0002) stop completely for 10 weeks, and their lead times stretch to 3x normal. Beyond
+  that, 24 other settings differ from the baseline scenario, across capacity, costs, demand,
+  lane disruption, service targets, and shipping lanes.
+
+forecast method (all four):
+  All 32 demand series are continuous — every period has orders — so all are forecast with
+  AutoETS. Croston-SBA is reserved for intermittent series, and this dataset has none.
+```
+
+**2. The lumpiness decision from Phase 1, resolved.** Phase 1 measured **zero** intermittent series
+on every scenario, which would have made the PoA's planned callout read "0 of 32". Took option (b)
+from that entry — state the measured fact. The sentence now says all series are continuous and why
+that means AutoETS, which is honest, still teaches the reader something, and cannot be read as
+implying a method choice that never happens. Reversible in one function if Ishan prefers dropping it.
+
+**3. 🔴 Corrected the PoA's own example wording — it would have been a lie on this data.**
+The plan's illustrative scenario sentence ends *"Nothing else changes."* On these datasets that is
+**false**: `component-shortage-shock` differs from baseline in **24** config settings and
+`stress-large` in **34** (costs, capacities, lead times, service targets, network size, simulation
+length). The sentence therefore states the headline disruption and then says how many other settings
+differ and in which groups. A test (`test_scenario_sentence_never_claims_nothing_else_changed`)
+locks this in so nobody restores the tidier, wrong wording later.
+
+**4. The vertical is derived, not asserted.** "This is one manufacturing network" comes from the
+generator name in `metadata.json` (`manufacturing-synthetic-data`), so a future retail generator
+would not have its stores called factories. Falls back to "one supply-chain network" if absent.
+
+**5. `web/src/lib/glossary.ts` — 25 terms, centrally stored for Iteration 5 reuse.**
+lane · echelon · BOM · subassembly · lead time · period · capacity · fill rate · service target ·
+criticality tier · on hand · in transit · days of inventory · days of cover · safety stock ·
+(s,S) · backorder · lost sale · holding cost · ordering cost · intermittent demand · AutoETS ·
+Croston-SBA · objective · seed. The rule enforced by test: **no definition may contain jargon of its
+own** — a definition that needs another glossary entry to be understood has failed.
+
+**6. `web/src/lib/datasetFormat.ts` + Vitest.** count/units/percent/money/days/pluralize/
+periodRange/multiplier/humanizeKey/bytes/showingLabel. Small functions, but they are where a
+credible page turns sloppy. 28 new Vitest cases cover the zero, singular, and missing-value paths.
+
+**7. Verified on-device.**
+- `make test` **141 passed + 2 xpassed (143)** — 38 new Python tests in
+  `tests/test_iteration4_narrative.py`.
+- Web: **34 tests pass** (6 existing + 28 new), production build clean.
+- Budget after adding prose: `stress-large` **119,561 B in 0.14 s** (was 117,163 B) — still 48% of
+  the 250 KB budget. All four scenarios byte-identical across repeat calls, so the narrative did not
+  break determinism.
+
+**Brutal-truth review of Phase 2 — what I went looking for and what I found.**
+- **Rendering the strings for real caught four defects that reading the code did not.** Printing all
+  four scenarios' prose surfaced: `"32 demand seriess"` (naive pluralization of a word already ending
+  in "s"); a missing comma before "which send"; raw `snake_case` leaking into prose
+  (`lane_disruption`, `service_targets`, `skus`); and — worst — **stress-large emitting four
+  near-identical lane sentences in a row**, which reads unmistakably machine-generated. All four
+  fixed: explicit plural forms, a `humanize` map, and grouping of lane disruptions that share code,
+  window and magnitude into a single sentence.
+- **A subject-verb agreement bug in my first fix.** The grouped sentence initially read *"2 inbound
+  lanes … each stops completely"*. Rather than patch the string, `_capacity_text` and
+  `_lead_time_text` now take a `many` flag and return properly agreeing verb phrases. Tests pin both
+  the singular and plural forms.
+- **My own test caught my own content.** The glossary rule "one short sentence each" is enforced by
+  a Vitest case, and it failed on the `period` entry, which I had written as two sentences. Fixed the
+  content, not the test.
+- **Stale local toolchain found.** The first web test run used the host's `web/node_modules`, which
+  had **vitest 2.1.9** — stale against the lockfile that Iteration 3 Phase 1 bumped to `^4.1.10`. Re-ran
+  from the committed lockfile via `npm ci` in a scratch container (never touching the host tree), which
+  is what the web image actually builds with: **vitest 4.1.10**, 34 tests pass.
+- **🔴 npm audit regressed to 1 high, and I fixed it rather than noting it.** `postcss` picked up
+  **GHSA-r28c-9q8g-f849** (path traversal via source-map auto-loading, `<=8.5.17`) — a new advisory
+  published since Iteration 3 drove the tree to zero; no dependency of ours changed. Assessment before
+  acting: build-time only, never in the shipped nginx bundle, and it requires processing untrusted CSS
+  which we do not do. Low real risk, but the project's standard (Iteration 3 Phase 1: *"rather than
+  merely documenting, I tested the fix"*) is to fix. Bumped to `^8.5.25` and verified in a clean
+  container: **`npm ci` → 0 vulnerabilities**, 34 tests pass, production build succeeds. This also
+  keeps Phase 4's "npm audit still 0 vulns" DoD reachable.
+- **Verified two claims the prose makes rather than trusting them.** `pipeline_sentence` says the
+  optimizer reads "product costs" from `skus` — checked `sku_costs()` in `src/optimize/common.py`,
+  which selects exactly the four cost columns, so the phrasing is accurate. And the "manufacturing"
+  descriptor is read from the generator name, not hardcoded.
+- **A test asserts no schema name reaches prose** (`\b[a-z]+_[a-z_]+\b` over every narrative string
+  and every `plain_english` line, all four scenarios). This is the cheapest guard against the page
+  looking machine-written.
+- **Guardrails:** zero LLM on this path; no fabricated values — every sentence is filled from numbers
+  the payload already derived from disk; determinism preserved and re-measured; provenance sentence
+  states data never leaves the box; optimizer results untouched.
+
+**DoD assessment: met.** Narrative strings generated from real values for all four scenarios and
+recorded above for Ishan's readability review; scenario diff verified against the actual generated
+data (`lane_periods.disruption_code`, `demand.shock_multiplier`) and each scenario's own embedded
+config, not against assumption; glossary covers the payload's jargon; Vitest green.
+
+**Open follow-ups.**
+- **Ishan's readability call** on the sentences above — that is the one DoD item only a human can
+  sign off. Two candidates if anything grates: "out to 8 customers" (the "out" is optional), and
+  whether the scenario sentence's "Beyond that, 24 other settings differ…" clause belongs in the
+  headline or in Level 2.
+- Phase 3 consumes `narrative`, `glossary.ts` and `datasetFormat.ts`; nothing in them is wired to a
+  screen yet.
+- The `web/` host `node_modules` is stale (vitest 2.1.9). Harmless — every real build and test path
+  uses `npm ci` from the lockfile — but `rm -rf web/node_modules && npm ci` would stop it misleading
+  anyone who runs tests locally.
+- Unchanged from Phase 0: pin the vLLM base image; verify the Tailscale path end-to-end.
+
+---
 
 ## 2026-07-30 — Iteration 4, Phase 1: dataset overview API
 **Status:** Phase 1 complete, verified on-device. **git ref: Phase 1 work committed as `06c77e5`;
