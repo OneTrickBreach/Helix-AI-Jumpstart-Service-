@@ -47,7 +47,8 @@
 ## Entries (newest first)
 
 ## 2026-07-30 — Iteration 4, Phase 0: orientation, green baseline, NVML closed, roadmap renumbered
-**Status:** Phase 0 complete, verified on-device. **git ref: committed with this change.**
+**Status:** Phase 0 complete, verified on-device. **git ref: Phase 0 work committed as `d66980d`;
+this hash backfilled in the follow-up commit. Not yet pushed.**
 Branch `feat/iteration4-dataset-transparency` (cut from `main` @ `4245b77`).
 
 **Scope (no feature code, per the PoA):** load context, confirm the repo is still green after the
