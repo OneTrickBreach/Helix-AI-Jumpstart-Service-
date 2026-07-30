@@ -17,9 +17,13 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration3` → merged to `main` (2026-07-27). Iteration 3 complete.
-- **Phase:** **Iteration 3 COMPLETE — all phases (0–6) verified on-device (2026-07-27).** Demo/pilot-ready.
-  Phase 7 (production track) deferred to Iteration 4.
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Iteration 4 Phase 0 done.
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 0 complete (2026-07-30).** Iteration 3 is
+  complete and merged to `main` (2026-07-27); demo/pilot-ready.
+- **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
+  (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
+  (real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging).
+  What older docs called "Iteration 4 = production" is now Iteration 6.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
@@ -28,14 +32,142 @@
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
   **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
   Classical objectives: baseline 81,789; shortage-shock 95,445; demand-surge 94,165; stress-large 2,521,615.
-- **On-device envelope:** peak 65–68 GiB of ~121 GiB (55+ GiB headroom). Scale study: ceiling is
-  forecast latency (~25ms/series), not memory. Single-node holds at all tested scales (up to 100x).
-- **Next:** Iteration 4 (production track) — real customer-data onboarding, hardening, multi-tenant
-  isolation, licensing, packaging. Pending post-Ryan meeting direction.
+  Reconfirmed bit-identical 2026-07-30 — this is the Iteration 4 reference.
+- **On-device envelope:** peak **74.7–76.0 GiB** of ~121 GiB (45.0–46.3 GiB headroom; 90% flag clear).
+  Up from Iteration 3's 65–68 GiB because `make up` re-pulled the unpinned `vllm/vllm-openai:latest`
+  base — see the 2026-07-30 entry. Scale study: ceiling is forecast latency (~25ms/series), not
+  memory. Single-node holds at all tested scales (up to 100x).
+- **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
+  follow-up carried since Iteration 3 Phase 0 is closed.
+- **Next:** Iteration 4 Phase 1 — dataset overview API (`src/dataset/overview.py`,
+  `GET /dataset/overview`).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-30 — Iteration 4, Phase 0: orientation, green baseline, NVML closed, roadmap renumbered
+**Status:** Phase 0 complete, verified on-device. **git ref: committed with this change.**
+Branch `feat/iteration4-dataset-transparency` (cut from `main` @ `4245b77`).
+
+**Scope (no feature code, per the PoA):** load context, confirm the repo is still green after the
+2026-07-29 demo, close the long-standing stale-NVML follow-up, capture the pre-Iteration-4
+four-scenario reference, and make the roadmap self-consistent before any feature work lands.
+
+**1. Stack brought up — and `make up` closed the NVML follow-up as a side effect.**
+`make up` (`docker compose up -d --build`) rebuilt all three local images and, because the `llm`
+image layers changed, **recreated the `llm` container**. That is the same mutation the PoA
+prescribed as a separate deliberate step (`--force-recreate llm`); it simply happened one step
+earlier. Recorded as it actually occurred rather than re-running a redundant recreate.
+- Nemotron reload took **~6 minutes** to reach healthy (14:16:32 → ~14:22:33 by the vLLM engine log),
+  not the ~2 min the PoA estimated. Worth knowing before a live demo.
+- **Verified: in-container `nvidia-smi` now works in BOTH `api` and `llm`** — `NVIDIA GB10`, driver
+  `580.159.03`, CUDA 13.0, 53 °C. This is the first time `llm`'s own NVML has been healthy since
+  Iteration 3 Phase 0 (2026-07-15), where only `api` was recreated to avoid the reload risk.
+  **The stale-NVML follow-up carried through Iterations 3.0–3.6 is closed.**
+- `GET /health` → `gpu_visible:true, gpu_name:"NVIDIA GB10", driver_version:"580.159.03"`.
+- The LLM serves: `/v1/models` returns `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8`.
+- No wedge, no instability, nothing to revert.
+
+**2. `make test` → 69 passed + 2 xpassed (71 total) in 30.24 s.** Exactly the expected count.
+- **Honest note on the "2 xpassed":** these are `test_gpu_visible` and `test_driver_version` in
+  `tests/test_service_health.py`, marked `@pytest.mark.xfail(reason="NVML handle stale after
+  container recreation; CUDA actually works")`. They did **not** "flip to passing" — non-strict
+  `xfail` reports XPASS when the assertion succeeds, and they were already xpassing before this
+  phase. What changed is the underlying condition, not the reported outcome.
+- **Deliberate call: the `xfail` markers stay.** The failure mode they document is real and
+  recurring — a host driver/daemon reload detaches a long-running container's NVML handle, which
+  has now bitten this project twice. Removing the markers would turn the suite red the next time
+  it happens rather than surfacing it as a known, documented condition. Revisit if it stops recurring.
+
+**3. Four-scenario reference captured — `make bench-all`** (seed 12345, horizon 8, ppo-timesteps 128,
+top-k 5; `generated_at_utc` 2026-07-30T14:26:02Z). **This is the pre-Iteration-4 reference that
+Phase 6 must reproduce bit-identically.**
+
+| Scenario | Winner | Baseline obj | Classical obj | PPO obj | Device peak (GiB) | Headroom (GiB) | LLM tok/s |
+|---|---|---:|---:|---:|---:|---:|---:|
+| baseline | **classical** | 88,022.760795 | **81,789.359460** | 102,804.716650 | 74.700 | 46.300 | 47.59 |
+| component-shortage-shock | **classical** | 102,834.785064 | **95,445.445064** | 113,584.863463 | 74.721 | 46.279 | 48.05 |
+| demand-surge | **classical** | 100,734.738785 | **94,165.363245** | 115,161.538279 | 74.747 | 46.253 | 47.97 |
+| stress-large | **classical** | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 | 75.975 | 45.025 | 48.38 |
+
+- **All four classical objectives reproduce the Iteration 3 values exactly** (81,789 / 95,445 /
+  94,165 / 2,521,615). Seeded determinism is intact across a full container rebuild and a new
+  vLLM runtime — a stronger reproducibility result than a same-image re-run.
+- **Tuned classical wins all four; PPO lost all four** (`lost_to_classical` on every scenario).
+  Guardrails intact — PPO stays visible in the benchmark, honestly labeled.
+- **RAG healthy on all four:** `advisory_text_source = llm_finalized`, 5 citations each,
+  `numeric_metrics_source = src.pipeline.bench.run_head_to_head` (advisory boundary intact).
+- Envelope flag (`>= 90%` of 121 GiB) **clear on all four**; max observed fraction 0.628.
+
+**4. Real finding — device memory rose ~7 GiB, and the cause is an unpinned base image.**
+Device peak is now **74.7–76.0 GiB** vs Iteration 3's **65–68 GiB**. Chased rather than assumed:
+- `docker/llm/Dockerfile` line 11 is **`FROM vllm/vllm-openai:latest` — unpinned.** `make up`
+  re-pulled it (a 273 s layer extraction in the build log), so the `llm` container now runs
+  **vLLM 0.26.0**, a different runtime than Iteration 3 ran. The prior base image is gone from the
+  local cache, so a side-by-side measurement of the old version is no longer possible.
+- vLLM's own startup accounting for this run: **31.48 GiB weights + 20.52 GiB KV cache + 2.52 GiB
+  CUDA-graph pool + 0.68 GiB peak activation + 0.90 GiB non-torch = ~56.1 GiB**, against the
+  54.73 GiB that `--gpu-memory-utilization 0.45` was meant to buy. The overshoot is the CUDA-graph
+  pool landing at **2.52 GiB actual vs 1.14 GiB estimated (+54.6%)**; vLLM logs this explicitly.
+  It also reports 108.36/121.63 GiB free at its own startup, i.e. ~13.3 GiB was already in use.
+  13.3 + 56.1 ≈ 69.4 GiB before the suite runs, plus ~1.5–1.9 GiB of `api` RSS → the observed peak.
+- **Honesty limit:** this accounting fully explains the *current* 74.7–76.0 GiB, but I did **not**
+  measure the old vLLM version side by side, so "the newer vLLM is the cause of the delta" is a
+  well-supported inference, not a measured A/B.
+- **Not a guardrail breach:** 45.0–46.3 GiB headroom, envelope flag clear on all four scenarios.
+- **Not fixed in this phase, deliberately.** Pinning the base image changes the LLM runtime again
+  and needs its own reload + re-verification; doing it silently inside a "no feature code" phase
+  would be scope drift. Logged as a follow-up with a recommendation.
+
+**5. Roadmap renumbered (docs-only), per PoA §0.** Everything that called the production track
+"Iteration 4" now says **Iteration 6**, and Iterations 4/5 are named with one-line scopes:
+- `README.md` — §9 pointer corrected; §13 gained the full six-row roadmap table.
+- `docs/Iteration3_Plan_of_Action.md` — Phase 7 heading + dated renumber note; §4 table gained
+  Iterations 4 and 5; the "one more iteration" bottom line corrected (it is three).
+- `docs/iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md` — TL;DR line and §9 heading + note.
+- `docs/DEMO_GUIDE.md` **and** `docs/handoff.md` — **not listed in the PoA but both still said
+  "Iteration 4 = production"**; the DoD says *no* doc may, so both were corrected. The demo guide's
+  "What's next?" talk track now previews Iterations 4 and 5 before the production track.
+- **Past journal entries were deliberately NOT rewritten** — they are a historical record of what
+  was believed at the time. Only this snapshot block at the top was updated.
+
+**Brutal-truth review of Phase 0.**
+- No feature code changed, so there is nothing to mask; the only mutations were container recreates
+  (prescribed) and doc edits. Every result above came from a real on-device command — in-container
+  `nvidia-smi` in both containers, `/health`, `/v1/models`, `make test`, a timestamped
+  `make bench-all`, `/proc/meminfo`, `docker stats`, and the vLLM engine log — not from a build report.
+- **I went looking for something wrong and found two things**, both recorded above rather than
+  smoothed over: the memory envelope moved ~7 GiB (root-caused to an unpinned base image), and the
+  "2 xpassed" tests never actually flipped state despite the PoA anticipating they might.
+- Also verified the demo path still works end to end after the rebuild: `http://localhost:8081/`
+  → 200 (nginx 1.27.5), `/api/scenarios` returns all four through the key-injecting proxy,
+  `/demo-replay.json` → 200, and the API rejects an unauthenticated direct call with **401**.
+- Guardrails: PPO reported losing all four; naive-baseline-as-target framing preserved; no `~94%`
+  framing; bandwidth-not-capacity framing untouched; no hospital claim; data stayed on-device;
+  advisory/metric boundary intact (`llm_finalized` text, optimizer-sourced numbers); no fabricated
+  figures — every number here is copied from `benchmark/suite-summary.json` or a live command.
+- One thing I did **not** do: verify the dataset view over Tailscale from the laptop. There is no
+  dataset view yet — that starts in Phase 1. The remote-access path itself is still unverified
+  end-to-end (open since 2026-07-29).
+
+**DoD assessment: met.** Stack healthy (all four services, GPU visible in both GPU containers);
+71 tests accounted for and the xpassed pair explained precisely; four-scenario reference captured
+above; `llm` NVML state recorded honestly (fixed, with the reload cost noted); no doc anywhere still
+calls production "Iteration 4"; the PoA is committed at `docs/Iteration4_Plan_of_Action.md` (landed
+in `4245b77`).
+
+**Open follow-ups.**
+- **Pin the vLLM base image** (`vllm/vllm-openai:latest` → a digest or version tag) so `make up`
+  cannot silently change the LLM runtime and the memory envelope. Recommended before the next demo;
+  needs its own reload + re-verification, so it wants a maintenance window, not a mid-phase edit.
+- Phase 6 must compare against the **2026-07-30 reference in this entry**, not Iteration 3's
+  65–68 GiB memory figures.
+- Verify the Tailscale access path end-to-end from a laptop (carried from 2026-07-29).
+- `web/public/demo-replay.json` still carries pre-MDP PPO numbers — scheduled for recapture in
+  Iteration 4 Phase 5.
+
+---
 
 ## 2026-07-29 — Docs: remote-access section added to the demo guide (doc-only)
 **Status:** Complete. **git ref: uncommitted at time of writing (committed with this change).** Branch `main`.

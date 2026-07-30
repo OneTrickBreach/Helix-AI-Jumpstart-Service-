@@ -302,10 +302,13 @@ Use these answers when follow-up questions come up.
 
 ### "What's next?"
 
-> "This is demo/pilot-ready — Iteration 3. The next step (Iteration 4) is production: real
-> customer-data onboarding (ETL, schema mapping, access control), hardening, multi-tenant
-> isolation, and packaging as a shippable appliance. cuOpt is now available for this platform and
-> ready for future fleet-routing use cases with 100+ stops, if a customer needs it."
+> "This is demo/pilot-ready — Iteration 3. Next are two iterations that sharpen what you're looking
+> at: Iteration 4 makes the *input* dataset visible — a page that shows you the network, products,
+> demand and lanes the result ran on — and Iteration 5 adds a conversational layer for asking
+> what-if questions about the plan. After those, Iteration 6 is production: real customer-data
+> onboarding (ETL, schema mapping, access control), hardening, multi-tenant isolation, and packaging
+> as a shippable appliance. cuOpt is now available for this platform and ready for future
+> fleet-routing use cases with 100+ stops, if a customer needs it."
 
 ---
 

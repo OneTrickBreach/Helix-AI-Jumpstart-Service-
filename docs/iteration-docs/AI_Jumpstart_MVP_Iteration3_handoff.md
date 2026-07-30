@@ -5,7 +5,8 @@
 **Date:** 2026-07-27
 **Scope:** Move the verified PoC (Iteration 2) to a **demo/pilot-ready** state — reproducible
 results, real-corpus RAG, polished demo UI, a fair RL evaluation, scale study, and cuOpt re-check.
-All seven phases (0–6) complete; Phase 7 (production track) deferred to Iteration 4.
+All seven phases (0–6) complete; Phase 7 (production track) deferred to **Iteration 6** (renumbered
+2026-07-30 — see §9).
 **Evidence basis:** Every number below comes from a **real on-device run** on seeded synthetic data.
 Reproduce with `make bench-all`.
 
@@ -182,7 +183,15 @@ transportation LP — different problem classes. cuOpt not added to requirements
 
 ---
 
-## 9. What's Next (Iteration 4 — Production Track)
+## 9. What's Next (Iterations 4 and 5, then the Production Track at Iteration 6)
+
+> **Renumbered 2026-07-30.** Ryan's demo feedback (2026-07-29) inserted two iterations ahead of the
+> production track, so what this section originally called "Iteration 4 = production" is now
+> **Iteration 6**:
+> - **Iteration 4** — dataset transparency layer: a read-only "Know Your Data" view so a viewer can
+>   see the dataset a result ran on ([`../Iteration4_Plan_of_Action.md`](../Iteration4_Plan_of_Action.md)).
+> - **Iteration 5** — conversational scenario/what-if analyst ([`../Iteration5_Plan_of_Action.md`](../Iteration5_Plan_of_Action.md)).
+> - **Iteration 6** — the production track described below.
 
 Iteration 3 gets to **demo/pilot-ready**. The gap to a shippable product:
 
@@ -196,8 +205,8 @@ Iteration 3 gets to **demo/pilot-ready**. The gap to a shippable product:
 | **Shippable appliance image** | Single install, managed updates, customer-facing documentation |
 
 **Bottom line:** Iteration 3 makes it sellable as a story and demoable on the box — enough to win
-design partners or an internal go/no-go. The finished product requires one more iteration (the
-production track).
+design partners or an internal go/no-go. The finished product requires the production track
+(Iteration 6); Iterations 4 and 5 sharpen the demo rather than ship the product.
 
 ---
 

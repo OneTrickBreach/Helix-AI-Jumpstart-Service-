@@ -212,7 +212,7 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 **Iteration 3 (Phases 0–6) is complete and verified on-device (2026-07-27).** The prototype is
 demo/pilot-ready: reproducible results, real-corpus RAG, a polished web UI with a "Why This Plan"
 summary, a recorded demo fallback, a fair RL evaluation, a scale study, and an honest cuOpt
-re-check. Phase 7 (production track) is deferred to Iteration 4.
+re-check. Phase 7 (production track) is deferred to **Iteration 6** (see §13 for the roadmap).
 
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
 - `make demo` generates data, rebuilds the web UI, and prints the demo URLs.
@@ -388,10 +388,23 @@ make rag SCENARIO=...          # RAG advisory for a single scenario
 make cli SCENARIO=...          # thin CLI over the same API
 ```
 
-**If continuing development (Iteration 4+):** read [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md)
-§4 for the honest gap between this demo/pilot-ready prototype and a shippable product. Phase 7
-(production track) is the starting point: real customer-data onboarding, hardening, multi-tenant
-isolation, licensing, and packaging.
+**Roadmap (current numbering).** Ryan's demo feedback (2026-07-29) inserted two iterations ahead of
+the production track, so what earlier docs called "Iteration 4 = production" is now **Iteration 6**:
+
+| Iteration | Content | State |
+|---|---|---|
+| 1 | Use cases / value prop; data elements & pipeline | ✅ Done |
+| 2 | SCO scaffolding + synthetic dataset (working on-device prototype) | ✅ Done (`main`, 2026-07-10) |
+| 3 | Productization, demo polish, honest RL fair-shot | ✅ Done (`main`, 2026-07-27) |
+| **4** | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | 🎯 In progress |
+| 5 | Conversational scenario/what-if analyst — grounded natural-language Q&A over the plan | 📝 Planned |
+| 6 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging | ⏳ Not started |
+
+**If continuing development:** read [`docs/Iteration4_Plan_of_Action.md`](docs/Iteration4_Plan_of_Action.md)
+for the current build, and [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4
+for the honest gap between this demo/pilot-ready prototype and a shippable product. The production
+track (Iteration 6) is where real customer-data onboarding, hardening, multi-tenant isolation,
+licensing, and packaging land.
 
 **Definition of done (achieved):** one command (`make demo`) regenerates data and produces an
 optimized plan, fully on-device within the 121 GiB envelope, beating the naive baseline in all four

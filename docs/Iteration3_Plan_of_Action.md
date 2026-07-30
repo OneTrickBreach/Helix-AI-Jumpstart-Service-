@@ -128,7 +128,11 @@ This plan is built to be executed **one phase per session**, not all at once.
 - **DoD:** a dated NGC check in the journal; benchmark only if a real build runs.
 - **⏹ STOP / CHECKPOINT:** brutal-truth review (re-check this phase's work against the guardrails and real on-device behavior; assume something is wrong, find it, fix it) → commit → journal (incl. review findings) → report → wait for go.
 
-### Phase 7 — Production track *(DEFERRED — Iteration 4; do NOT execute this iteration)*
+### Phase 7 — Production track *(DEFERRED — now **Iteration 6**; do NOT execute this iteration)*
+> **Renumbered 2026-07-30.** Ryan's demo feedback inserted two iterations ahead of this track:
+> Iteration 4 (dataset transparency) and Iteration 5 (conversational what-if). The production
+> track below is now Iteration 6.
+
 - Real customer-data onboarding/ETL, HA, multi-tenant isolation, security hardening, licensing
   (NFR/NVAIE), shippable appliance image, multi-vertical validation.
 - **Listed only** so the boundary is deliberate, not drift. If Ishan reclassifies, this becomes its own plan.
@@ -144,14 +148,17 @@ prototype with a credible sell. It does **not** get you to a *finished, shippabl
 |---|---|---|
 | PoC (synthetic data, one vertical, verified on-device) | ✅ Done | Iteration 2 |
 | **Pilot/demo-ready** (polished demo, real-corpus RAG, reproducible, RL fairly settled) | 🎯 This plan | **Iteration 3** |
-| Production / GA (real customer-data onboarding, hardening, multi-vertical, licensing, packaging) | ⏳ Not started | Iteration 4+ |
+| Dataset transparency layer (read-only "Know Your Data" view) | 🎯 In progress | Iteration 4 |
+| Conversational scenario/what-if analyst | 📝 Planned | Iteration 5 |
+| Production / GA (real customer-data onboarding, hardening, multi-vertical, licensing, packaging) | ⏳ Not started | Iteration 6 |
 
 **The gap between Iteration 3 and a marketable product** — what a paying customer needs that is out of scope here:
 - **Real customer-data onboarding.** The core promise is "customer plugs in *their* data." Today it is
-  synthetic-only; real ETL / schema-mapping / validation is a whole workstream (Phase 7 / Iteration 4).
+  synthetic-only; real ETL / schema-mapping / validation is a whole workstream (Phase 7 / Iteration 6).
 - **Production hardening:** HA, multi-tenant isolation, security, install/update tooling, a shippable appliance image.
 - **Multi-vertical:** only Manufacturing is built; Retail / Wholesale / Hospitals remain just the market map.
 - **Commercial wrap:** licensing (NFR/NVAIE), pricing, support, SLAs.
 
 **Bottom line:** Iteration 3 makes it *sellable as a story and demoable on the box* — enough to win design
-partners or an internal go/no-go. The finished product is one more iteration (the production track) beyond that.
+partners or an internal go/no-go. The finished product is the production track (now **Iteration 6**)
+beyond that; Iterations 4 and 5 sit in between, sharpening the demo rather than shipping the product.
