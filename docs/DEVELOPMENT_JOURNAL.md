@@ -17,8 +17,8 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Iteration 4 Phase 0 done.
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 0 complete (2026-07-30).** Iteration 3 is
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–1 done.
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 1 complete (2026-07-30).** Iteration 3 is
   complete and merged to `main` (2026-07-27); demo/pilot-ready.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
@@ -28,7 +28,9 @@
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **Tests:** `make test` 69 passed + 2 xpassed (71 total).
+- **Tests:** `make test` **103 passed + 2 xpassed (105 total)** — 34 added by Iteration 4 Phase 1.
+- **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
+  `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
   **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
   Classical objectives: baseline 81,789; shortage-shock 95,445; demand-surge 94,165; stress-large 2,521,615.
@@ -39,12 +41,167 @@
   memory. Single-node holds at all tested scales (up to 100x).
 - **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
   follow-up carried since Iteration 3 Phase 0 is closed.
-- **Next:** Iteration 4 Phase 1 — dataset overview API (`src/dataset/overview.py`,
-  `GET /dataset/overview`).
+- **Next:** Iteration 4 Phase 2 — plain-English narrative & scenario-diff layer (deterministic, no
+  LLM). Carries one open decision: the lumpiness callout measures 0 on every scenario.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-30 — Iteration 4, Phase 1: dataset overview API
+**Status:** Phase 1 complete, verified on-device. **git ref: Phase 1 work committed as `06c77e5`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** one authenticated endpoint returning a complete, pre-aggregated,
+deterministic description of a scenario's dataset, derived entirely from files on disk. This is the
+contract Phases 2–5 build on. After every `src/` edit the `api` image was rebuilt
+(`docker compose build api && docker compose up -d --no-deps api`) before testing, per the baked-`COPY`
+gotcha — four rebuild cycles in this phase.
+
+**1. `src/dataset/overview.py` — `build_dataset_overview(scenario, data_root=...)`.**
+Twelve sections: `provenance` · `at_a_glance` · `network` · `products` · `demand` · `lanes` ·
+`capacity` · `costs` · `service_targets` · `initial_inventory` · `scenario_diff` · `pipeline_link`.
+- **Loads through `src.ingest.state.load_scenario_state`**, not a second CSV parser. This is the whole
+  point of the DRY rule here: duplicated parsing is how the view's counts silently drift from the
+  counts the pipeline actually ingests.
+- **Aggregates, never dumps.** `MAX_SECTION_ROWS = 200` and `TOP_N = 12`. Every truncated list carries
+  a `_showing` block with `shown`/`total`/`truncated`/`ranked_by`, so the UI can say "showing top 12
+  of 288" instead of quietly hiding data. Demand is returned as per-period totals plus top-N series —
+  never row-level.
+- **Deterministic by construction:** no wall-clock stamp anywhere (`generated_at_utc` comes from the
+  `metadata.json` mtime, not `now()`), explicit sort keys on every list, no set iteration in output.
+
+**2. Endpoints on the existing protected router** (`X-API-Key`, same posture as `/scenarios`).
+- `GET /dataset/overview?scenario=<name>` → `{"dataset_overview": {...}}`.
+- `GET /dataset/table?scenario=<name>&table=<name>` → raw CSV as an attachment, whitelisted to the
+  nine tables in `REQUIRED_TABLES`.
+- **Unknown scenario → 404. Known but ungenerated → 409** naming `make demo-data`. Directory present
+  but tables missing → also 409, not a 500.
+- **Path containment is enforced in the module, not trusted to the route pattern.** The API's scenario
+  pattern `^[a-zA-Z0-9._-]+$` *admits a literal `..`* — this endpoint serves file contents, so
+  `_resolve_scenario_dir` resolves the path and rejects anything that is not inside the data root.
+
+**3. One shared-code change: `_zero_fraction` → `zero_fraction` in `src/forecast/statistical.py`.**
+The overview reports the AutoETS/CrostonSBA split, and the only honest way to do that is to use the
+forecaster's own rule rather than restate the threshold. Importing a private across modules is a
+smell, so the helper was made public with a docstring saying why. **Pure rename, no behaviour change
+— and verified rather than assumed:** `run_head_to_head('baseline')` after the rename returns
+baseline **88022.760795**, classical **81789.359460**, ppo **102804.716650** — bit-identical to the
+Phase 0 reference.
+
+**4. Verified on-device (real measurements, not estimates).**
+
+| Scenario | HTTP | Warm latency | Payload | Repeat calls |
+|---|---|---:|---:|---|
+| baseline | 200 | 0.043 s | 36,173 B | byte-identical |
+| component-shortage-shock | 200 | 0.041 s | 41,445 B | byte-identical |
+| demand-surge | 200 | 0.049 s | 40,305 B | byte-identical |
+| stress-large | 200 | **0.141 s** | **117,163 B** | byte-identical |
+
+`stress-large` sits at **47% of the 250 KB budget and 7% of the 2 s budget** — no need to weaken
+either. Determinism confirmed by sha256 over repeated HTTP responses, not just in-process.
+- Error paths, all observed live: unknown scenario **404**, no key **401**, non-whitelisted table
+  **404**, `scenario=..` **404**, CSV download returns `text/csv` with
+  `Content-Disposition: attachment`.
+- **Through the nginx proxy** (the path the browser will use in Phase 3): baseline 36,173 B / 47 ms,
+  stress-large 117,163 B / 146 ms, and grepping the proxied response for `HELIX_API`/`api_key`/
+  `x-api-key` returns **0 hits** — the key stays server-side.
+
+**Baseline overview, real output (reconciles with the PoA's expected counts):**
+```
+Places in the network      17 locations     nodes_by_type  {customer 8, dc 2, plant 2, supplier 5}
+Products tracked           28 products      sku_by_type    {finished_good 4, raw 16, subassembly 8}
+Shipping lanes             30 lanes         lanes_by_type  {dc_to_customer 16, inbound 10, p2dc 4}
+Weeks of history           52 weeks         demand rows    {derived_component 1248, fg 1664}
+Demand records           2912 rows          days of cover  18.11
+Random seed             12345               badge  "Synthetic demo dataset · seed 12345 ·
+                                                    generated on-device · not customer data"
+```
+
+**5. `scenario_diff` is derived from the generated data, not only the YAML.** Lane disruptions come
+from `lane_periods.disruption_code`, demand shocks from `demand.shock_multiplier`, and config deltas
+from each scenario's own embedded `metadata.json` config — so the diff describes what was *actually
+generated*, not what a since-edited YAML claims. For `component-shortage-shock` it produces exactly
+what the Phase 4 map overlay will need:
+```
+lane_disruption zero_supply_component_shortage
+  LANE-0001 SUP-001 -> PLANT-001 (RC-001)  periods 18-27  capacity x0.0  lead time x3.0
+  LANE-0002 SUP-001 -> PLANT-002 (RC-002)  periods 18-27  capacity x0.0  lead time x3.0
++ 24 config deltas vs baseline
+```
+
+**6. Tests — `tests/test_iteration4_dataset.py`, 34 new. Suite now 103 passed + 2 xpassed (105).**
+- **Reconciliation (the load-bearing one):** every table count equals `load_scenario_state`'s own
+  `row_counts()`, and sub-counts must *partition* their totals (node types sum to node count, etc.)
+  rather than merely look plausible.
+- Determinism; all four scenarios build; payload/latency budget; no list over the row cap (walks the
+  whole payload tree); truncation blocks self-consistent; error paths; table whitelisting; seven
+  path-traversal inputs; auth on both endpoints.
+- **Anti-fabrication proved twice.** A source grep asserts none of the real topology counts
+  (17, 28, 2912, 44928, 15808, 152, …) appears as a literal anywhere in the module — *including in
+  prose*, since stale comments lie silently. Then a behavioural test copies the data, deletes two
+  node rows and one lane row, rebuilds, and asserts the counts and the at-a-glance tiles drop by
+  exactly 2 and 1. A grep alone can be satisfied by a cleverly-written constant; the mutation test
+  cannot.
+
+**Brutal-truth review of Phase 1 — what I went looking for and what I found.**
+- **Independent cross-check of the numbers.** Rather than trust my own Polars code, I re-derived eight
+  payload values with `awk` on the host (a completely separate implementation): finished-goods total
+  units 66,807; lane cost range 0.4326–1.3078; lead-time range 1.82–9.79; line throughput 1,682;
+  on-hand 3,312 and in-transit 529; fill-rate target range 0.96–0.96; BOM max tier 2; FG holding cost
+  0.95. **All eight matched the API exactly.** Days-of-cover checked by hand too: 3,312 ÷ (66,807/52)
+  × 7.024 = 18.11 ✓.
+- **Real finding — CrostonSBA never fires on any scenario.** `lumpy_series_count` is **0 for all four**
+  (baseline 0/32, stress-large 0/288). Chased it rather than shrugging: the generated demand contains
+  **zero** zero-demand periods (max zero-fraction 0.0000; minimum quantity 19 units on baseline, 10 on
+  stress-large), so no series clears the 0.35 intermittency threshold and the split is always 100%
+  AutoETS. The generator's `lump_probability` produces occasional demand *spikes* (`lump_multiplier`),
+  which is a different thing from intermittency — a genuine naming collision between "lumpy" in the
+  generator and "lumpy" in forecasting. My derivation is correct; the dataset is simply not
+  intermittent. **This directly affects Phase 2:** the planned lumpiness callout ("X of Y products have
+  lumpy, intermittent demand — those are forecast with Croston-SBA") would render "0 of 32" on every
+  scenario. I added a derived `forecast_method_note` to the payload stating how the choice is actually
+  made, so Phase 2 cannot accidentally imply a method choice that never happens. Flagged for a
+  decision at the Phase 2 start — see follow-ups.
+- **`pipeline_link` states an inconvenient truth rather than drawing a tidy arrow.** Tracing actual
+  reads in `src/forecast/statistical.py` and `src/optimize/common.py` shows `nodes`, `bom` and
+  `production_lines` are loaded and validated at ingest but **never read by forecast or optimize** —
+  component demand is derived through the BOM at *generation* time and stored as `derived_component`
+  rows in `demand.csv`, so the optimizer reads those rows instead of walking the BOM. The payload says
+  exactly this. It would have been easy, and wrong, to draw bom → optimize.
+- **Two unused parameters found and removed** (`state` in `_scenario_diff` and `_at_a_glance`), via an
+  AST sweep rather than by eye.
+- **A correctness gap I found in my own code:** `known_scenarios()` ignored the `data_root` it was
+  handed, so a custom root was consulted for existence but not for discovery. Threaded through. Only
+  reachable from tests today, but it is the kind of latent inconsistency that bites later.
+- **A missing branch in my own tests:** I covered "directory absent" but not "directory present,
+  tables missing". Added `test_partially_generated_scenario_raises_not_generated` — it must be a 409,
+  not a 500.
+- **Known redundancy, accepted deliberately:** `network.edges` and `lanes.table` both list lanes.
+  They differ in ordering and truncation semantics (topology order for the map vs materiality ranking
+  for the table), so the map cannot silently lose lanes to the table's ranking. At 47% of the payload
+  budget this costs little; revisit if Phase 4 pushes the budget.
+- **Guardrails:** zero LLM involvement on this path (decision 4 holds); provenance badge text is in the
+  payload and carries "not customer data"; no hardcoded counts (proved twice); no fabricated figures —
+  every number traces to a file on disk; optimizer results untouched and verified bit-identical; data
+  never leaves the box; no key reachable from the browser origin.
+
+**DoD assessment: met.** Endpoint curled for all four scenarios with real output recorded above; every
+count reconciles with ingest; determinism and payload budget verified on-device by measurement;
+tests green (103 passed + 2 xpassed).
+
+**Open follow-ups.**
+- **Phase 2 decision needed:** the lumpiness callout will read "0 of N" on every scenario. Options are
+  (a) drop it, (b) reword it to state the measured fact ("all N products have continuous demand, so all
+  are forecast with AutoETS"), or (c) leave the generator alone and say nothing about forecasting on
+  the dataset page. Recommend (b) — it is honest, still teaches the viewer something, and costs nothing.
+- Phase 2 owns the readable layer: one-sentence summary, glossary, plain-English scenario-diff prose.
+  Phase 1 deliberately shipped structured values only, so Phase 2 has real data to render.
+- The `at_a_glance` labels are serviceable but written by an engineer; Phase 2's DoD includes an Ishan
+  readability review.
+- Unchanged from Phase 0: pin the vLLM base image; verify the Tailscale path end-to-end.
+
+---
 
 ## 2026-07-30 — Iteration 4, Phase 0: orientation, green baseline, NVML closed, roadmap renumbered
 **Status:** Phase 0 complete, verified on-device. **git ref: Phase 0 work committed as `d66980d`;
