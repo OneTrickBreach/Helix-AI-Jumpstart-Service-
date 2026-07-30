@@ -83,6 +83,20 @@ export function multiplier(value: number | null | undefined): string {
   return `${rounded}x`;
 }
 
+/**
+ * Pluralize a label the API supplied in the singular: `Factory` -> `Factories`.
+ *
+ * Naive `${label}s` produced "Factorys" on screen. Labels arrive from the API as
+ * singular display strings, so the plural has to be derived here.
+ */
+export function pluralLabel(label: string, value: number): string {
+  if (!label) return label;
+  if (Math.abs(value) === 1) return label;
+  if (/[^aeiou]y$/i.test(label)) return label.replace(/y$/i, "ies");
+  if (/(s|x|z|ch|sh)$/i.test(label)) return `${label}es`;
+  return `${label}s`;
+}
+
 /** `distribution_center` -> `Distribution center`. Schema names never reach the screen raw. */
 export function humanizeKey(key: string): string {
   if (!key) return "";

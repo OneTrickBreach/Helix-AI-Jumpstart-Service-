@@ -9,6 +9,7 @@ import {
   multiplier,
   percent,
   periodRange,
+  pluralLabel,
   pluralize,
   showingLabel,
   units,
@@ -115,6 +116,32 @@ describe("multiplier", () => {
 
   it("still dashes on missing data", () => {
     expect(multiplier(null)).toBe("—");
+  });
+});
+
+describe("pluralLabel", () => {
+  it("handles the -y -> -ies case that rendered 'Factorys' on screen", () => {
+    expect(pluralLabel("Factory", 2)).toBe("Factories");
+    expect(pluralLabel("Factory", 1)).toBe("Factory");
+  });
+
+  it("leaves vowel-y words alone", () => {
+    expect(pluralLabel("Relay", 2)).toBe("Relays");
+  });
+
+  it("adds -es after a sibilant", () => {
+    expect(pluralLabel("Batch", 2)).toBe("Batches");
+    expect(pluralLabel("Box", 3)).toBe("Boxes");
+  });
+
+  it("handles the ordinary case and multi-word labels", () => {
+    expect(pluralLabel("Supplier", 5)).toBe("Suppliers");
+    expect(pluralLabel("Distribution center", 2)).toBe("Distribution centers");
+    expect(pluralLabel("Customer", 0)).toBe("Customers");
+  });
+
+  it("survives an empty label", () => {
+    expect(pluralLabel("", 2)).toBe("");
   });
 });
 

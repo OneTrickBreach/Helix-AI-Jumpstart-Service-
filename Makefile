@@ -5,7 +5,7 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build web test test-data logs ps clean data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data
+.PHONY: up down build web web-check test test-data logs ps clean data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -133,6 +133,22 @@ demo: demo-data
 	@echo ""
 	@echo "  Full guide:    docs/DEMO_GUIDE.md"
 	@echo "═══════════════════════════════════════════════════════════════"
+
+# ---------------------------------------------------------------------------
+# Web verification (headless browser)
+# ---------------------------------------------------------------------------
+
+PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright:v1.49.1-noble
+WEB_SHOT_DIR ?= web/e2e/shots
+
+## Render the dataset view in a real browser: fold height, console errors, screenshots
+web-check:
+	@mkdir -p $(WEB_SHOT_DIR)
+	docker run --rm --network $$(basename $$(pwd) | tr '[:upper:]' '[:lower:]')_default \
+		-v "$$(pwd)/web/e2e":/work -v "$$(pwd)/$(WEB_SHOT_DIR)":/shots -w /work \
+		$(PLAYWRIGHT_IMAGE) \
+		sh -c "npm i playwright@1.49.1 --silent >/dev/null 2>&1 && node dataset-view.check.mjs"
+	@echo "✓ screenshots written to $(WEB_SHOT_DIR)/"
 
 ## List scenarios through the secure API using the thin CLI
 cli-list: check-api-running

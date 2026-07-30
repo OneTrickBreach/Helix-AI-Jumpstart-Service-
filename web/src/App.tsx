@@ -1,7 +1,8 @@
-import { AlertTriangle, CheckCircle2, Cpu, DatabaseZap, FileClock, Loader2, Play, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Cpu, DatabaseZap, FileClock, Loader2, Play, ShieldAlert, Table2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import DatasetView from "./DatasetView";
 import { fetchScenarios, scenarioStreamUrl } from "./lib/api";
 import { buildMetricComparisons, winnerMessage } from "./lib/deltas";
 import type { MetricComparison } from "./lib/deltas";
@@ -17,6 +18,37 @@ type StageState = {
   message?: string;
 };
 
+type View = "results" | "dataset";
+
+/**
+ * URL-param view switching instead of a router.
+ *
+ * One extra view does not justify a router dependency, a larger bundle, or nginx
+ * SPA-rewrite changes — and it matches the existing `?replay=true` pattern. The URL
+ * stays bookmarkable so `?view=dataset&scenario=X` can be shared directly. Revisit
+ * if a third view appears.
+ */
+function readViewFromUrl(): { view: View; scenario: string | null } {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    view: params.get("view") === "dataset" ? "dataset" : "results",
+    scenario: params.get("scenario"),
+  };
+}
+
+function writeViewToUrl(view: View, scenario: string) {
+  const params = new URLSearchParams(window.location.search);
+  if (view === "dataset") {
+    params.set("view", "dataset");
+    if (scenario) params.set("scenario", scenario);
+  } else {
+    params.delete("view");
+    params.delete("scenario");
+  }
+  const query = params.toString();
+  window.history.pushState({}, "", query ? `?${query}` : window.location.pathname);
+}
+
 export default function App() {
   const [scenarios, setScenarios] = useState<ScenarioSummary[]>([]);
   const [scenario, setScenario] = useState("");
@@ -27,15 +59,54 @@ export default function App() {
   const [result, setResult] = useState<ScenarioComparison | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [view, setView] = useState<View>(() => readViewFromUrl().view);
   const streamRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     fetchScenarios()
       .then((items) => {
         setScenarios(items);
-        setScenario(items[0]?.scenario ?? "");
+        // A scenario named in the URL wins, so a shared dataset link opens on the
+        // scenario it was shared for rather than snapping back to the first one.
+        //
+        // If the URL names a scenario that does not exist, keep the bad name rather
+        // than quietly substituting a real one: this whole view exists to tell you
+        // precisely which data you are looking at, so showing baseline under a URL
+        // that says something else would be the one unforgivable bug here. The API
+        // returns 404 and the view surfaces an honest error.
+        const { view: urlView, scenario: requested } = readViewFromUrl();
+        const known = items.find((item) => item.scenario === requested);
+        if (known) {
+          setScenario(known.scenario);
+        } else if (urlView === "dataset" && requested) {
+          setScenario(requested);
+        } else {
+          setScenario(items[0]?.scenario ?? "");
+        }
       })
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+  }, []);
+
+  // Keep the back/forward buttons working without pulling in a router.
+  useEffect(() => {
+    const onPopState = () => setView(readViewFromUrl().view);
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const openDataset = useCallback(() => {
+    setView("dataset");
+    writeViewToUrl("dataset", scenario);
+  }, [scenario]);
+
+  const openResults = useCallback(() => {
+    setView("results");
+    writeViewToUrl("results", scenario);
+  }, [scenario]);
+
+  const changeDatasetScenario = useCallback((next: string) => {
+    setScenario(next);
+    writeViewToUrl("dataset", next);
   }, []);
 
   useEffect(() => {
@@ -117,6 +188,17 @@ export default function App() {
     };
   }
 
+  if (view === "dataset") {
+    return (
+      <DatasetView
+        scenario={scenario}
+        scenarios={scenarios}
+        onScenarioChange={changeDatasetScenario}
+        onBack={openResults}
+      />
+    );
+  }
+
   return (
     <main className="min-h-screen bg-field text-ink">
       <section className="border-b border-line bg-white">
@@ -138,6 +220,16 @@ export default function App() {
               >
                 {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 Run
+              </button>
+              <button
+                type="button"
+                onClick={openDataset}
+                disabled={!scenario}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-medium text-[#536258] transition hover:bg-field disabled:cursor-not-allowed disabled:opacity-60"
+                title="See the dataset this plan runs on"
+              >
+                <Table2 className="h-4 w-4" />
+                View the dataset
               </button>
               <button
                 type="button"
