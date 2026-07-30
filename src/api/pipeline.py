@@ -12,9 +12,15 @@ from typing import Any, Literal
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from starlette.responses import StreamingResponse
+from starlette.responses import Response, StreamingResponse
 
 from src.api.security import require_api_key
+from src.dataset.overview import (
+    DatasetNotGeneratedError,
+    UnknownScenarioError,
+    build_dataset_overview,
+    read_table_csv,
+)
 from src.forecast.statistical import forecast_finished_goods
 from src.ingest.documents import embed_texts
 from src.ingest.state import load_scenario_state, summarize_state
@@ -139,6 +145,44 @@ def _sse_event(event: str, data: dict[str, Any]) -> str:
 @router.get("/scenarios", response_model=GenericResponse)
 def list_scenarios():
     return GenericResponse(status="ok", data={"scenarios": _scenario_configs()})
+
+
+@router.get("/dataset/overview", response_model=GenericResponse)
+def dataset_overview(
+    scenario: str = Query(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$"),
+):
+    """Pre-aggregated, deterministic description of a scenario's dataset."""
+    try:
+        return GenericResponse(
+            scenario=scenario,
+            status="ok",
+            data={"dataset_overview": build_dataset_overview(scenario)},
+        )
+    except UnknownScenarioError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except DatasetNotGeneratedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.get("/dataset/table")
+def dataset_table(
+    scenario: str = Query(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$"),
+    table: str = Query(min_length=1, max_length=64, pattern=r"^[a-z_]+$"),
+):
+    """Download one whitelisted table of one scenario as raw CSV."""
+    try:
+        filename, csv_text = read_table_csv(scenario, table)
+    except UnknownScenarioError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except DatasetNotGeneratedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return Response(
+        content=csv_text,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f'attachment; filename="{scenario}-{filename}"',
+        },
+    )
 
 
 @router.post("/ingest/scenario", response_model=GenericResponse)
