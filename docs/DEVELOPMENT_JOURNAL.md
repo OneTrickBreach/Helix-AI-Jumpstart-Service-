@@ -17,8 +17,8 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–3 done.
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 3 complete (2026-07-30).** Iteration 3 is
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–4 done.
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 4 complete (2026-07-30).** Iteration 3 is
   complete and merged to `main` (2026-07-27); demo/pilot-ready.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
@@ -28,9 +28,9 @@
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **Tests:** `make test` **141 passed + 2 xpassed (143 total)** — 72 added by Iteration 4 Phases 1–2.
+- **Tests:** `make test` **145 passed + 2 xpassed (147 total)** — 76 added by Iteration 4.
   Web: **39 Vitest tests**, `npm audit` 0 vulnerabilities, plus `make web-check` (headless
-  Chromium render verification, 8/8 scenario x viewport passes).
+  Chromium render verification, 13/13 checks incl. fold height, overlay, keyboard, CSV).
 - **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
   `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
@@ -43,13 +43,125 @@
   memory. Single-node holds at all tested scales (up to 100x).
 - **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
   follow-up carried since Iteration 3 Phase 0 is closed.
-- **Web dataset view:** `?view=dataset&scenario=<name>` on port 8081 — Level 1 fits above the
-  fold at 1920x1080 and 1440x900. Bundle 570.61 kB (+20.3 kB for the view, no new dependencies).
-- **Next:** Iteration 4 Phase 4 — visuals, progressive disclosure & polish (the network map).
+- **Web dataset view:** `?view=dataset&scenario=<name>` on port 8081 — network map with scenario
+  overlay, demand chart, BOM tree, lanes table, Level-3 expanders with CSV download. Level 1 fits
+  above the fold at 1920x1080 and 1440x900. Bundle 600.48 kB (+50.2 kB for the whole view, no new
+  dependencies). Screenshots: `docs/iteration-docs/screenshots/iteration4/`.
+- **Next:** Iteration 4 Phase 5 — demo integration, replay parity & docs.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-30 — Iteration 4, Phase 4: dataset view visuals, disclosure & polish
+**Status:** Phase 4 complete, verified on-device in a real browser engine. **git ref: Phase 4 work
+committed as `847f60b`; hash backfilled in the follow-up commit.**
+Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** make it genuinely beautiful and genuinely legible — the phase Ryan will
+judge. Network map with scenario overlay, product tree, demand chart, lanes table, "where the money
+is", Level-3 expanders with CSV download, accessibility, and visual QA.
+
+**Screenshots (DoD item — committed, not skipped):**
+`docs/iteration-docs/screenshots/iteration4/` holds all four scenarios plus the error state,
+captured from the live stack at 1920×1080. Regenerate any of them with `make web-check`.
+
+**1. `NetworkMap.tsx` — the hero visual.** Plain SVG; **no graph library added**, per decision and
+the bundle risk in §5. Left-to-right tiers, every node drawn, every lane between drawn nodes drawn.
+- **Scenario overlay:** disrupted lanes are amber **and** thickened **and** dashed, and their
+  endpoint nodes get an amber fill and border. Three cues rather than colour alone, so it survives a
+  projector and colour-blind viewers.
+- **The row cap, and the trap it nearly created.** `stress-large` has 24 customers; drawing all of
+  them either blows the above-the-fold budget or shrinks labels to unreadable. Tiers over 9 rows now
+  collapse the remainder into a `+N more` block. **Nodes touching a disruption are pinned into the
+  visible set first**, because a cap that could hide the very lanes the overlay exists to show would
+  be worse than no map. The footnote states it plainly: *"Drawing 80 of 152 lanes — 18 more locations
+  are folded into the '+N more' blocks to keep the map readable. Every location and lane is in the
+  tables below."*
+- Hover gives lead time, cost per unit and capacity; `<title>` elements give the same to screen
+  readers, and the `<svg>` carries an `aria-label` describing the whole network in words.
+
+**2. The rest of Level 2 / Level 3.**
+- `DemandChart.tsx` — units per period with the shock window shaded and labelled (Recharts
+  `ReferenceArea`), plus the top-SKU share bars. On `component-shortage-shock` the shares read
+  28.7 / 26.2 / 23.6 / 21.4% and sum to 99.9%, as they should.
+- `ProductTree.tsx` — expandable BOM with a plain sentence per parent: *"Each unit of FG-001 needs
+  3 of SA-001 and 1 of SA-002."*
+- `LanesTable.tsx` — full lane table plus a **per-period disruption strip** so the capacity drop
+  reads as a timeline. The strip uses a diagonal hatch as well as amber.
+- `Expander.tsx` — Level 3. Real `<button aria-expanded>` with `aria-controls`, so the whole
+  disclosure layer is keyboard reachable; each carries a per-table **CSV download** through the
+  key-injecting proxy.
+- **"Where the money is"** now shows all four penalty types (holding, ordering, backorder, lost
+  sale) plus transport, fenced by a persistent **"INPUT PARAMETERS — NOT MEASURED RESULTS"** bar so
+  it can never be confused with the results screen's measured costs.
+
+**3. Verified on-device (`make web-check`, 13/13 checks).**
+
+| Check | Result |
+|---|---|
+| Level 1 above the fold, 1920×1080 | 793 / 817 / 817 / 865 px — all fit |
+| Level 1 above the fold, 1440×900 | 793 / 817 / 817 / 865 px — all fit |
+| Disrupted lanes drawn vs payload | 0/0, **2/2**, 0/0, **4/4** — exact |
+| Map nodes drawn | 17/17, 17/17, 17/17, 26/42 (+ overflow blocks) |
+| Expanders per page, keyboard-togglable | 8, toggled with Enter alone |
+| CSV download | 200, `text/csv`, correct header row |
+| Console / page errors | **0** across all scenarios and viewports |
+
+`make test` **145 passed + 2 xpassed**; web **39 Vitest tests**; **`npm audit` 0 vulnerabilities**;
+TypeScript/Vite build clean.
+**Bundle: 570.61 → 600.48 kB (+29.9 kB, +5.2%)**, gzip 164.13 → 171.24 kB. That buys five new
+components — map, chart, tree, table, expander — with **no new dependencies**. Cumulative for the
+whole dataset view is 550.31 → 600.48 kB (+50.2 kB, +9.1%).
+
+**Brutal-truth review of Phase 4 — what I went looking for and what I found.**
+- **🔴 I broke the Phase 3 guarantee and my own check caught it.** The real map is taller than the
+  placeholder tier strip, and Level 1 immediately went to **934–1178 px** — below the fold on every
+  laptop render and on `stress-large` even at 1080p. Fixed by tightening the whole Level-1 rhythm
+  (map max height 560 → 250, node height 30 → 24, section gaps 5 → 4, tile padding) and capping rows
+  per tier. Back to 793–865 px with headroom. **Without the pixel assertion this would have shipped**
+  — a screenshot alone would have looked fine, because the failure is only visible relative to the
+  fold line.
+- **🔴 A blunder of my own making, caught by the test suite.** Humanizing the `ranked_by` labels, I
+  ran a blanket string replace that also rewrote the polars column names `"parent_sku_id"` and
+  `"max_throughput_units_per_period"` — **41 tests failed instantly**. Restored the column names and
+  kept the humanized text only in the label. Exactly why the reconciliation tests exist; a
+  careless one-line edit was stopped in seconds rather than silently corrupting the BOM section.
+- **Two schema-name leaks found by reading the rendered page, not the code.** The lanes table showed
+  `finished_goods` in the "Carries" column, and the footer read *"ranked by
+  capacity_units_per_period x cost_per_unit"*. Labels are as user-facing as prose, so I extended the
+  Phase-2 no-schema-names rule to cover **every tile label, plain-English note, `ranked_by` and
+  `note`** in the payload, enforced by a new test across all four scenarios.
+- **Polish from your screenshot:** `$1.05 – $1.05` now collapses to `$1.05` (`moneyRange` /
+  `valueRange` — the generator gives every SKU of a type the same cost, so a naive range read like a
+  bug), and the pipeline card uses API-supplied table labels instead of `Bom` / `Skus`.
+- **An SVG layout defect:** the map letterboxed inside its container, leaving ~140 px gutters either
+  side, because the viewBox aspect was much narrower than the container. Widened the column spacing
+  so the natural width matches a typical container.
+- **Accessibility, checked rather than claimed:** expanders are real buttons toggled with Enter and
+  no mouse (asserted); the map has an `aria-label` describing the network in words and `<title>` on
+  every node and lane; the disruption strip carries `role="img"` with a spoken label; the lanes table
+  has a `<caption>`; every interactive control has a visible focus ring. **No information is carried
+  by colour alone** — disruption is amber *plus* dashes *plus* a "DISRUPTED" text badge.
+- **Guardrails:** no LLM text anywhere on this view; **no number on screen that is not in the API
+  payload** (the map's only browser-computed values are pixel coordinates); provenance badge still
+  present on every render; input costs explicitly fenced from measured results; optimizer untouched
+  (`make test` unchanged apart from additions); data never leaves the box.
+
+**DoD assessment: met.** All four scenarios render correctly with the scenario overlay; screenshots
+committed to the repo and linked above; bundle change recorded and justified; `npm test` green;
+`npm audit` 0 vulnerabilities; no on-screen number that is not in the payload.
+
+**Open follow-ups.**
+- Phase 5: replay parity for the dataset view, recapture `demo-replay.json` (still carries pre-MDP
+  PPO numbers), `make demo` banner, demo-guide talk track, README §9.
+- The `stress-large` scenario card still itemizes five change bullets while the hero sentence groups
+  them. Deliberate (summary vs detail) but worth a second opinion at review.
+- **Ishan: still worth opening the view over Tailscale once** — Phase 3's caveat stands, verification
+  is a real browser engine on the GB10 rather than a laptop over the tailnet.
+- Unchanged: pin the vLLM base image; stale host `web/node_modules`.
+
+---
 
 ## 2026-07-30 — Iteration 4, Phase 3: web dataset view — navigation, layout & Level-1 hero
 **Status:** Phase 3 complete, verified on-device in a real browser engine. **git ref: Phase 3 work
