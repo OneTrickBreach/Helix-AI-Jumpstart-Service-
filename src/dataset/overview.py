@@ -31,6 +31,7 @@ from typing import Any
 
 import polars as pl
 
+from src.dataset.narrative import build_narrative, change_sentence
 from src.forecast.statistical import LUMPY_ZERO_FRACTION_THRESHOLD, zero_fraction
 from src.ingest.state import (
     DEFAULT_DATA_ROOT,
@@ -77,7 +78,7 @@ STAGE_TABLE_READS = {
 NODE_TYPE_LABELS = {
     "supplier": "Supplier",
     "plant": "Factory",
-    "distribution_center": "Distribution centre",
+    "distribution_center": "Distribution center",
     "customer": "Customer",
 }
 SKU_TYPE_LABELS = {
@@ -87,8 +88,8 @@ SKU_TYPE_LABELS = {
 }
 LANE_TYPE_LABELS = {
     "inbound_raw": "Supplier to factory",
-    "plant_to_dc": "Factory to distribution centre",
-    "dc_to_customer": "Distribution centre to customer",
+    "plant_to_dc": "Factory to distribution center",
+    "dc_to_customer": "Distribution center to customer",
 }
 
 COST_INPUT_LABEL = "INPUT PARAMETERS — these are the costs fed to the optimizer, not measured results"
@@ -890,7 +891,7 @@ def _at_a_glance(
             "label": "Places in the network",
             "value": network["node_count"],
             "unit": "locations",
-            "plain_english_note": "suppliers, factories, distribution centres and customers",
+            "plain_english_note": "suppliers, factories, distribution centers and customers",
         },
         {
             "key": "products",
@@ -968,7 +969,9 @@ def build_dataset_overview(
     demand = _demand(state, periods_per_year)
     lanes = _lanes(state)
 
-    return {
+    scenario_diff = _scenario_diff(scenario, metadata, demand, lanes, root)
+
+    overview = {
         "provenance": _provenance(scenario, state, metadata, generated_at),
         "at_a_glance": _at_a_glance(metadata, network, products, demand, lanes),
         "network": network,
@@ -979,7 +982,7 @@ def build_dataset_overview(
         "costs": _costs(state),
         "service_targets": _service_targets(state),
         "initial_inventory": _initial_inventory(state, demand),
-        "scenario_diff": _scenario_diff(scenario, metadata, demand, lanes, root),
+        "scenario_diff": scenario_diff,
         "pipeline_link": {
             "stage_inputs": STAGE_TABLE_READS,
             "note": (
@@ -992,6 +995,13 @@ def build_dataset_overview(
             ),
         },
     }
+
+    # Phase 2: deterministic prose over the values above. No LLM on this path.
+    period_unit = demand["period_unit"]
+    for change in scenario_diff["changes"]:
+        change["plain_english"] = change_sentence(change, period_unit)
+    overview["narrative"] = build_narrative(overview)
+    return overview
 
 
 def read_table_csv(
