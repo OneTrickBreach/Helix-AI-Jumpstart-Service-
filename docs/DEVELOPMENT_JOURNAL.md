@@ -17,8 +17,8 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–4 done.
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 4 complete (2026-07-30).** Iteration 3 is
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–5 done.
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 5 complete (2026-07-31).** Iteration 3 is
   complete and merged to `main` (2026-07-27); demo/pilot-ready.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
@@ -30,7 +30,8 @@
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
 - **Tests:** `make test` **145 passed + 2 xpassed (147 total)** — 76 added by Iteration 4.
   Web: **39 Vitest tests**, `npm audit` 0 vulnerabilities, plus `make web-check` (headless
-  Chromium render verification, 13/13 checks incl. fold height, overlay, keyboard, CSV).
+  Chromium render verification, 15/15 checks incl. fold height, overlay, keyboard, CSV,
+  and replay parity with the API blocked).
 - **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
   `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
@@ -47,11 +48,118 @@
   overlay, demand chart, BOM tree, lanes table, Level-3 expanders with CSV download. Level 1 fits
   above the fold at 1920x1080 and 1440x900. Bundle 600.48 kB (+50.2 kB for the whole view, no new
   dependencies). Screenshots: `docs/iteration-docs/screenshots/iteration4/`.
-- **Next:** Iteration 4 Phase 5 — demo integration, replay parity & docs.
+- **Demo:** `?replay=true` is a complete GPU-free walkthrough **including the dataset view**
+  (`?view=dataset&replay=true`), served from real captured snapshots. `demo-replay.json` recaptured
+  2026-07-31 and now carries the CVaR fields.
+- **Next:** Iteration 4 Phase 6 — verification, guardrail sweep, handoff doc, merge, Ryan packet.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-07-31 — Iteration 4, Phase 5: demo integration, replay parity & docs
+**Status:** Phase 5 complete, verified on-device. **git ref: Phase 5 work committed as `a5d5bd5`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration4-dataset-transparency`.
+*(Phases 0–4 ran on 2026-07-30; this session crossed midnight.)*
+
+**Scope (per the PoA):** make the dataset view part of the demo, work without a live GPU, and
+document it. Plus the long-standing `demo-replay.json` recapture.
+
+**1. Replay parity — the dataset view now works with no backend at all.**
+`web/public/demo-dataset-overview.json` (43,323 B) is a **real captured overview** for
+`component-shortage-shock`, stored in exactly the shape `fetchDatasetOverview` returns so replay and
+live render through **identical code paths**. `?view=dataset&replay=true` loads it with zero API
+calls; `?replay=true` on the results screen carries replay mode through the "View the dataset"
+button.
+- **The scenario selector is disabled in replay mode**, with a "Recorded snapshot ·
+  component-shortage-shock" chip. Only one scenario was recorded; leaving the dropdown live would let
+  a presenter silently select a scenario the snapshot does not contain. Locking it is the honest
+  option.
+- **Verified the snapshot is faithful, not drifted:** a live overview fetched a day later is
+  **byte-identical to the committed snapshot apart from `generated_at_utc`** — which also
+  re-demonstrates that the seeded data reproduces across days and container rebuilds.
+
+**2. 🔴 `demo-replay.json` recaptured — and the follow-up that demanded it was partly wrong.**
+Since Iteration 3 Phase 4 the journal has said the file "still carries pre-MDP PPO numbers". Checked
+before acting rather than trusting it:
+- The PPO objective in the old file was **113584.863463** — **identical to a fresh live run**. The
+  per-period MDP rebuild did not move this scenario's PPO objective at all, so the stated reason was
+  not the real problem.
+- What *was* genuinely stale is the **schema**: the old capture has **no `cvar_75` and no
+  `period_costs`**, both introduced by Phase 4. So the file predated Phase 4 and would have rendered
+  a CVaR-less approaches table — a real staleness, just not the one recorded.
+- Recaptured from a live `POST /scenario-comparison`. **Classical objective exactly 95445.445064**,
+  matching the Phase 0 reference; winner classical; `ppo_outcome: lost_to_classical`;
+  `advisory_text_source: llm_finalized` with 5 citations; `numeric_metrics_source =
+  src.pipeline.bench.run_head_to_head`. **Secret scan clean** on all six patterns (`api_key`,
+  `password`, `secret`, `credential`, `HELIX_API`, `x-api-key`) — 0 hits each.
+
+**3. 🔴 A real fallback defect, exposed by testing with the backend switched off.**
+The new replay check aborts **every** `/api/` request to simulate a dead backend — the exact
+situation the recorded demo exists for. It immediately found that `App.tsx` called `fetchScenarios()`
+unconditionally and surfaced the failure, so a GPU-less demo would show
+**"Scenario list failed: …" as an error banner next to a perfectly working recorded run.** That is
+precisely the "fallback that loses half the walkthrough" the PoA warns about. Fixed: in replay mode
+the missing scenario list is expected, not an error. Live mode still reports it.
+
+**4. `make demo` banner** now prints the dataset URL and the recorded dataset URL alongside live and
+replay, plus a pointer to the remote-access section (because `localhost` only resolves on the GB10).
+
+**5. `docs/DEMO_GUIDE.md` — new "Option C — The Dataset View".**
+A five-step talk track in the order to actually point at things: **badge first** (say "this is
+synthetic" before showing anything), then the one sentence read verbatim, the six tiles, the network
+map with a deliberate pause on the amber overlay, and closing the loop back to the results screen.
+Plus four deeper Q&A answers (input costs vs measured results, why `stress-large` says "+16 more",
+whether the AI wrote any of it, and the honest Croston-SBA answer) and a short "what to avoid
+saying". Quick Reference gains both URLs, and the **stale "69 passed + 2 xpassed (71 total)"** count
+was corrected in the two places it appeared.
+- **Every number quoted in the talk track was checked against the live payload** — all 15 claims plus
+  the verbatim summary sentence. A talk track with a wrong number in it is worse than none.
+- **The remote-access subsection the PoA asked me to "fold in" already landed on 2026-07-29.**
+  Verified rather than duplicated: it covers the from-the-laptop SSH forward, the
+  `bind: Address already in use` trap, the Tailscale path, and hardcodes no IPs. Extended it with the
+  dataset URL.
+
+**6. `README.md` §9** documents the view, both URL patterns, both endpoints, and the
+no-LLM-text-on-this-view boundary.
+
+**Verified on-device.**
+- `make web-check` **15/15**, now including the two replay checks with `/api/**` aborted:
+  `replay dataset (API blocked)` — badge present, snapshot chip shown, selector locked, **2 disrupted
+  lanes still drawn**, 0 errors; and `replay results→dataset` — winner Classical, replay mode
+  preserved across navigation, **no error banner**, 0 errors.
+- `make test` **145 passed + 2 xpassed**; web **39 Vitest**; **`npm audit` 0 vulnerabilities**; build
+  clean. Both replay assets serve over nginx (200, 47,592 B and 43,323 B).
+
+**Brutal-truth review of Phase 5.**
+- **I checked the premise of my own task rather than executing it blindly**, and the long-standing
+  "pre-MDP PPO numbers" claim turned out to be wrong on its stated grounds while still being right
+  that the file needed recapturing. Recorded both halves.
+- **Testing with the dependency removed found what testing with it present could not.** Had I
+  verified replay against a healthy backend, everything would have looked fine and the error banner
+  would have appeared for the first time in front of Ryan, during the precise failure the fallback
+  exists for.
+- **Guardrails:** the recorded snapshot is a **real capture, labelled as such in the UI and the
+  code** — never described as mock data; provenance badge present in replay too; secret scans clean
+  on both replay assets; no LLM text on the dataset view; classical objective unchanged at
+  95445.445064, so nothing about the optimizer moved this phase.
+- **One thing I did not do:** the PoA's DoD includes "talk track … followed end-to-end once by Ishan
+  as a rehearsal". I verified every factual claim in it mechanically, but **a human rehearsal is
+  Ishan's step and has not happened.** Stated rather than quietly counted as met.
+
+**DoD assessment: met except the human rehearsal.** `?replay=true` gives a complete GPU-free
+walkthrough including the dataset view (proven with the API blocked); the recaptured replay is
+current and secret-free; the talk track is written and fact-checked.
+
+**Open follow-ups.**
+- **Ishan: rehearse the Option C talk track once end to end**, ideally over Tailscale — that closes
+  the Phase 5 DoD item and the Phase 3/4 remote-access caveat together.
+- Phase 6: full regression vs the Phase 0 reference, guardrail sweep, handoff doc, merge to `main`,
+  Ryan packet.
+- Unchanged: pin the vLLM base image; stale host `web/node_modules`; `stress-large` scenario card
+  itemizes five bullets while the hero groups them.
+
+---
 
 ## 2026-07-30 — Iteration 4, Phase 4: dataset view visuals, disclosure & polish
 **Status:** Phase 4 complete, verified on-device in a real browser engine. **git ref: Phase 4 work
