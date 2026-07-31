@@ -156,6 +156,58 @@ if (errorShown === 0) failures++;
   await context.close();
 }
 
+
+// --- Phase 5: replay parity (recorded demo must need no backend at all) -------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    const t = m.text();
+    // ERR_FAILED is the abort below, not a defect.
+    if (m.type() === "error" && !t.includes("ERR_FAILED")) errs.push(t);
+  });
+  // Simulate a dead backend — the exact situation the recorded demo exists for.
+  await page.route("**/api/**", (route) => route.abort());
+
+  await page.goto(`${BASE}/?view=dataset&replay=true`, { waitUntil: "networkidle" });
+  await page.waitForSelector("svg[role=img]", { timeout: 15000 }).catch(() => {});
+  const summary = await page.locator("section p.text-lg").first().innerText().catch(() => "");
+  const badge = await page.locator("text=not customer data").count();
+  const chip = await page.locator("text=Recorded snapshot").count();
+  const locked = await page.locator("select").first().isDisabled().catch(() => false);
+  const disrupted = await page.locator('svg[role="img"] path[stroke="#a15c07"]').count();
+  const okDataset =
+    summary.includes("manufacturing network") && badge > 0 && chip > 0 && locked &&
+    disrupted === 2 && errs.length === 0;
+  if (!okDataset) failures++;
+  console.log(
+    `${okDataset ? "PASS" : "FAIL"} replay dataset (API blocked) badge=${badge} ` +
+    `snapshotChip=${chip} selectorLocked=${locked} disrupted=${disrupted} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  errs.length = 0;
+  await page.goto(`${BASE}/?replay=true`, { waitUntil: "networkidle" });
+  await page.waitForSelector("text=Why this plan", { timeout: 20000 }).catch(() => {});
+  const banner = await page.locator("text=Scenario list failed").count();
+  const winner = await page.locator("text=Winner:").first().innerText().catch(() => "");
+  await page.click("text=View the dataset").catch(() => {});
+  await page.waitForTimeout(1200);
+  const stayed = (await page.locator("text=Recorded snapshot").count()) > 0;
+  const okResults =
+    winner.toLowerCase().includes("classical") && stayed && banner === 0 && errs.length === 0;
+  if (!okResults) failures++;
+  console.log(
+    `${okResults ? "PASS" : "FAIL"} replay results->dataset winner="${winner}" ` +
+    `stayedInReplay=${stayed} errorBanner=${banner} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

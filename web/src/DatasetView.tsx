@@ -21,6 +21,7 @@ import {
   Boxes,
   DatabaseZap,
   Factory,
+  FileClock,
   Loader2,
   PackageSearch,
   ShieldCheck,
@@ -33,7 +34,11 @@ import Expander from "./dataset/Expander";
 import LanesTable from "./dataset/LanesTable";
 import NetworkMap from "./dataset/NetworkMap";
 import ProductTree from "./dataset/ProductTree";
-import { DatasetNotGenerated, fetchDatasetOverview } from "./lib/api";
+import {
+  DatasetNotGenerated,
+  fetchDatasetOverview,
+  fetchRecordedDatasetOverview,
+} from "./lib/api";
 import {
   count,
   humanizeKey,
@@ -51,6 +56,8 @@ type Props = {
   scenarios: ScenarioSummary[];
   onScenarioChange: (scenario: string) => void;
   onBack: () => void;
+  /** `?replay=true`: render from the recorded snapshot, no API call, no GPU. */
+  replay?: boolean;
 };
 
 type LoadState =
@@ -64,14 +71,16 @@ export default function DatasetView({
   scenarios,
   onScenarioChange,
   onBack,
+  replay = false,
 }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
-  const load = useCallback((name: string) => {
-    if (!name) return;
+  const load = useCallback(
+    (name: string) => {
+    if (!name && !replay) return;
     let cancelled = false;
     setState({ status: "loading" });
-    fetchDatasetOverview(name)
+    (replay ? fetchRecordedDatasetOverview() : fetchDatasetOverview(name))
       .then((data) => {
         if (!cancelled) setState({ status: "ready", data });
       })
@@ -91,7 +100,9 @@ export default function DatasetView({
     return () => {
       cancelled = true;
     };
-  }, []);
+    },
+    [replay],
+  );
 
   useEffect(() => load(scenario), [scenario, load]);
 
@@ -100,11 +111,12 @@ export default function DatasetView({
   return (
     <main className="min-h-screen bg-field text-ink">
       <StickyHeader
-        scenario={scenario}
+        scenario={provenance?.scenario ?? scenario}
         scenarios={scenarios}
         onScenarioChange={onScenarioChange}
         onBack={onBack}
         badgeText={provenance?.badge_text}
+        replay={replay}
       />
 
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -132,12 +144,14 @@ function StickyHeader({
   onScenarioChange,
   onBack,
   badgeText,
+  replay,
 }: {
   scenario: string;
   scenarios: ScenarioSummary[];
   onScenarioChange: (scenario: string) => void;
   onBack: () => void;
   badgeText?: string;
+  replay?: boolean;
 }) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
@@ -163,12 +177,24 @@ function StickyHeader({
 
         <div className="flex flex-wrap items-center gap-3">
           <ProvenanceBadge text={badgeText} compact />
+          {replay ? (
+            <span
+              className="inline-flex items-center gap-2 rounded-md border border-line bg-field px-3 py-1.5 text-xs font-semibold text-[#536258]"
+              title="Rendered from a real run captured on this device — no live GPU needed. Only this scenario was recorded."
+            >
+              <FileClock className="h-4 w-4" />
+              Recorded snapshot · {scenario}
+            </span>
+          ) : null}
           <label className="control-label">
             Scenario
             <select
               value={scenario}
               onChange={(event) => onScenarioChange(event.target.value)}
               className="control"
+              /* Only one scenario was recorded, so switching would silently show
+                 data the snapshot does not contain. */
+              disabled={replay}
             >
               {/* An unknown scenario from the URL stays visible and selected rather
                   than leaving the control blank while an error is shown below. */}

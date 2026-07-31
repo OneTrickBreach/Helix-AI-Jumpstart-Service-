@@ -12,11 +12,13 @@
 |---|---|
 | **Live UI** | `http://localhost:8081` |
 | **Recorded replay** | `http://localhost:8081?replay=true` |
+| **Dataset view** | `http://localhost:8081?view=dataset&scenario=component-shortage-shock` |
+| **Dataset view (recorded)** | `http://localhost:8081?view=dataset&replay=true` |
 | **API (direct)** | `http://localhost:8080` |
 | **One-command setup** | `make demo` |
 | **Hardware** | NVIDIA GB10 (arm64, Grace Blackwell, ~121 GiB unified memory) |
 | **Stack** | 4 containers: `web` (nginx), `api` (FastAPI), `llm` (vLLM/Nemotron 30B), `vectordb` (Qdrant) |
-| **Test suite** | 69 passed + 2 xpassed (71 total) |
+| **Test suite** | 145 passed + 2 xpassed (147 total); web 39 Vitest; `make web-check` for the UI |
 | **Full demo guide** | This file |
 
 ---
@@ -36,7 +38,8 @@ ssh -L 8081:localhost:8081 -L 8080:localhost:8080 ishan@helix-gb10-intern
 ```
 
 Then browse `http://localhost:8081` on the laptop. Every URL in this guide works unchanged, including
-`http://localhost:8081?replay=true`.
+`http://localhost:8081?replay=true` and
+`http://localhost:8081?view=dataset&scenario=component-shortage-shock`.
 
 **Pitfall:** running the command from *inside* an existing GB10 SSH session fails with
 `bind: Address already in use` — the GB10 is already listening on those ports, so the forward has
@@ -117,7 +120,7 @@ Generates data, rebuilds the web UI, and prints the demo URLs.
 ### 4. Optional: run the test suite
 
 ```bash
-make test          # 69 passed, 2 xpassed (71 total)
+make test          # 145 passed, 2 xpassed (147 total)
 ```
 
 The 2 xpassed tests are GPU-probe tests for a known NVML initialization issue after container
@@ -144,7 +147,8 @@ From a laptop, set up access first — see [Remote Access](#remote-access-runnin
 
 The UI animates through each pipeline stage (ingest → forecast → baseline → classical → ppo → rag →
 done) in about 2 seconds, then displays the full results. Every number shown was captured from a
-real live run on this GB10.
+real live run on this GB10 (recaptured 2026-07-30, so it matches the currently shipped code
+including the CVaR tail-risk metric).
 
 ### What appears on screen (top to bottom)
 
@@ -229,6 +233,87 @@ computed live, not pre-recorded.
 
 Switch to **`demand-surge`** and run again. Results differ (different shock, different trade-offs)
 but classical still wins. This demonstrates the system generalizes across scenario types.
+
+---
+
+## Option C — The Dataset View ("Know Your Data")
+
+**This answers the first question every viewer asks: "what data is this running on?"**
+Added in Iteration 4, in direct response to Ryan's demo feedback.
+
+### Opening it
+
+From the results screen, click **"View the dataset"** in the header. Or open it directly:
+
+```
+http://localhost:8081?view=dataset&scenario=component-shortage-shock
+```
+
+The URL is bookmarkable and shareable — the scenario in the URL is the scenario you get. It works
+without a live GPU too: `?view=dataset&replay=true` renders from a real captured snapshot.
+
+### Talk track — point at these five things, in this order
+
+Everything below is on one screen; you should not need to scroll for the first four.
+
+**1. The provenance badge (top right, amber).** Say this *first*, before anything else:
+
+> "Before I show you anything — this is synthetic data. Seeded, generated on this device, not
+> customer data. That badge stays on screen the whole time so nobody ever forgets it."
+
+**2. The one sentence.** Read it out loud, verbatim:
+
+> "This is one manufacturing network: 5 suppliers ship parts to 2 factories running 6 production
+> lines, which send finished goods through 2 distribution centers out to 8 customers — 28 products
+> and 52 weeks of demand history."
+
+> "That sentence is generated from the actual files on disk. If the data changes, the sentence
+> changes. Nothing there is typed in by hand."
+
+**3. The six tiles.** 17 locations · 28 products · 30 lanes · 52 weeks · 2,912 demand records ·
+seed 12345.
+
+> "Six numbers, plain words. The seed is the important one — regenerate with 12345 and you get
+> byte-for-byte the same dataset. Every number on this page is reproducible."
+
+**4. The network map — the moment worth pausing on.**
+
+> "This is the whole network. Suppliers on the left, factories, distribution centers, customers on
+> the right. Every box is a real location in the data, every line is a real shipping lane."
+
+Then point at the amber:
+
+> "And *this* is what the shortage scenario actually does. Two lanes from supplier SUP-001 into the
+> factories go to zero for ten weeks, and their lead times triple. That's not a description of the
+> scenario — that's read out of the generated files. Hover any lane and you get its delivery time
+> and cost."
+
+**5. Close the loop back to the results screen.**
+
+> "And this is the data that produced the plan you just saw. Scroll down and every input is here —
+> the demand history with the shock window shaded, what each product is made of, the cost settings
+> the optimizer trades off, the service promises. Expand any card for the full table, and download
+> the CSV if you want to check it yourself."
+
+### If someone asks a deeper question
+
+- **"Are these costs the results?"** No — the "Where the money is" card is fenced with
+  *"INPUT PARAMETERS — NOT MEASURED RESULTS"*. Those are what goes *in*; the results screen shows
+  what came *out*.
+- **"Why does the big scenario say '+16 more'?"** `stress-large` has 42 locations and 152 lanes.
+  The map draws a readable subset and says exactly how much it folded; the full list is one click
+  away in "Show every location", and the CSV has everything.
+- **"Is any of this written by the AI?"** No. Every word on the dataset view is a deterministic
+  template filled from real values. The LLM only writes the advisory paragraph on the *results*
+  screen, and it is labelled ADVISORY ONLY there.
+- **"Croston-SBA — why does it say none?"** Honest answer: this generated data has no intermittent
+  demand at all, so every series uses AutoETS. The page says so rather than implying a choice the
+  system never makes.
+
+### What to avoid saying
+
+- Do **not** call it "your data" or "customer data" — it is synthetic, and the badge says so.
+- Do **not** read the input costs as savings.
 
 ---
 

@@ -28,11 +28,12 @@ type View = "results" | "dataset";
  * stays bookmarkable so `?view=dataset&scenario=X` can be shared directly. Revisit
  * if a third view appears.
  */
-function readViewFromUrl(): { view: View; scenario: string | null } {
+function readViewFromUrl(): { view: View; scenario: string | null; replay: boolean } {
   const params = new URLSearchParams(window.location.search);
   return {
     view: params.get("view") === "dataset" ? "dataset" : "results",
     scenario: params.get("scenario"),
+    replay: params.get("replay") === "true",
   };
 }
 
@@ -47,6 +48,11 @@ function writeViewToUrl(view: View, scenario: string) {
   }
   const query = params.toString();
   window.history.pushState({}, "", query ? `?${query}` : window.location.pathname);
+}
+
+/** True when the page was opened in recorded-demo mode. */
+function isReplayMode(): boolean {
+  return readViewFromUrl().replay;
 }
 
 export default function App() {
@@ -84,7 +90,14 @@ export default function App() {
           setScenario(items[0]?.scenario ?? "");
         }
       })
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => {
+        // Replay exists for the case where the backend is unavailable. Surfacing
+        // "Scenario list failed" next to a working recorded run would break the
+        // GPU-free walkthrough with an error the viewer cannot act on, so in replay
+        // mode the missing list is expected rather than an error.
+        if (isReplayMode()) return;
+        setError(err instanceof Error ? err.message : String(err));
+      });
   }, []);
 
   // Keep the back/forward buttons working without pulling in a router.
@@ -195,6 +208,7 @@ export default function App() {
         scenarios={scenarios}
         onScenarioChange={changeDatasetScenario}
         onBack={openResults}
+        replay={isReplayMode()}
       />
     );
   }

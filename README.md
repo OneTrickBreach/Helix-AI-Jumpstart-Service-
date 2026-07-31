@@ -246,6 +246,21 @@ re-check. Phase 7 (production track) is deferred to **Iteration 6** (see §13 fo
 **Demo:** open `http://localhost:8081` for the live planner UI, or `http://localhost:8081?replay=true`
 for a pre-recorded real run. See [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for the full walkthrough.
 
+**Dataset view ("Know Your Data") — Iteration 4.** A read-only view of the *input* side: the network
+map with the scenario's disruption marked, the products and their bill of materials, the demand
+history with the shock window shaded, the lanes, the cost settings, and the service promises — every
+figure read from `data/generated/<scenario>/` at request time, with a persistent
+*synthetic · seeded · on-device · not customer data* badge.
+
+```
+http://localhost:8081?view=dataset&scenario=component-shortage-shock   # any scenario, bookmarkable
+http://localhost:8081?view=dataset&replay=true                         # recorded snapshot, no GPU
+```
+
+Backed by `GET /dataset/overview?scenario=<name>` and `GET /dataset/table?scenario=<name>&table=<name>`
+(CSV download), both on the authenticated router. There is **no LLM text on this view** — all prose is
+deterministic template text derived from the real values.
+
 See [`docs/handoff.md`](docs/handoff.md), [`docs/containerization.md`](docs/containerization.md),
 [`docs/iteration-docs/`](docs/iteration-docs/) (the per-iteration handoff deliverables), and the
 generated `benchmark/suite-summary.md` (regenerate with `make bench-all`) for the measured results.

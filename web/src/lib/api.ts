@@ -14,6 +14,23 @@ export async function fetchScenarios(): Promise<ScenarioSummary[]> {
   return payload.data.scenarios;
 }
 
+/** Real captured snapshot used by `?replay=true`, so the demo needs no live GPU. */
+export const DEMO_DATASET_OVERVIEW_URL = "/demo-dataset-overview.json";
+
+/**
+ * Load the recorded dataset overview instead of calling the API.
+ *
+ * This is a real payload captured from this device, not mock data — the same shape
+ * `fetchDatasetOverview` returns, so replay and live render through identical code.
+ */
+export async function fetchRecordedDatasetOverview(): Promise<DatasetOverview> {
+  const response = await fetch(DEMO_DATASET_OVERVIEW_URL);
+  if (!response.ok) {
+    throw new Error(`Recorded dataset snapshot not found (${response.status})`);
+  }
+  return (await response.json()) as DatasetOverview;
+}
+
 /**
  * Fetch the pre-aggregated dataset overview.
  *
