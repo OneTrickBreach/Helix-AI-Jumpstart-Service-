@@ -29,7 +29,7 @@ def plural(count: int, singular: str, plural_form: str | None = None) -> str:
 # Schema names are precise but unreadable. Anything that reaches a sentence gets a
 # human word; anything that stays a machine field keeps its snake_case name.
 TABLE_WORDS = {
-    "bom": "the bill of materials",
+    "bom": "bill of materials",
     "demand": "demand history",
     "initial_inventory": "starting inventory",
     "lane_periods": "lane capacity period by period",

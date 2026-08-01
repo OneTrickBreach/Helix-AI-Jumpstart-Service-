@@ -285,15 +285,15 @@ function DatasetBody({ data, scenario }: { data: DatasetOverview; scenario: stri
 
       {/* ---------------- Level 2: scroll ---------------- */}
       <ScenarioCard data={data} />
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <ProductsCard data={data} scenario={scenario} />
         <DemandCard data={data} scenario={scenario} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
         <LanesCard data={data} scenario={scenario} />
         <CapacityCard data={data} scenario={scenario} />
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid items-start gap-4 lg:grid-cols-3">
         <CostsCard data={data} scenario={scenario} />
         <ServiceTargetsCard data={data} scenario={scenario} />
         <InventoryCard data={data} scenario={scenario} />

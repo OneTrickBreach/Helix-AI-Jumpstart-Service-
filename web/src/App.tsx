@@ -393,8 +393,14 @@ function PlanSummary({ benchmark, rationale }: { benchmark: Benchmark; rationale
         </div>
       </div>
       <p className="mt-4 text-sm leading-6 text-[#334139]">{shortAdvisory}</p>
-      <p className="mt-2 text-[10px] text-[#667268]">
+      <p className="mt-2 text-[10px] leading-relaxed text-[#667268]">
         All numbers from the on-device optimizer benchmark. Advisory text is an LLM-generated explanation, not computed math.
+        {/* Carry-forward guardrail: a bare "-7.2%" reads as money saved against the
+            viewer's real costs. It is not — the comparator is an untuned heuristic
+            on seeded synthetic data. */}
+        <br />
+        Percentages compare the tuned optimizer against the <strong>naive reorder-point + shortest-route baseline</strong> on
+        this seeded synthetic scenario — not against a customer&rsquo;s actual costs.
       </p>
     </section>
   );
