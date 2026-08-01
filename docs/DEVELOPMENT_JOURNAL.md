@@ -17,8 +17,8 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–5 done.
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 5 complete (2026-07-31).** Iteration 3 is
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–6 done (merge to `main` held for Ishan's go).
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 6 complete (2026-08-01).** Iteration 3 is
   complete and merged to `main` (2026-07-27); demo/pilot-ready.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
@@ -37,7 +37,8 @@
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
   **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
   Classical objectives: baseline 81,789; shortage-shock 95,445; demand-surge 94,165; stress-large 2,521,615.
-  Reconfirmed bit-identical 2026-07-30 — this is the Iteration 4 reference.
+  Reconfirmed **bit-identical again 2026-08-01** in the Phase 6 regression — 12/12 objectives
+  unchanged across the whole iteration.
 - **On-device envelope:** peak **74.7–76.0 GiB** of ~121 GiB (45.0–46.3 GiB headroom; 90% flag clear).
   Up from Iteration 3's 65–68 GiB because `make up` re-pulled the unpinned `vllm/vllm-openai:latest`
   base — see the 2026-07-30 entry. Scale study: ceiling is forecast latency (~25ms/series), not
@@ -51,11 +52,114 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough **including the dataset view**
   (`?view=dataset&replay=true`), served from real captured snapshots. `demo-replay.json` recaptured
   2026-07-31 and now carries the CVaR fields.
-- **Next:** Iteration 4 Phase 6 — verification, guardrail sweep, handoff doc, merge, Ryan packet.
+- **Handoff:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md`.
+- **Next:** merge to `main` + send Ryan the review packet (both awaiting Ishan), then **Iteration 5**
+  (conversational what-if) only after Ryan's feedback.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-08-01 — Iteration 4, Phase 6: regression, guardrail sweep & handoff doc
+**Status:** Phase 6 work complete and verified on-device. **git ref: `588feff`; hash backfilled in
+the follow-up commit. Merge to `main` deliberately held pending Ishan's go — see below.**
+Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** prove nothing regressed, sweep the guardrails, write the handoff, merge, and
+prepare the Ryan packet.
+
+**1. Full regression — the hard gate, passed.**
+`make bench-all` (generated 2026-08-01T17:16:08Z). **All 12 objectives across the four scenarios are
+bit-identical to the Phase 0 reference** captured before any feature work:
+
+| Scenario | Baseline | Classical (winner) | PPO |
+|---|---:|---:|---:|
+| `baseline` | 88,022.760795 | **81,789.359460** | 102,804.716650 |
+| `component-shortage-shock` | 102,834.785064 | **95,445.445064** | 113,584.863463 |
+| `demand-surge` | 100,734.738785 | **94,165.363245** | 115,161.538279 |
+| `stress-large` | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 |
+
+Not one digit moved. This iteration touched no optimizer code and the benchmark proves it.
+- **Device memory went *down*:** 69.5–71.0 GiB, versus 74.7–76.0 GiB at Phase 0; envelope flag clear
+  with ~50 GiB headroom. So the dataset layer added nothing — and the whole-host measurement is
+  demonstrably not reproducible to the GiB across days, which is worth remembering before treating
+  any single memory figure as a precise regression signal. The Phase 0 entry attributed that earlier
+  rise to the re-pulled vLLM image; this run is consistent with that being ambient variation plus
+  runtime state rather than anything the app does.
+- `make test` **145 passed + 2 xpassed**; web **39 Vitest**; `npm audit` **0 vulnerabilities**;
+  `make web-check` **15/15**.
+
+**2. Perf sanity.** Dataset endpoint warm latency 0.04 s (baseline / shock / surge) and 0.15 s
+(`stress-large`), payloads 37–120 KB — unchanged from Phase 5 and far inside the 250 KB / 2 s budget.
+
+**3. Cross-checked the payload against the raw CSVs by hand** for `component-shortage-shock`, using
+`awk` so the check shares no code with the module: all nine row counts (17 / 28 / 24 / 2,912 / 6 /
+30 / 1,560 / 32 / 32), on-hand 3,860, in-transit 507, backlog 0, line throughput 1,453, finished-good
+units 63,791, and the derived **days of cover 22.10** all match exactly.
+
+**4. 🔴 The guardrail sweep found one guardrail that was NOT intact.**
+The results screen's summary card showed *"$102,835 → $95,445, −7.2%"* with fine print covering only
+the advisory text. **Nothing said the comparator is the naive baseline.** A viewer — Ryan included —
+could reasonably read −7.2% as money saved against their real costs, which is precisely the
+carry-forward guardrail *"improvement percentages are vs. the naive baseline, not vs. a customer's
+actual costs."*
+- **This predates Iteration 4** — the card is Iteration 3 Phase 3 work — so it is not a regression I
+  introduced. But the sweep exists to catch exactly this, and finding it and leaving it would have
+  been worse than not looking. Fixed on the results screen:
+  > *Percentages compare the tuned optimizer against the **naive reorder-point + shortest-route
+  > baseline** on this seeded synthetic scenario — not against a customer's actual costs.*
+- Screenshot committed at `docs/iteration-docs/screenshots/iteration4/results-improvement-caveat.png`.
+
+**Every other guardrail verified:**
+
+| Guardrail | Result |
+|---|---|
+| Synthetic-provenance badge on every dataset screen | ✅ all four, header + footer |
+| No LLM text on the dataset view | ✅ no LLM/RAG/HTTP import or call in `src/dataset` |
+| No hardcoded counts | ✅ enforced by test |
+| No schema names in prose or labels | ✅ enforced by test, all four scenarios |
+| No fabricated figures | ✅ hand cross-check above |
+| PPO visible and honestly labelled | ✅ `lost_to_classical` on screen |
+| No hospital claim / no `~94%` framing | ✅ absent |
+| Data never leaves the box | ✅ every fetch same-origin |
+| No API key in the browser bundle | ✅ 0 hits |
+
+- **Honest note on the sweep method:** my first grep for LLM references in `src/dataset` returned
+  three hits and I nearly recorded a REVIEW. All three were comments *asserting* there is no LLM.
+  The meaningful check is imports and calls, not the word — re-ran on those and it is clean.
+
+**5. Cosmetic fixes** folded in from Ishan's screenshot review: short cards no longer stretch to the
+tallest in their row (`items-start` — Products had ~350 px of empty card beside Demand history), and
+`"the bill of materials"` no longer reads oddly inside the INGEST comma list.
+
+**6. Handoff doc** at `docs/iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md` in the house
+style: TL;DR · what shipped per phase · the two endpoints with measured payload/latency · screenshots
+· verification · honest caveats · the regression and guardrail tables · what's next.
+
+**Brutal-truth review of Phase 6.**
+- The regression gate is the strongest evidence in this iteration: **12/12 objectives bit-identical**
+  across a phase that rewrote a large amount of web code and added an API surface.
+- **I went looking for a guardrail violation and found a real one** — the missing improvement-%
+  caveat — in code I did not write and was not asked to change. Recorded as pre-existing rather than
+  quietly folded in as if it had always been fine.
+- The device-memory movement in both directions across three runs is a useful negative result: that
+  metric is host-wide and noisy, so "memory unchanged" should be read as "flag clear, headroom
+  ample", not as a precise number.
+- **Two things I did NOT do**, both deliberately: the **merge to `main` is held** for Ishan's
+  explicit go (it is a hard-to-reverse action on the default branch), and the **Ryan packet is
+  drafted, not sent** — sending is outward-facing and Ishan's call.
+
+**DoD assessment: met except the two items above, which are held by design.** Full suite green;
+benchmark bit-identical; guardrail sweep documented here and in the handoff; handoff doc committed.
+
+**Open follow-ups.**
+- **Merge to `main` and send the Ryan packet** — awaiting Ishan.
+- **Talk-track rehearsal** (Phase 5 DoD item, human step).
+- **Pin the vLLM base image** before the next demo.
+- Stale host `web/node_modules`; `stress-large` scenario card itemises five bullets while the hero
+  groups them.
+
+---
 
 ## 2026-07-31 — Iteration 4, Phase 5: demo integration, replay parity & docs
 **Status:** Phase 5 complete, verified on-device. **git ref: Phase 5 work committed as `a5d5bd5`;
