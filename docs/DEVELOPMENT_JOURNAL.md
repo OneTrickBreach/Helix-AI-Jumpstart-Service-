@@ -17,9 +17,17 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–6 done (merge to `main` held for Ishan's go).
-- **Phase:** **Iteration 4 (dataset transparency) — Phase 6 complete (2026-08-01).** Iteration 3 is
-  complete and merged to `main` (2026-07-27); demo/pilot-ready.
+- **Branch:** `feat/iteration5-beta-conversational-analyst` (from `main` @ `7c8d0e2`, which is
+  Iteration 4 merged). **Iteration 5 Phase 1 complete (2026-08-03).**
+- **Phase:** Iteration 5 (Beta) — conversational scenario analyst. Phase 0 (orientation/baseline) and
+  Phase 1 (grounded read-only Q&A) done; Phase 2 (intent parser) next. Iteration 4 is complete and
+  merged; **Ryan has not reviewed it** (PTO), so Iteration 5 ships behind a visible `BETA` label.
+- **Tests:** `make test` **199 passed + 2 xpassed** (54 added by Iteration 5 Phase 1). Web: **41
+  Vitest** (`make web-test`), `make web-check` 15/15.
+- **New API surface:** `POST /chat/ask` (protected). Evals: `make chat-eval` (real LLM, 31/31) and
+  `make chat-eval-template` (deterministic, 31/31).
+- **vLLM base image is now PINNED by digest** (`v0.26.0`, build `ffd46bfab212`) — follow-up carried
+  since Iteration 4 Phase 0 is closed, with no runtime change.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
   (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
   (real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging).
@@ -59,6 +67,203 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-03 — Iteration 5 (Beta), Phase 0 close-out + Phase 1: grounded read-only Q&A
+**Status:** Phase 0 and Phase 1 complete, verified on-device. **git ref: `60a1935`; hash backfilled in
+the follow-up commit.** Branch `feat/iteration5-beta-conversational-analyst` (cut from `main` @
+`7c8d0e2`).
+
+**Scope.** Phase 0's branch/merge step was already done, so this session re-verified its baseline,
+closed its one open decision, then built Phase 1: answer questions about the dataset and the recorded
+run, with citations, **without running anything new**. The architectural rule the whole iteration
+rests on — *the LLM is an interpreter and a narrator, never a calculator* — is enforced mechanically
+here, not asserted.
+
+### Phase 0 close-out
+
+**Baseline re-verified on-device, not assumed:** `make test` **145 passed + 2 xpassed**;
+`make bench-all` reproduced **all four classical objectives bit-identically** (81,789.359460 /
+95,445.445064 / 94,165.363245 / 2,521,615.068565), device peak 71.2–72.7 GiB, envelope flag clear;
+`make web-check` **15/15**; `/dataset/overview` 200 on all four scenarios (37–120 KB, 0.04–0.15 s)
+with unknown-scenario **404** and unauthenticated **401** intact.
+
+**🔴 The vLLM base image is now pinned — and pinned to what was already running.** The PoA asked to
+pin `vllm/vllm-openai:latest` or record a decision not to. Rather than re-pull a moving tag and
+force a ~6-minute Nemotron reload mid-iteration, I checked what the running container is actually
+built on: its label says `vllm/vllm-openai:v0.26.0`, build commit `ffd46bfab212`. Pulling `v0.26.0`
+returned the **identical build commit**, and most layers reported "Already exists" because the
+running image is built from them. So the Dockerfile now pins that **digest**
+(`sha256:ffb2d59b…`), and `docker compose build llm` produces a **byte-identical image id**
+(`sha256:4b8d9fac…` before and after) — proof the pin records the verified runtime instead of
+changing it. No recreate, no reload, no risk, and a follow-up carried since Iteration 4 Phase 0 is
+closed. Pinned by digest rather than tag because a tag can be re-pushed.
+
+### Phase 1 — what shipped
+
+**`src/chat/facts.py` — the context bundle.** Flattens artifacts that already exist into **194–373
+atomic, sourced facts** per scenario (baseline 194, shock 199, `stress-large` 373), built in
+0.04–0.12 s: Iteration 4's `dataset_overview` (13 sections, read from the CSVs at request time), the
+recorded `run_head_to_head` comparison, the recorded advisory run, the suite's device-memory
+envelope, and the six corpus documents as prose evidence only. Each fact carries its source (so an
+answer can cite it) and the **numeric values that answer is allowed to state**. Nothing here runs an
+optimizer or mutates anything.
+
+**A deterministic router in front of the model.** Four outcomes, none of which need the LLM to be
+trustworthy:
+- **glossary** → answered verbatim from the 25 Iteration-4 definitions. Instant, and a whole class of
+  hallucination removed.
+- **entity_not_found** → *"There is no warehouse 4 in the component-shortage-shock scenario. It has 2
+  distribution centers: DC-001, DC-002."* Both forms are resolved — an explicit id (`DC-004`) and the
+  way a human actually asks (`warehouse 4`).
+- **declined** → what-if, business forecasting, "make the numbers look better", action/secret
+  requests, and prompt injection in the user's own message. Every refusal states what it *can* do.
+- **grounded** → retrieve facts, let the model phrase them.
+
+**The numeric grounding validator (`src/chat/grounding.py`).** Every numeric token in an answer must
+trace to a fact, recording *which* rule authorized it (`fact_value` 28 / `fact_text` 10 /
+`percent_of_fact` 4 across the eval set). A violation discards the model's text and serves a template
+built from the same facts. **Proven to fire**, not merely present: a test plants
+"saved 42,424,242 dollars, a 93% reduction" and asserts the answer never reaches a user.
+
+**`POST /chat/ask`** on the protected router, keeping Iteration 4's 404/409 posture, question length
+bounded at 600 characters. New targets: `make chat-ask`, `make chat-eval`, `make chat-eval-template`,
+and `make web-test` (which did not exist — web tests were run ad hoc).
+
+**The committed 31-question eval set** (`src/chat/eval_questions.yaml`, 14 dataset / 8 result /
+4 glossary / 5 out-of-scope, spanning three scenarios). Real measured results:
+
+| Mode | Result | Un-grounded numbers | Template fallbacks |
+|---|---|---|---|
+| **real on-device LLM** (`make chat-eval`, 2m12s) | **31/31** | **0** | **0** |
+| deterministic template (`make chat-eval-template`) | **31/31** | **0** | n/a |
+
+Real answers, quoted verbatim:
+```
+Q: What if warehouse 4 is completely depleted?          [declined / what_if_not_available_yet]
+   There is no warehouse 4 in the component-shortage-shock scenario. It has 2 distribution
+   centers: DC-001, DC-002. ... Either way I can't run what-if scenarios yet — this read-only
+   layer answers from the dataset and the run already on record, and I won't guess at a number
+   I haven't computed.
+
+Q: Which product has the lumpiest demand?               [grounded / llm_grounded]
+   No product has a lumpier demand pattern; all series are continuous and none is intermittent [F1].
+
+Q: How many distribution centers are there? (stress-large)
+   There are 4 distribution centers. [F1]
+
+Q: Why is PPO still in the comparison if it lost?
+   It is kept visible to demonstrate transparency and honesty, because hiding a losing candidate
+   would make the benchmark less honest, not more [F1].
+```
+
+**Glossary single-sourcing.** `src/chat/glossary.json` is the canonical copy; `web/src/lib/glossary.ts`
+keeps its literal so the bundle needs no new build input; **`glossary.parity.test.ts` fails if the two
+drift.** The Iteration 4 comment asked for reuse "rather than inventing a second, drifting set" — a
+test is what makes that true.
+
+**Brutal-truth review — what I went looking for and what I found.**
+
+- **🔴 The worst finding of the session, and it was pre-existing: `make test` was overwriting the
+  demo's recorded benchmark artifacts.** `tests/test_phase3_benchmark.py` runs a *real*
+  `run_head_to_head` with horizon 4 / 16 PPO steps, and `write_json` names its artifact after the
+  scenario alone — so it clobbered
+  `benchmark/component-shortage-shock-head-to-head-comparison.json`. I found it because the chat layer
+  reads that file as its source of result truth and suddenly started quoting **41,726.02** instead of
+  95,445.45. Consequence if unnoticed: run `make test` before a demo, then ask the box "what was the
+  objective?" and get a horizon-4 test figure presented as the real result. Fixed at the source —
+  `write_json` honours `HELIX_BENCHMARK_DIR`, and a session-scoped autouse fixture points the whole
+  suite at a temp directory. Verified by md5: the four artifacts are **byte-identical across a full
+  `make test`**. The RAG tests already monkeypatched `write_json` for this reason; the pattern just
+  had not been applied everywhere.
+- **🔴 The Iteration 3 Phase 2 reasoning-model defect resurfaced in a new form.** `/no_think` shrinks
+  Nemotron's scratchpad but on this build it sometimes emits the scratchpad with **no `<think>` tags
+  at all** — plain prose reasoning a tag-stripper cannot see. At 700 tokens two of thirty answers were
+  truncated mid-sentence; at 1200 it was **eight of twenty-two**, because my own 8-rule system prompt
+  was provoking it (the raw output shows the model verifying each rule aloud: *"Check constraints: no
+  preamble, no bullet lists…"*). Fixed the way this repo already knows how to: an **answer marker**
+  (keep only what follows the last `ANSWER:`, the same mechanism as the advisory layer's
+  `ADVISORY ONLY:`) plus a much terser prompt. Template fallbacks went **8 → 0** and completion tokens
+  from a truncated 1200 to 116–613.
+- **🔴 My completeness guard was rejecting correct answers.** Inherited from the advisory layer, it
+  required ≥8 words and terminal punctuation — so `ANSWER: 4` to "how many distribution centers are
+  there?" was thrown away as truncated. Replaced with the API's own `finish_reason`, which is the
+  authoritative signal; `call_shared_llm` now returns it.
+- **Glossary over-capture.** A loose "what is X?" pattern sent *"What is the lead time on lanes from
+  SUP-002?"* to the glossary and answered with a definition — a wrong answer to a data question. Now a
+  bare lookup only routes to the glossary when the term is the *whole* remainder, and any explicit
+  entity id or "in this scenario" scoping forces the data path.
+- **Corpus prose outranked measured results.** *"Why did the classical optimizer win?"* retrieved a
+  playbook paragraph above the benchmark row, because long text accumulates unlimited word overlap.
+  Capped the body-overlap contribution and damped corpus facts.
+- **Refusal precedence was giving the wrong message.** "Show me the API key" hit the
+  misrepresentation branch and got a lecture about number integrity. Action/secret requests are now
+  checked first, the injection scanner next, and the scanner's finding is attached to whichever
+  refusal produced the wording so it is never lost.
+- **🔴 I removed an authorization rule from my own validator.** `question_echo` let an answer state
+  any number the user had typed. Harmless until the question is leading: *"is the objective 50,000?"*
+  would have authorized *"yes, the objective is 50,000."* Measured across the eval set it authorized
+  **nothing at all**, so failing closed costs nothing.
+- **A robustness bug found by my own mutation test.** Deleting node rows made a `plain_label` null and
+  the whole bundle crashed on `None.lower()` — a hand-edited or partially generated dataset would have
+  500'd the endpoint. Now degrades to a readable word.
+- **Six eval expectations were over-specified and I corrected them, not the code.** Recorded plainly
+  because "adjust the test until it passes" is exactly the failure mode to guard against. In each case
+  the model's answer was correct and responsive and my assertion demanded something extra: a fraction
+  (`0.97`) where the fact surfaces a percentage (`97%`); a numeric token for an answer whose correct
+  form has no digits ("all series are continuous"); the objective value on a *why* question; the
+  before/after pair where the delta and percentage answer "how much better" at least as well; the id
+  list on a *how many* question — that assertion moved to a new question that actually asks for the
+  list. And **R07 pinned a device-memory figure (71.25 GiB), which is a host-wide measurement this
+  journal already records swinging 65–76 GiB for unchanged code** — pinning it would fail on a fresh
+  benchmark rather than on a defect.
+- **The stale-`src/` gotcha caught me once**, exactly as the protocol warns: the eval reported 30
+  questions from a file that had 31, because `src/` is baked in via `COPY`. Rebuilt. Worth recording
+  that the symptom was a *count mismatch*, not an error.
+- **Guardrails checked, not assumed:** every answer carries `beta: true` and a `BETA` label;
+  `what_if_capable: false`; the improvement fact states the naive-baseline comparator verbatim; PPO's
+  loss is a fact, and *"say PPO won"* is refused; cost inputs are fenced as
+  "INPUT PARAMETER (not a measured result)"; no `~94%` framing and no hospital claim anywhere; the
+  synthetic-data provenance fact is in the bundle; refusals state no numbers at all (asserted by
+  test); the API key never appears in a response (asserted); data never leaves the box.
+- **No regression in what already worked:** `make bench-all` after every change reproduced all four
+  classical objectives **bit-identically**; a live `make rag SCENARIO=baseline` still returns
+  `advisory_text_source: llm_finalized` with 5 citations and objective 81,789.35946 (the shared
+  `call_shared_llm` / `finalize_advisory_text` refactor is behaviour-preserving); `make web-check`
+  15/15; the shipped bundle is **byte-identical with and without this phase's file** (601.45 kB, same
+  content hash `index-CSi2v9WC.js`), so Phase 1 adds **zero bytes** to the browser.
+
+**DoD assessment: met.** A committed, re-runnable evaluation set of 31 questions across dataset /
+result / glossary / out-of-scope answers correctly **and** cites its sources — 31/31 on the real
+on-device model and 31/31 on the deterministic path — with **zero un-grounded numbers** in either mode
+and out-of-scope questions declined cleanly. Nothing new is computed: every figure comes from
+`dataset_overview` or a recorded `run_head_to_head` artifact.
+
+**Honest caveats.**
+- **LLM answers are not bit-reproducible** (temperature 0.1). The route, the retrieved facts and the
+  grounding verdict are deterministic; the prose is not. One question (*"which product has the
+  lumpiest demand?"*) hedged on an earlier run — *"the facts do not identify a product"* while citing
+  the fact that answers it — which is why the prompt now says to state what a fact says including when
+  the answer is "none". Re-ran that question **5×** afterwards: 5/5 correct.
+- Retrieval is keyword/entity scoring, not embeddings. Deliberate (reproducible, no GPU, debuggable),
+  but it means an unusual paraphrase can miss and fall back to "the data on record does not cover
+  that" rather than reaching the right fact.
+- `percent_of_fact` is the loosest authorization rule (a 0–1 fraction stated as a percentage). Facts
+  carry both forms so the model rarely needs it; it fired 4 times and is recorded separately so
+  Phase 5 can tighten it.
+- No UI yet — Phase 4 owns that. Phase 4 must render the echoed question as text, never as markup.
+
+**Open follow-ups.**
+- Phase 2: intent parser and the perturbation whitelist. Note Phase 1 already ships a *minimal*
+  nonexistent-entity resolver (it had to, or "what's the fill rate at warehouse 9?" would have been
+  answered with a generic fill rate); Phase 2 owns the full version including the "shall I run it on
+  `stress-large`?" offer.
+- Carried, unchanged: talk-track rehearsal by Ishan; the stale host `web/node_modules` (now avoidable
+  with `make web-test`); the `stress-large` scenario card itemising five bullets while the hero groups
+  them.
+- Pre-existing and untouched: `time` is imported unused in `src/bench/suite.py` and `math` in
+  `src/bench/scale_study.py`.
+
+---
 
 ## 2026-08-01 — Iteration 4, Phase 6: regression, guardrail sweep & handoff doc
 **Status:** Phase 6 work complete and verified on-device. **git ref: `588feff`; hash backfilled in
