@@ -1,0 +1,23 @@
+{
+  "$comment": [
+    "Project-scoped MCP servers for the Helix AI Jumpstart Service.",
+    "agent-browser (vercel-labs) drives a real Chromium so frontend work can be",
+    "inspected instead of guessed at. Host setup is documented in",
+    "docs/agent-browser-setup.md — on this GB10 it is a no-root install because",
+    "`ishan` is not in sudoers.",
+    "Navigation is restricted to localhost: the demo runs on this box and the",
+    "project promise is that data never leaves it. Widen AGENT_BROWSER_ALLOWED_DOMAINS",
+    "deliberately if you ever need an external page."
+  ],
+  "mcpServers": {
+    "agent-browser": {
+      "command": "${AGENT_BROWSER_BIN:-${HOME}/.local/node/bin/agent-browser}",
+      "args": ["mcp", "--tools", "core,debug,react"],
+      "env": {
+        "AGENT_BROWSER_EXECUTABLE_PATH": "${AGENT_BROWSER_CHROME:-${HOME}/.cache/ms-playwright/chromium-1148/chrome-linux/chrome}",
+        "AGENT_BROWSER_ARGS": "--no-sandbox",
+        "AGENT_BROWSER_ALLOWED_DOMAINS": "localhost,127.0.0.1"
+      }
+    }
+  }
+}

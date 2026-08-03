@@ -17,25 +17,889 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration3` → merged to `main` (2026-07-27). Iteration 3 complete.
-- **Phase:** **Iteration 3 COMPLETE — all phases (0–6) verified on-device (2026-07-27).** Demo/pilot-ready.
-  Phase 7 (production track) deferred to Iteration 4.
+- **Branch:** `feat/iteration4-dataset-transparency` (from `main` @ `4245b77`). Phases 0–6 done (merge to `main` held for Ishan's go).
+- **Phase:** **Iteration 4 (dataset transparency) — Phase 6 complete (2026-08-01).** Iteration 3 is
+  complete and merged to `main` (2026-07-27); demo/pilot-ready.
+- **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
+  (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
+  (real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging).
+  What older docs called "Iteration 4 = production" is now Iteration 6.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **Tests:** `make test` 69 passed + 2 xpassed (71 total).
+- **Tests:** `make test` **145 passed + 2 xpassed (147 total)** — 76 added by Iteration 4.
+  Web: **39 Vitest tests**, `npm audit` 0 vulnerabilities, plus `make web-check` (headless
+  Chromium render verification, 15/15 checks incl. fold height, overlay, keyboard, CSV,
+  and replay parity with the API blocked).
+- **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
+  `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
 - **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
   **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
   Classical objectives: baseline 81,789; shortage-shock 95,445; demand-surge 94,165; stress-large 2,521,615.
-- **On-device envelope:** peak 65–68 GiB of ~121 GiB (55+ GiB headroom). Scale study: ceiling is
-  forecast latency (~25ms/series), not memory. Single-node holds at all tested scales (up to 100x).
-- **Next:** Iteration 4 (production track) — real customer-data onboarding, hardening, multi-tenant
-  isolation, licensing, packaging. Pending post-Ryan meeting direction.
+  Reconfirmed **bit-identical again 2026-08-01** in the Phase 6 regression — 12/12 objectives
+  unchanged across the whole iteration.
+- **On-device envelope:** peak **74.7–76.0 GiB** of ~121 GiB (45.0–46.3 GiB headroom; 90% flag clear).
+  Up from Iteration 3's 65–68 GiB because `make up` re-pulled the unpinned `vllm/vllm-openai:latest`
+  base — see the 2026-07-30 entry. Scale study: ceiling is forecast latency (~25ms/series), not
+  memory. Single-node holds at all tested scales (up to 100x).
+- **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
+  follow-up carried since Iteration 3 Phase 0 is closed.
+- **Web dataset view:** `?view=dataset&scenario=<name>` on port 8081 — network map with scenario
+  overlay, demand chart, BOM tree, lanes table, Level-3 expanders with CSV download. Level 1 fits
+  above the fold at 1920x1080 and 1440x900. Bundle 600.48 kB (+50.2 kB for the whole view, no new
+  dependencies). Screenshots: `docs/iteration-docs/screenshots/iteration4/`.
+- **Demo:** `?replay=true` is a complete GPU-free walkthrough **including the dataset view**
+  (`?view=dataset&replay=true`), served from real captured snapshots. `demo-replay.json` recaptured
+  2026-07-31 and now carries the CVaR fields.
+- **Handoff:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md`.
+- **Next:** merge to `main` + send Ryan the review packet (both awaiting Ishan), then **Iteration 5**
+  (conversational what-if) only after Ryan's feedback.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-08-01 — Iteration 4, Phase 6: regression, guardrail sweep & handoff doc
+**Status:** Phase 6 work complete and verified on-device. **git ref: `588feff`; hash backfilled in
+the follow-up commit. Merge to `main` deliberately held pending Ishan's go — see below.**
+Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** prove nothing regressed, sweep the guardrails, write the handoff, merge, and
+prepare the Ryan packet.
+
+**1. Full regression — the hard gate, passed.**
+`make bench-all` (generated 2026-08-01T17:16:08Z). **All 12 objectives across the four scenarios are
+bit-identical to the Phase 0 reference** captured before any feature work:
+
+| Scenario | Baseline | Classical (winner) | PPO |
+|---|---:|---:|---:|
+| `baseline` | 88,022.760795 | **81,789.359460** | 102,804.716650 |
+| `component-shortage-shock` | 102,834.785064 | **95,445.445064** | 113,584.863463 |
+| `demand-surge` | 100,734.738785 | **94,165.363245** | 115,161.538279 |
+| `stress-large` | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 |
+
+Not one digit moved. This iteration touched no optimizer code and the benchmark proves it.
+- **Device memory went *down*:** 69.5–71.0 GiB, versus 74.7–76.0 GiB at Phase 0; envelope flag clear
+  with ~50 GiB headroom. So the dataset layer added nothing — and the whole-host measurement is
+  demonstrably not reproducible to the GiB across days, which is worth remembering before treating
+  any single memory figure as a precise regression signal. The Phase 0 entry attributed that earlier
+  rise to the re-pulled vLLM image; this run is consistent with that being ambient variation plus
+  runtime state rather than anything the app does.
+- `make test` **145 passed + 2 xpassed**; web **39 Vitest**; `npm audit` **0 vulnerabilities**;
+  `make web-check` **15/15**.
+
+**2. Perf sanity.** Dataset endpoint warm latency 0.04 s (baseline / shock / surge) and 0.15 s
+(`stress-large`), payloads 37–120 KB — unchanged from Phase 5 and far inside the 250 KB / 2 s budget.
+
+**3. Cross-checked the payload against the raw CSVs by hand** for `component-shortage-shock`, using
+`awk` so the check shares no code with the module: all nine row counts (17 / 28 / 24 / 2,912 / 6 /
+30 / 1,560 / 32 / 32), on-hand 3,860, in-transit 507, backlog 0, line throughput 1,453, finished-good
+units 63,791, and the derived **days of cover 22.10** all match exactly.
+
+**4. 🔴 The guardrail sweep found one guardrail that was NOT intact.**
+The results screen's summary card showed *"$102,835 → $95,445, −7.2%"* with fine print covering only
+the advisory text. **Nothing said the comparator is the naive baseline.** A viewer — Ryan included —
+could reasonably read −7.2% as money saved against their real costs, which is precisely the
+carry-forward guardrail *"improvement percentages are vs. the naive baseline, not vs. a customer's
+actual costs."*
+- **This predates Iteration 4** — the card is Iteration 3 Phase 3 work — so it is not a regression I
+  introduced. But the sweep exists to catch exactly this, and finding it and leaving it would have
+  been worse than not looking. Fixed on the results screen:
+  > *Percentages compare the tuned optimizer against the **naive reorder-point + shortest-route
+  > baseline** on this seeded synthetic scenario — not against a customer's actual costs.*
+- Screenshot committed at `docs/iteration-docs/screenshots/iteration4/results-improvement-caveat.png`.
+
+**Every other guardrail verified:**
+
+| Guardrail | Result |
+|---|---|
+| Synthetic-provenance badge on every dataset screen | ✅ all four, header + footer |
+| No LLM text on the dataset view | ✅ no LLM/RAG/HTTP import or call in `src/dataset` |
+| No hardcoded counts | ✅ enforced by test |
+| No schema names in prose or labels | ✅ enforced by test, all four scenarios |
+| No fabricated figures | ✅ hand cross-check above |
+| PPO visible and honestly labelled | ✅ `lost_to_classical` on screen |
+| No hospital claim / no `~94%` framing | ✅ absent |
+| Data never leaves the box | ✅ every fetch same-origin |
+| No API key in the browser bundle | ✅ 0 hits |
+
+- **Honest note on the sweep method:** my first grep for LLM references in `src/dataset` returned
+  three hits and I nearly recorded a REVIEW. All three were comments *asserting* there is no LLM.
+  The meaningful check is imports and calls, not the word — re-ran on those and it is clean.
+
+**5. Cosmetic fixes** folded in from Ishan's screenshot review: short cards no longer stretch to the
+tallest in their row (`items-start` — Products had ~350 px of empty card beside Demand history), and
+`"the bill of materials"` no longer reads oddly inside the INGEST comma list.
+
+**6. Handoff doc** at `docs/iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md` in the house
+style: TL;DR · what shipped per phase · the two endpoints with measured payload/latency · screenshots
+· verification · honest caveats · the regression and guardrail tables · what's next.
+
+**Brutal-truth review of Phase 6.**
+- The regression gate is the strongest evidence in this iteration: **12/12 objectives bit-identical**
+  across a phase that rewrote a large amount of web code and added an API surface.
+- **I went looking for a guardrail violation and found a real one** — the missing improvement-%
+  caveat — in code I did not write and was not asked to change. Recorded as pre-existing rather than
+  quietly folded in as if it had always been fine.
+- The device-memory movement in both directions across three runs is a useful negative result: that
+  metric is host-wide and noisy, so "memory unchanged" should be read as "flag clear, headroom
+  ample", not as a precise number.
+- **Two things I did NOT do**, both deliberately: the **merge to `main` is held** for Ishan's
+  explicit go (it is a hard-to-reverse action on the default branch), and the **Ryan packet is
+  drafted, not sent** — sending is outward-facing and Ishan's call.
+
+**DoD assessment: met except the two items above, which are held by design.** Full suite green;
+benchmark bit-identical; guardrail sweep documented here and in the handoff; handoff doc committed.
+
+**Open follow-ups.**
+- **Merge to `main` and send the Ryan packet** — awaiting Ishan.
+- **Talk-track rehearsal** (Phase 5 DoD item, human step).
+- **Pin the vLLM base image** before the next demo.
+- Stale host `web/node_modules`; `stress-large` scenario card itemises five bullets while the hero
+  groups them.
+
+---
+
+## 2026-07-31 — Iteration 4, Phase 5: demo integration, replay parity & docs
+**Status:** Phase 5 complete, verified on-device. **git ref: Phase 5 work committed as `a5d5bd5`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration4-dataset-transparency`.
+*(Phases 0–4 ran on 2026-07-30; this session crossed midnight.)*
+
+**Scope (per the PoA):** make the dataset view part of the demo, work without a live GPU, and
+document it. Plus the long-standing `demo-replay.json` recapture.
+
+**1. Replay parity — the dataset view now works with no backend at all.**
+`web/public/demo-dataset-overview.json` (43,323 B) is a **real captured overview** for
+`component-shortage-shock`, stored in exactly the shape `fetchDatasetOverview` returns so replay and
+live render through **identical code paths**. `?view=dataset&replay=true` loads it with zero API
+calls; `?replay=true` on the results screen carries replay mode through the "View the dataset"
+button.
+- **The scenario selector is disabled in replay mode**, with a "Recorded snapshot ·
+  component-shortage-shock" chip. Only one scenario was recorded; leaving the dropdown live would let
+  a presenter silently select a scenario the snapshot does not contain. Locking it is the honest
+  option.
+- **Verified the snapshot is faithful, not drifted:** a live overview fetched a day later is
+  **byte-identical to the committed snapshot apart from `generated_at_utc`** — which also
+  re-demonstrates that the seeded data reproduces across days and container rebuilds.
+
+**2. 🔴 `demo-replay.json` recaptured — and the follow-up that demanded it was partly wrong.**
+Since Iteration 3 Phase 4 the journal has said the file "still carries pre-MDP PPO numbers". Checked
+before acting rather than trusting it:
+- The PPO objective in the old file was **113584.863463** — **identical to a fresh live run**. The
+  per-period MDP rebuild did not move this scenario's PPO objective at all, so the stated reason was
+  not the real problem.
+- What *was* genuinely stale is the **schema**: the old capture has **no `cvar_75` and no
+  `period_costs`**, both introduced by Phase 4. So the file predated Phase 4 and would have rendered
+  a CVaR-less approaches table — a real staleness, just not the one recorded.
+- Recaptured from a live `POST /scenario-comparison`. **Classical objective exactly 95445.445064**,
+  matching the Phase 0 reference; winner classical; `ppo_outcome: lost_to_classical`;
+  `advisory_text_source: llm_finalized` with 5 citations; `numeric_metrics_source =
+  src.pipeline.bench.run_head_to_head`. **Secret scan clean** on all six patterns (`api_key`,
+  `password`, `secret`, `credential`, `HELIX_API`, `x-api-key`) — 0 hits each.
+
+**3. 🔴 A real fallback defect, exposed by testing with the backend switched off.**
+The new replay check aborts **every** `/api/` request to simulate a dead backend — the exact
+situation the recorded demo exists for. It immediately found that `App.tsx` called `fetchScenarios()`
+unconditionally and surfaced the failure, so a GPU-less demo would show
+**"Scenario list failed: …" as an error banner next to a perfectly working recorded run.** That is
+precisely the "fallback that loses half the walkthrough" the PoA warns about. Fixed: in replay mode
+the missing scenario list is expected, not an error. Live mode still reports it.
+
+**4. `make demo` banner** now prints the dataset URL and the recorded dataset URL alongside live and
+replay, plus a pointer to the remote-access section (because `localhost` only resolves on the GB10).
+
+**5. `docs/DEMO_GUIDE.md` — new "Option C — The Dataset View".**
+A five-step talk track in the order to actually point at things: **badge first** (say "this is
+synthetic" before showing anything), then the one sentence read verbatim, the six tiles, the network
+map with a deliberate pause on the amber overlay, and closing the loop back to the results screen.
+Plus four deeper Q&A answers (input costs vs measured results, why `stress-large` says "+16 more",
+whether the AI wrote any of it, and the honest Croston-SBA answer) and a short "what to avoid
+saying". Quick Reference gains both URLs, and the **stale "69 passed + 2 xpassed (71 total)"** count
+was corrected in the two places it appeared.
+- **Every number quoted in the talk track was checked against the live payload** — all 15 claims plus
+  the verbatim summary sentence. A talk track with a wrong number in it is worse than none.
+- **The remote-access subsection the PoA asked me to "fold in" already landed on 2026-07-29.**
+  Verified rather than duplicated: it covers the from-the-laptop SSH forward, the
+  `bind: Address already in use` trap, the Tailscale path, and hardcodes no IPs. Extended it with the
+  dataset URL.
+
+**6. `README.md` §9** documents the view, both URL patterns, both endpoints, and the
+no-LLM-text-on-this-view boundary.
+
+**Verified on-device.**
+- `make web-check` **15/15**, now including the two replay checks with `/api/**` aborted:
+  `replay dataset (API blocked)` — badge present, snapshot chip shown, selector locked, **2 disrupted
+  lanes still drawn**, 0 errors; and `replay results→dataset` — winner Classical, replay mode
+  preserved across navigation, **no error banner**, 0 errors.
+- `make test` **145 passed + 2 xpassed**; web **39 Vitest**; **`npm audit` 0 vulnerabilities**; build
+  clean. Both replay assets serve over nginx (200, 47,592 B and 43,323 B).
+
+**Brutal-truth review of Phase 5.**
+- **I checked the premise of my own task rather than executing it blindly**, and the long-standing
+  "pre-MDP PPO numbers" claim turned out to be wrong on its stated grounds while still being right
+  that the file needed recapturing. Recorded both halves.
+- **Testing with the dependency removed found what testing with it present could not.** Had I
+  verified replay against a healthy backend, everything would have looked fine and the error banner
+  would have appeared for the first time in front of Ryan, during the precise failure the fallback
+  exists for.
+- **Guardrails:** the recorded snapshot is a **real capture, labelled as such in the UI and the
+  code** — never described as mock data; provenance badge present in replay too; secret scans clean
+  on both replay assets; no LLM text on the dataset view; classical objective unchanged at
+  95445.445064, so nothing about the optimizer moved this phase.
+- **One thing I did not do:** the PoA's DoD includes "talk track … followed end-to-end once by Ishan
+  as a rehearsal". I verified every factual claim in it mechanically, but **a human rehearsal is
+  Ishan's step and has not happened.** Stated rather than quietly counted as met.
+
+**DoD assessment: met except the human rehearsal.** `?replay=true` gives a complete GPU-free
+walkthrough including the dataset view (proven with the API blocked); the recaptured replay is
+current and secret-free; the talk track is written and fact-checked.
+
+**Open follow-ups.**
+- **Ishan: rehearse the Option C talk track once end to end**, ideally over Tailscale — that closes
+  the Phase 5 DoD item and the Phase 3/4 remote-access caveat together.
+- Phase 6: full regression vs the Phase 0 reference, guardrail sweep, handoff doc, merge to `main`,
+  Ryan packet.
+- Unchanged: pin the vLLM base image; stale host `web/node_modules`; `stress-large` scenario card
+  itemizes five bullets while the hero groups them.
+
+---
+
+## 2026-07-30 — Iteration 4, Phase 4: dataset view visuals, disclosure & polish
+**Status:** Phase 4 complete, verified on-device in a real browser engine. **git ref: Phase 4 work
+committed as `847f60b`; hash backfilled in the follow-up commit.**
+Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** make it genuinely beautiful and genuinely legible — the phase Ryan will
+judge. Network map with scenario overlay, product tree, demand chart, lanes table, "where the money
+is", Level-3 expanders with CSV download, accessibility, and visual QA.
+
+**Screenshots (DoD item — committed, not skipped):**
+`docs/iteration-docs/screenshots/iteration4/` holds all four scenarios plus the error state,
+captured from the live stack at 1920×1080. Regenerate any of them with `make web-check`.
+
+**1. `NetworkMap.tsx` — the hero visual.** Plain SVG; **no graph library added**, per decision and
+the bundle risk in §5. Left-to-right tiers, every node drawn, every lane between drawn nodes drawn.
+- **Scenario overlay:** disrupted lanes are amber **and** thickened **and** dashed, and their
+  endpoint nodes get an amber fill and border. Three cues rather than colour alone, so it survives a
+  projector and colour-blind viewers.
+- **The row cap, and the trap it nearly created.** `stress-large` has 24 customers; drawing all of
+  them either blows the above-the-fold budget or shrinks labels to unreadable. Tiers over 9 rows now
+  collapse the remainder into a `+N more` block. **Nodes touching a disruption are pinned into the
+  visible set first**, because a cap that could hide the very lanes the overlay exists to show would
+  be worse than no map. The footnote states it plainly: *"Drawing 80 of 152 lanes — 18 more locations
+  are folded into the '+N more' blocks to keep the map readable. Every location and lane is in the
+  tables below."*
+- Hover gives lead time, cost per unit and capacity; `<title>` elements give the same to screen
+  readers, and the `<svg>` carries an `aria-label` describing the whole network in words.
+
+**2. The rest of Level 2 / Level 3.**
+- `DemandChart.tsx` — units per period with the shock window shaded and labelled (Recharts
+  `ReferenceArea`), plus the top-SKU share bars. On `component-shortage-shock` the shares read
+  28.7 / 26.2 / 23.6 / 21.4% and sum to 99.9%, as they should.
+- `ProductTree.tsx` — expandable BOM with a plain sentence per parent: *"Each unit of FG-001 needs
+  3 of SA-001 and 1 of SA-002."*
+- `LanesTable.tsx` — full lane table plus a **per-period disruption strip** so the capacity drop
+  reads as a timeline. The strip uses a diagonal hatch as well as amber.
+- `Expander.tsx` — Level 3. Real `<button aria-expanded>` with `aria-controls`, so the whole
+  disclosure layer is keyboard reachable; each carries a per-table **CSV download** through the
+  key-injecting proxy.
+- **"Where the money is"** now shows all four penalty types (holding, ordering, backorder, lost
+  sale) plus transport, fenced by a persistent **"INPUT PARAMETERS — NOT MEASURED RESULTS"** bar so
+  it can never be confused with the results screen's measured costs.
+
+**3. Verified on-device (`make web-check`, 13/13 checks).**
+
+| Check | Result |
+|---|---|
+| Level 1 above the fold, 1920×1080 | 793 / 817 / 817 / 865 px — all fit |
+| Level 1 above the fold, 1440×900 | 793 / 817 / 817 / 865 px — all fit |
+| Disrupted lanes drawn vs payload | 0/0, **2/2**, 0/0, **4/4** — exact |
+| Map nodes drawn | 17/17, 17/17, 17/17, 26/42 (+ overflow blocks) |
+| Expanders per page, keyboard-togglable | 8, toggled with Enter alone |
+| CSV download | 200, `text/csv`, correct header row |
+| Console / page errors | **0** across all scenarios and viewports |
+
+`make test` **145 passed + 2 xpassed**; web **39 Vitest tests**; **`npm audit` 0 vulnerabilities**;
+TypeScript/Vite build clean.
+**Bundle: 570.61 → 600.48 kB (+29.9 kB, +5.2%)**, gzip 164.13 → 171.24 kB. That buys five new
+components — map, chart, tree, table, expander — with **no new dependencies**. Cumulative for the
+whole dataset view is 550.31 → 600.48 kB (+50.2 kB, +9.1%).
+
+**Brutal-truth review of Phase 4 — what I went looking for and what I found.**
+- **🔴 I broke the Phase 3 guarantee and my own check caught it.** The real map is taller than the
+  placeholder tier strip, and Level 1 immediately went to **934–1178 px** — below the fold on every
+  laptop render and on `stress-large` even at 1080p. Fixed by tightening the whole Level-1 rhythm
+  (map max height 560 → 250, node height 30 → 24, section gaps 5 → 4, tile padding) and capping rows
+  per tier. Back to 793–865 px with headroom. **Without the pixel assertion this would have shipped**
+  — a screenshot alone would have looked fine, because the failure is only visible relative to the
+  fold line.
+- **🔴 A blunder of my own making, caught by the test suite.** Humanizing the `ranked_by` labels, I
+  ran a blanket string replace that also rewrote the polars column names `"parent_sku_id"` and
+  `"max_throughput_units_per_period"` — **41 tests failed instantly**. Restored the column names and
+  kept the humanized text only in the label. Exactly why the reconciliation tests exist; a
+  careless one-line edit was stopped in seconds rather than silently corrupting the BOM section.
+- **Two schema-name leaks found by reading the rendered page, not the code.** The lanes table showed
+  `finished_goods` in the "Carries" column, and the footer read *"ranked by
+  capacity_units_per_period x cost_per_unit"*. Labels are as user-facing as prose, so I extended the
+  Phase-2 no-schema-names rule to cover **every tile label, plain-English note, `ranked_by` and
+  `note`** in the payload, enforced by a new test across all four scenarios.
+- **Polish from your screenshot:** `$1.05 – $1.05` now collapses to `$1.05` (`moneyRange` /
+  `valueRange` — the generator gives every SKU of a type the same cost, so a naive range read like a
+  bug), and the pipeline card uses API-supplied table labels instead of `Bom` / `Skus`.
+- **An SVG layout defect:** the map letterboxed inside its container, leaving ~140 px gutters either
+  side, because the viewBox aspect was much narrower than the container. Widened the column spacing
+  so the natural width matches a typical container.
+- **Accessibility, checked rather than claimed:** expanders are real buttons toggled with Enter and
+  no mouse (asserted); the map has an `aria-label` describing the network in words and `<title>` on
+  every node and lane; the disruption strip carries `role="img"` with a spoken label; the lanes table
+  has a `<caption>`; every interactive control has a visible focus ring. **No information is carried
+  by colour alone** — disruption is amber *plus* dashes *plus* a "DISRUPTED" text badge.
+- **Guardrails:** no LLM text anywhere on this view; **no number on screen that is not in the API
+  payload** (the map's only browser-computed values are pixel coordinates); provenance badge still
+  present on every render; input costs explicitly fenced from measured results; optimizer untouched
+  (`make test` unchanged apart from additions); data never leaves the box.
+
+**DoD assessment: met.** All four scenarios render correctly with the scenario overlay; screenshots
+committed to the repo and linked above; bundle change recorded and justified; `npm test` green;
+`npm audit` 0 vulnerabilities; no on-screen number that is not in the payload.
+
+**Open follow-ups.**
+- Phase 5: replay parity for the dataset view, recapture `demo-replay.json` (still carries pre-MDP
+  PPO numbers), `make demo` banner, demo-guide talk track, README §9.
+- The `stress-large` scenario card still itemizes five change bullets while the hero sentence groups
+  them. Deliberate (summary vs detail) but worth a second opinion at review.
+- **Ishan: still worth opening the view over Tailscale once** — Phase 3's caveat stands, verification
+  is a real browser engine on the GB10 rather than a laptop over the tailnet.
+- Unchanged: pin the vLLM base image; stale host `web/node_modules`.
+
+---
+
+## 2026-07-30 — Iteration 4, Phase 3: web dataset view — navigation, layout & Level-1 hero
+**Status:** Phase 3 complete, verified on-device in a real browser engine. **git ref: Phase 3 work
+committed as `9eaee6f`; hash backfilled in the follow-up commit.**
+Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** the view exists, is reachable, is honest about provenance, and delivers the
+"ohh — that's my dataset" moment above the fold. Phase 4 owns the network map, charts, BOM tree,
+full tables and CSV download.
+
+**1. `web/src/DatasetView.tsx` — the "Know Your Data" view.**
+Level 1 (no scrolling): provenance badge · one-sentence summary · scenario sentence · six tiles ·
+network tier strip. Level 2 (scroll): scenario-diff card, products, demand, lanes, capacity, costs,
+service targets, starting inventory, pipeline, provenance footer. Level 3 is Phase 4.
+- **The tier strip is real data simply drawn**, not a mock: actual tier counts from
+  `network.tiers`, laid out supplier → factory → distribution center → customer. Phase 4 upgrades it
+  to the lane-level map with the scenario overlay.
+- `App.tsx` grew by ~50 lines (view switch + URL helpers) rather than absorbing the view, per the
+  standing note that it is already monolithic.
+
+**2. Navigation without a router (decision 2 upheld).** `?view=dataset` and
+`?view=dataset&scenario=X`, written with `history.pushState` and read back on `popstate`, so browser
+back/forward work and the URL is bookmarkable — Ryan can be sent a link that opens on the exact
+scenario. A "View the dataset" button sits next to Run/Replay on the results screen; "Back to
+results" returns and clears the params. No `react-router`, no nginx rewrite change, no new dependency.
+
+**3. Provenance badge in the sticky header *and* the footer.** Amber, not green — this is a caveat,
+not a reassurance. It reads *"Synthetic demo dataset · seed 12345 · generated on-device · not
+customer data"*, text supplied by the API rather than hardcoded in the UI. Verified present on all
+eight scenario × viewport renders.
+
+**4. All three non-happy states are real and reachable.** Loading (named scenario, spinner that
+resolves), empty (**HTTP 409** → "No data generated yet" plus the literal `make demo-data` command),
+and error (message + working "Try again"). The 409/404 split from Phase 1 pays off here: a viewer
+who has not generated data gets an instruction, not a stack trace.
+
+**5. 🔴 New verification capability: `make web-check` (headless Chromium).**
+`web/e2e/dataset-view.check.mjs` runs Playwright against the live container and asserts what neither
+a unit test nor a screenshot can: **the measured pixel height of Level 1**, console cleanliness, badge
+presence, URL round-tripping, and honest error handling. It also writes screenshots — which
+**Phase 4's DoD explicitly requires**, and which the journal has repeatedly flagged as a recurring
+gap ("no manual browser screenshot captured"). This closes that gap with a repeatable command rather
+than a one-off.
+
+**Measured results (real browser engine, not assumed):**
+
+| Viewport | Scenario | Level-1 bottom | Fits above fold | Badge | Tiles | Console errors |
+|---|---|---:|---|---:|---:|---:|
+| 1920×1080 | baseline | 613 px | ✅ | 2 | 6 | 0 |
+| 1920×1080 | component-shortage-shock | 637 px | ✅ | 2 | 6 | 0 |
+| 1920×1080 | demand-surge | 637 px | ✅ | 2 | 6 | 0 |
+| 1920×1080 | stress-large | 661 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | baseline | 613 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | component-shortage-shock | 637 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | demand-surge | 637 px | ✅ | 2 | 6 | 0 |
+| 1440×900 | stress-large | 661 px | ✅ | 2 | 6 | 0 |
+
+Level 1 ends at **613–661 px** — comfortably inside both a 1080p display and a 1440×900 laptop, with
+room for Phase 4's taller network map. Navigation: button → `?view=dataset&scenario=baseline`, back →
+clean URL, **0 page errors**.
+
+**Brutal-truth review of Phase 3 — what I went looking for and what I found.**
+- **🔴 The worst defect of this iteration so far, found by the browser check.** `?view=dataset&
+  scenario=not-a-real-scenario` **silently rendered baseline data**. `App.tsx` resolved an unknown
+  URL scenario by falling back to the first in the list, so the page cheerfully showed one dataset
+  under a URL naming another. On a view whose entire purpose is *"know exactly which data you are
+  looking at"*, that is the one unforgivable bug in the whole iteration. Fixed by **keeping** the bad
+  name: the API returns 404 and the UI shows "Unknown scenario 'not-a-real-scenario'" with the
+  dropdown reading "(not found)". A graceful fallback would have been the friendlier choice and the
+  wrong one.
+- **Screenshots caught two things the assertions did not.** Reading the rendered PNG showed
+  **"FACTORYS"** in the network strip and **"32 demand seriess"** on the demand card — I fixed exactly
+  this plural bug in Python in Phase 2 and then reintroduced it in TypeScript. Added `pluralLabel`
+  (`-y` → `-ies`, sibilant → `-es`) with six test cases. This is the argument for screenshots over
+  assertions alone: the automated checks were all green while the page said "FACTORYS".
+- **One clarity fix from reading the render:** the demand card's "Shock window: none" on
+  *component-shortage-shock* invited the reading "no shock at all", when in fact that scenario's shock
+  is a lane disruption, not a demand shock. Relabelled "Demand shock window".
+- **A bug in my own tooling, caught before commit.** My script for prepending a docstring to the
+  check file duplicated the entire body (`s.split("\n", 0)[0]` returns the whole string). `make
+  web-check` failed loudly with a duplicate-import error rather than silently, which is how it should
+  fail. Rewritten and re-run green.
+- **Bundle delta measured, not guessed:** built the committed `HEAD` in a clean container for a true
+  baseline. **550.31 → 570.61 kB (+20.3 kB, +3.7%)**, gzip 159.21 → 164.13 kB (+4.9 kB), CSS +2.5 kB.
+  That is an entire new view with **no new dependencies** — no router, no graph library, per decision 2
+  and the bundle risk in §5. The pre-existing 500 kB Vite warning is unchanged in kind.
+- **No regression on the results screen:** `make test` **141 passed + 2 xpassed**, `/demo-replay.json`
+  200, `/api/scenarios` 200, and grepping the shipped JS bundle for `helix_api`/`x-api-key`/`api_key`
+  returns **0** — the key still never reaches the browser.
+- **Guardrails:** no LLM text on the dataset view; every rendered number comes from the API payload
+  (nothing is computed in the browser); provenance badge always visible; the costs card is explicitly
+  fenced as *"Input parameters — not measured results"* so it can never be confused with the results
+  screen's measured costs; data never leaves the box.
+
+**DoD assessment: met, with one honest caveat.** The view loads and renders correctly for all four
+scenarios at 1920×1080 **and** at laptop size; Level 1 fits above the fold on both, measured in pixels;
+the provenance badge is always visible; **0 console errors**; the TypeScript/Vite build is clean.
+- **Caveat:** verification used a **headless Chromium (Playwright) on the GB10**, not a human-driven
+  browser over Tailscale from the laptop. It is a real browser engine performing real layout, and it
+  measures more than a human could eyeball — but it is not the literal "open it on the laptop" check
+  the PoA describes, and the Tailscale path itself remains unverified end-to-end (open since
+  2026-07-29). Ishan should open
+  `http://<gb10-tailscale-ip>:8081/?view=dataset&scenario=component-shortage-shock` once to close it.
+
+**Open follow-ups.**
+- **Ishan: open the dataset view over Tailscale once** to close both this caveat and the 2026-07-29
+  remote-access follow-up.
+- Phase 4: network map with the scenario overlay (the tier strip is the placeholder), demand chart,
+  BOM tree, lanes table, Level-3 expanders with CSV download, accessibility and projector-safe colors.
+- Minor, for Phase 4: on `stress-large` the scenario card lists five itemized change bullets while the
+  hero sentence groups them; consider grouping the card too.
+- Screenshots live in `web/e2e/shots/` and are **gitignored** (14 MB). Phase 4's DoD asks for
+  screenshots attached to the journal — decide then whether to commit a few compressed ones or link
+  them out.
+- Unchanged: pin the vLLM base image; stale host `web/node_modules`.
+
+---
+
+## 2026-07-30 — Iteration 4, Phase 2: plain-English narrative & scenario-diff layer
+**Status:** Phase 2 complete, verified on-device. **git ref: Phase 2 work committed as `b975412`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** turn correct-but-technical numbers into sentences a non-specialist reads
+once and understands. Deterministic template text only — **no LLM on this path** (decision 4).
+Plus the reusable glossary and formatting helpers the web phases will consume.
+
+**1. `src/dataset/narrative.py` — new module, wired into the overview as a `narrative` section.**
+Five strings per scenario (one-sentence summary, scenario sentence, forecast-method sentence,
+pipeline sentence, provenance sentence), plus a `plain_english` line attached to every structured
+change in `scenario_diff`. Kept out of `overview.py` so neither file becomes the next `App.tsx`.
+
+**Real output, all four scenarios (this is the DoD's readability review material):**
+```
+baseline / shock / surge:
+  This is one manufacturing network: 5 suppliers ship parts to 2 factories running 6 production
+  lines, which send finished goods through 2 distribution centers out to 8 customers — 28
+  products and 52 weeks of demand history.
+
+stress-large:
+  This is one manufacturing network: 10 suppliers ship parts to 4 factories running 20 production
+  lines, which send finished goods through 4 distribution centers out to 24 customers — 156
+  products and 104 weeks of demand history.
+
+component-shortage-shock scenario sentence:
+  From week 18, 2 inbound lanes from supplier SUP-001 carrying RC-001 and RC-002 (LANE-0001 and
+  LANE-0002) stop completely for 10 weeks, and their lead times stretch to 3x normal. Beyond
+  that, 24 other settings differ from the baseline scenario, across capacity, costs, demand,
+  lane disruption, service targets, and shipping lanes.
+
+forecast method (all four):
+  All 32 demand series are continuous — every period has orders — so all are forecast with
+  AutoETS. Croston-SBA is reserved for intermittent series, and this dataset has none.
+```
+
+**2. The lumpiness decision from Phase 1, resolved.** Phase 1 measured **zero** intermittent series
+on every scenario, which would have made the PoA's planned callout read "0 of 32". Took option (b)
+from that entry — state the measured fact. The sentence now says all series are continuous and why
+that means AutoETS, which is honest, still teaches the reader something, and cannot be read as
+implying a method choice that never happens. Reversible in one function if Ishan prefers dropping it.
+
+**3. 🔴 Corrected the PoA's own example wording — it would have been a lie on this data.**
+The plan's illustrative scenario sentence ends *"Nothing else changes."* On these datasets that is
+**false**: `component-shortage-shock` differs from baseline in **24** config settings and
+`stress-large` in **34** (costs, capacities, lead times, service targets, network size, simulation
+length). The sentence therefore states the headline disruption and then says how many other settings
+differ and in which groups. A test (`test_scenario_sentence_never_claims_nothing_else_changed`)
+locks this in so nobody restores the tidier, wrong wording later.
+
+**4. The vertical is derived, not asserted.** "This is one manufacturing network" comes from the
+generator name in `metadata.json` (`manufacturing-synthetic-data`), so a future retail generator
+would not have its stores called factories. Falls back to "one supply-chain network" if absent.
+
+**5. `web/src/lib/glossary.ts` — 25 terms, centrally stored for Iteration 5 reuse.**
+lane · echelon · BOM · subassembly · lead time · period · capacity · fill rate · service target ·
+criticality tier · on hand · in transit · days of inventory · days of cover · safety stock ·
+(s,S) · backorder · lost sale · holding cost · ordering cost · intermittent demand · AutoETS ·
+Croston-SBA · objective · seed. The rule enforced by test: **no definition may contain jargon of its
+own** — a definition that needs another glossary entry to be understood has failed.
+
+**6. `web/src/lib/datasetFormat.ts` + Vitest.** count/units/percent/money/days/pluralize/
+periodRange/multiplier/humanizeKey/bytes/showingLabel. Small functions, but they are where a
+credible page turns sloppy. 28 new Vitest cases cover the zero, singular, and missing-value paths.
+
+**7. Verified on-device.**
+- `make test` **141 passed + 2 xpassed (143)** — 38 new Python tests in
+  `tests/test_iteration4_narrative.py`.
+- Web: **34 tests pass** (6 existing + 28 new), production build clean.
+- Budget after adding prose: `stress-large` **119,561 B in 0.14 s** (was 117,163 B) — still 48% of
+  the 250 KB budget. All four scenarios byte-identical across repeat calls, so the narrative did not
+  break determinism.
+
+**Brutal-truth review of Phase 2 — what I went looking for and what I found.**
+- **Rendering the strings for real caught four defects that reading the code did not.** Printing all
+  four scenarios' prose surfaced: `"32 demand seriess"` (naive pluralization of a word already ending
+  in "s"); a missing comma before "which send"; raw `snake_case` leaking into prose
+  (`lane_disruption`, `service_targets`, `skus`); and — worst — **stress-large emitting four
+  near-identical lane sentences in a row**, which reads unmistakably machine-generated. All four
+  fixed: explicit plural forms, a `humanize` map, and grouping of lane disruptions that share code,
+  window and magnitude into a single sentence.
+- **A subject-verb agreement bug in my first fix.** The grouped sentence initially read *"2 inbound
+  lanes … each stops completely"*. Rather than patch the string, `_capacity_text` and
+  `_lead_time_text` now take a `many` flag and return properly agreeing verb phrases. Tests pin both
+  the singular and plural forms.
+- **My own test caught my own content.** The glossary rule "one short sentence each" is enforced by
+  a Vitest case, and it failed on the `period` entry, which I had written as two sentences. Fixed the
+  content, not the test.
+- **Stale local toolchain found.** The first web test run used the host's `web/node_modules`, which
+  had **vitest 2.1.9** — stale against the lockfile that Iteration 3 Phase 1 bumped to `^4.1.10`. Re-ran
+  from the committed lockfile via `npm ci` in a scratch container (never touching the host tree), which
+  is what the web image actually builds with: **vitest 4.1.10**, 34 tests pass.
+- **🔴 npm audit regressed to 1 high, and I fixed it rather than noting it.** `postcss` picked up
+  **GHSA-r28c-9q8g-f849** (path traversal via source-map auto-loading, `<=8.5.17`) — a new advisory
+  published since Iteration 3 drove the tree to zero; no dependency of ours changed. Assessment before
+  acting: build-time only, never in the shipped nginx bundle, and it requires processing untrusted CSS
+  which we do not do. Low real risk, but the project's standard (Iteration 3 Phase 1: *"rather than
+  merely documenting, I tested the fix"*) is to fix. Bumped to `^8.5.25` and verified in a clean
+  container: **`npm ci` → 0 vulnerabilities**, 34 tests pass, production build succeeds. This also
+  keeps Phase 4's "npm audit still 0 vulns" DoD reachable.
+- **Verified two claims the prose makes rather than trusting them.** `pipeline_sentence` says the
+  optimizer reads "product costs" from `skus` — checked `sku_costs()` in `src/optimize/common.py`,
+  which selects exactly the four cost columns, so the phrasing is accurate. And the "manufacturing"
+  descriptor is read from the generator name, not hardcoded.
+- **A test asserts no schema name reaches prose** (`\b[a-z]+_[a-z_]+\b` over every narrative string
+  and every `plain_english` line, all four scenarios). This is the cheapest guard against the page
+  looking machine-written.
+- **Guardrails:** zero LLM on this path; no fabricated values — every sentence is filled from numbers
+  the payload already derived from disk; determinism preserved and re-measured; provenance sentence
+  states data never leaves the box; optimizer results untouched.
+
+**DoD assessment: met.** Narrative strings generated from real values for all four scenarios and
+recorded above for Ishan's readability review; scenario diff verified against the actual generated
+data (`lane_periods.disruption_code`, `demand.shock_multiplier`) and each scenario's own embedded
+config, not against assumption; glossary covers the payload's jargon; Vitest green.
+
+**Open follow-ups.**
+- **Ishan's readability call** on the sentences above — that is the one DoD item only a human can
+  sign off. Two candidates if anything grates: "out to 8 customers" (the "out" is optional), and
+  whether the scenario sentence's "Beyond that, 24 other settings differ…" clause belongs in the
+  headline or in Level 2.
+- Phase 3 consumes `narrative`, `glossary.ts` and `datasetFormat.ts`; nothing in them is wired to a
+  screen yet.
+- The `web/` host `node_modules` is stale (vitest 2.1.9). Harmless — every real build and test path
+  uses `npm ci` from the lockfile — but `rm -rf web/node_modules && npm ci` would stop it misleading
+  anyone who runs tests locally.
+- Unchanged from Phase 0: pin the vLLM base image; verify the Tailscale path end-to-end.
+
+---
+
+## 2026-07-30 — Iteration 4, Phase 1: dataset overview API
+**Status:** Phase 1 complete, verified on-device. **git ref: Phase 1 work committed as `06c77e5`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration4-dataset-transparency`.
+
+**Scope (per the PoA):** one authenticated endpoint returning a complete, pre-aggregated,
+deterministic description of a scenario's dataset, derived entirely from files on disk. This is the
+contract Phases 2–5 build on. After every `src/` edit the `api` image was rebuilt
+(`docker compose build api && docker compose up -d --no-deps api`) before testing, per the baked-`COPY`
+gotcha — four rebuild cycles in this phase.
+
+**1. `src/dataset/overview.py` — `build_dataset_overview(scenario, data_root=...)`.**
+Twelve sections: `provenance` · `at_a_glance` · `network` · `products` · `demand` · `lanes` ·
+`capacity` · `costs` · `service_targets` · `initial_inventory` · `scenario_diff` · `pipeline_link`.
+- **Loads through `src.ingest.state.load_scenario_state`**, not a second CSV parser. This is the whole
+  point of the DRY rule here: duplicated parsing is how the view's counts silently drift from the
+  counts the pipeline actually ingests.
+- **Aggregates, never dumps.** `MAX_SECTION_ROWS = 200` and `TOP_N = 12`. Every truncated list carries
+  a `_showing` block with `shown`/`total`/`truncated`/`ranked_by`, so the UI can say "showing top 12
+  of 288" instead of quietly hiding data. Demand is returned as per-period totals plus top-N series —
+  never row-level.
+- **Deterministic by construction:** no wall-clock stamp anywhere (`generated_at_utc` comes from the
+  `metadata.json` mtime, not `now()`), explicit sort keys on every list, no set iteration in output.
+
+**2. Endpoints on the existing protected router** (`X-API-Key`, same posture as `/scenarios`).
+- `GET /dataset/overview?scenario=<name>` → `{"dataset_overview": {...}}`.
+- `GET /dataset/table?scenario=<name>&table=<name>` → raw CSV as an attachment, whitelisted to the
+  nine tables in `REQUIRED_TABLES`.
+- **Unknown scenario → 404. Known but ungenerated → 409** naming `make demo-data`. Directory present
+  but tables missing → also 409, not a 500.
+- **Path containment is enforced in the module, not trusted to the route pattern.** The API's scenario
+  pattern `^[a-zA-Z0-9._-]+$` *admits a literal `..`* — this endpoint serves file contents, so
+  `_resolve_scenario_dir` resolves the path and rejects anything that is not inside the data root.
+
+**3. One shared-code change: `_zero_fraction` → `zero_fraction` in `src/forecast/statistical.py`.**
+The overview reports the AutoETS/CrostonSBA split, and the only honest way to do that is to use the
+forecaster's own rule rather than restate the threshold. Importing a private across modules is a
+smell, so the helper was made public with a docstring saying why. **Pure rename, no behaviour change
+— and verified rather than assumed:** `run_head_to_head('baseline')` after the rename returns
+baseline **88022.760795**, classical **81789.359460**, ppo **102804.716650** — bit-identical to the
+Phase 0 reference.
+
+**4. Verified on-device (real measurements, not estimates).**
+
+| Scenario | HTTP | Warm latency | Payload | Repeat calls |
+|---|---|---:|---:|---|
+| baseline | 200 | 0.043 s | 36,173 B | byte-identical |
+| component-shortage-shock | 200 | 0.041 s | 41,445 B | byte-identical |
+| demand-surge | 200 | 0.049 s | 40,305 B | byte-identical |
+| stress-large | 200 | **0.141 s** | **117,163 B** | byte-identical |
+
+`stress-large` sits at **47% of the 250 KB budget and 7% of the 2 s budget** — no need to weaken
+either. Determinism confirmed by sha256 over repeated HTTP responses, not just in-process.
+- Error paths, all observed live: unknown scenario **404**, no key **401**, non-whitelisted table
+  **404**, `scenario=..` **404**, CSV download returns `text/csv` with
+  `Content-Disposition: attachment`.
+- **Through the nginx proxy** (the path the browser will use in Phase 3): baseline 36,173 B / 47 ms,
+  stress-large 117,163 B / 146 ms, and grepping the proxied response for `HELIX_API`/`api_key`/
+  `x-api-key` returns **0 hits** — the key stays server-side.
+
+**Baseline overview, real output (reconciles with the PoA's expected counts):**
+```
+Places in the network      17 locations     nodes_by_type  {customer 8, dc 2, plant 2, supplier 5}
+Products tracked           28 products      sku_by_type    {finished_good 4, raw 16, subassembly 8}
+Shipping lanes             30 lanes         lanes_by_type  {dc_to_customer 16, inbound 10, p2dc 4}
+Weeks of history           52 weeks         demand rows    {derived_component 1248, fg 1664}
+Demand records           2912 rows          days of cover  18.11
+Random seed             12345               badge  "Synthetic demo dataset · seed 12345 ·
+                                                    generated on-device · not customer data"
+```
+
+**5. `scenario_diff` is derived from the generated data, not only the YAML.** Lane disruptions come
+from `lane_periods.disruption_code`, demand shocks from `demand.shock_multiplier`, and config deltas
+from each scenario's own embedded `metadata.json` config — so the diff describes what was *actually
+generated*, not what a since-edited YAML claims. For `component-shortage-shock` it produces exactly
+what the Phase 4 map overlay will need:
+```
+lane_disruption zero_supply_component_shortage
+  LANE-0001 SUP-001 -> PLANT-001 (RC-001)  periods 18-27  capacity x0.0  lead time x3.0
+  LANE-0002 SUP-001 -> PLANT-002 (RC-002)  periods 18-27  capacity x0.0  lead time x3.0
++ 24 config deltas vs baseline
+```
+
+**6. Tests — `tests/test_iteration4_dataset.py`, 34 new. Suite now 103 passed + 2 xpassed (105).**
+- **Reconciliation (the load-bearing one):** every table count equals `load_scenario_state`'s own
+  `row_counts()`, and sub-counts must *partition* their totals (node types sum to node count, etc.)
+  rather than merely look plausible.
+- Determinism; all four scenarios build; payload/latency budget; no list over the row cap (walks the
+  whole payload tree); truncation blocks self-consistent; error paths; table whitelisting; seven
+  path-traversal inputs; auth on both endpoints.
+- **Anti-fabrication proved twice.** A source grep asserts none of the real topology counts
+  (17, 28, 2912, 44928, 15808, 152, …) appears as a literal anywhere in the module — *including in
+  prose*, since stale comments lie silently. Then a behavioural test copies the data, deletes two
+  node rows and one lane row, rebuilds, and asserts the counts and the at-a-glance tiles drop by
+  exactly 2 and 1. A grep alone can be satisfied by a cleverly-written constant; the mutation test
+  cannot.
+
+**Brutal-truth review of Phase 1 — what I went looking for and what I found.**
+- **Independent cross-check of the numbers.** Rather than trust my own Polars code, I re-derived eight
+  payload values with `awk` on the host (a completely separate implementation): finished-goods total
+  units 66,807; lane cost range 0.4326–1.3078; lead-time range 1.82–9.79; line throughput 1,682;
+  on-hand 3,312 and in-transit 529; fill-rate target range 0.96–0.96; BOM max tier 2; FG holding cost
+  0.95. **All eight matched the API exactly.** Days-of-cover checked by hand too: 3,312 ÷ (66,807/52)
+  × 7.024 = 18.11 ✓.
+- **Real finding — CrostonSBA never fires on any scenario.** `lumpy_series_count` is **0 for all four**
+  (baseline 0/32, stress-large 0/288). Chased it rather than shrugging: the generated demand contains
+  **zero** zero-demand periods (max zero-fraction 0.0000; minimum quantity 19 units on baseline, 10 on
+  stress-large), so no series clears the 0.35 intermittency threshold and the split is always 100%
+  AutoETS. The generator's `lump_probability` produces occasional demand *spikes* (`lump_multiplier`),
+  which is a different thing from intermittency — a genuine naming collision between "lumpy" in the
+  generator and "lumpy" in forecasting. My derivation is correct; the dataset is simply not
+  intermittent. **This directly affects Phase 2:** the planned lumpiness callout ("X of Y products have
+  lumpy, intermittent demand — those are forecast with Croston-SBA") would render "0 of 32" on every
+  scenario. I added a derived `forecast_method_note` to the payload stating how the choice is actually
+  made, so Phase 2 cannot accidentally imply a method choice that never happens. Flagged for a
+  decision at the Phase 2 start — see follow-ups.
+- **`pipeline_link` states an inconvenient truth rather than drawing a tidy arrow.** Tracing actual
+  reads in `src/forecast/statistical.py` and `src/optimize/common.py` shows `nodes`, `bom` and
+  `production_lines` are loaded and validated at ingest but **never read by forecast or optimize** —
+  component demand is derived through the BOM at *generation* time and stored as `derived_component`
+  rows in `demand.csv`, so the optimizer reads those rows instead of walking the BOM. The payload says
+  exactly this. It would have been easy, and wrong, to draw bom → optimize.
+- **Two unused parameters found and removed** (`state` in `_scenario_diff` and `_at_a_glance`), via an
+  AST sweep rather than by eye.
+- **A correctness gap I found in my own code:** `known_scenarios()` ignored the `data_root` it was
+  handed, so a custom root was consulted for existence but not for discovery. Threaded through. Only
+  reachable from tests today, but it is the kind of latent inconsistency that bites later.
+- **A missing branch in my own tests:** I covered "directory absent" but not "directory present,
+  tables missing". Added `test_partially_generated_scenario_raises_not_generated` — it must be a 409,
+  not a 500.
+- **Known redundancy, accepted deliberately:** `network.edges` and `lanes.table` both list lanes.
+  They differ in ordering and truncation semantics (topology order for the map vs materiality ranking
+  for the table), so the map cannot silently lose lanes to the table's ranking. At 47% of the payload
+  budget this costs little; revisit if Phase 4 pushes the budget.
+- **Guardrails:** zero LLM involvement on this path (decision 4 holds); provenance badge text is in the
+  payload and carries "not customer data"; no hardcoded counts (proved twice); no fabricated figures —
+  every number traces to a file on disk; optimizer results untouched and verified bit-identical; data
+  never leaves the box; no key reachable from the browser origin.
+
+**DoD assessment: met.** Endpoint curled for all four scenarios with real output recorded above; every
+count reconciles with ingest; determinism and payload budget verified on-device by measurement;
+tests green (103 passed + 2 xpassed).
+
+**Open follow-ups.**
+- **Phase 2 decision needed:** the lumpiness callout will read "0 of N" on every scenario. Options are
+  (a) drop it, (b) reword it to state the measured fact ("all N products have continuous demand, so all
+  are forecast with AutoETS"), or (c) leave the generator alone and say nothing about forecasting on
+  the dataset page. Recommend (b) — it is honest, still teaches the viewer something, and costs nothing.
+- Phase 2 owns the readable layer: one-sentence summary, glossary, plain-English scenario-diff prose.
+  Phase 1 deliberately shipped structured values only, so Phase 2 has real data to render.
+- The `at_a_glance` labels are serviceable but written by an engineer; Phase 2's DoD includes an Ishan
+  readability review.
+- Unchanged from Phase 0: pin the vLLM base image; verify the Tailscale path end-to-end.
+
+---
+
+## 2026-07-30 — Iteration 4, Phase 0: orientation, green baseline, NVML closed, roadmap renumbered
+**Status:** Phase 0 complete, verified on-device. **git ref: Phase 0 work committed as `d66980d`;
+this hash backfilled in the follow-up commit. Branch pushed to `origin` 2026-07-30.**
+Branch `feat/iteration4-dataset-transparency` (cut from `main` @ `4245b77`).
+
+**Scope (no feature code, per the PoA):** load context, confirm the repo is still green after the
+2026-07-29 demo, close the long-standing stale-NVML follow-up, capture the pre-Iteration-4
+four-scenario reference, and make the roadmap self-consistent before any feature work lands.
+
+**1. Stack brought up — and `make up` closed the NVML follow-up as a side effect.**
+`make up` (`docker compose up -d --build`) rebuilt all three local images and, because the `llm`
+image layers changed, **recreated the `llm` container**. That is the same mutation the PoA
+prescribed as a separate deliberate step (`--force-recreate llm`); it simply happened one step
+earlier. Recorded as it actually occurred rather than re-running a redundant recreate.
+- Nemotron reload took **~6 minutes** to reach healthy (14:16:32 → ~14:22:33 by the vLLM engine log),
+  not the ~2 min the PoA estimated. Worth knowing before a live demo.
+- **Verified: in-container `nvidia-smi` now works in BOTH `api` and `llm`** — `NVIDIA GB10`, driver
+  `580.159.03`, CUDA 13.0, 53 °C. This is the first time `llm`'s own NVML has been healthy since
+  Iteration 3 Phase 0 (2026-07-15), where only `api` was recreated to avoid the reload risk.
+  **The stale-NVML follow-up carried through Iterations 3.0–3.6 is closed.**
+- `GET /health` → `gpu_visible:true, gpu_name:"NVIDIA GB10", driver_version:"580.159.03"`.
+- The LLM serves: `/v1/models` returns `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8`.
+- No wedge, no instability, nothing to revert.
+
+**2. `make test` → 69 passed + 2 xpassed (71 total) in 30.24 s.** Exactly the expected count.
+- **Honest note on the "2 xpassed":** these are `test_gpu_visible` and `test_driver_version` in
+  `tests/test_service_health.py`, marked `@pytest.mark.xfail(reason="NVML handle stale after
+  container recreation; CUDA actually works")`. They did **not** "flip to passing" — non-strict
+  `xfail` reports XPASS when the assertion succeeds, and they were already xpassing before this
+  phase. What changed is the underlying condition, not the reported outcome.
+- **Deliberate call: the `xfail` markers stay.** The failure mode they document is real and
+  recurring — a host driver/daemon reload detaches a long-running container's NVML handle, which
+  has now bitten this project twice. Removing the markers would turn the suite red the next time
+  it happens rather than surfacing it as a known, documented condition. Revisit if it stops recurring.
+
+**3. Four-scenario reference captured — `make bench-all`** (seed 12345, horizon 8, ppo-timesteps 128,
+top-k 5; `generated_at_utc` 2026-07-30T14:26:02Z). **This is the pre-Iteration-4 reference that
+Phase 6 must reproduce bit-identically.**
+
+| Scenario | Winner | Baseline obj | Classical obj | PPO obj | Device peak (GiB) | Headroom (GiB) | LLM tok/s |
+|---|---|---:|---:|---:|---:|---:|---:|
+| baseline | **classical** | 88,022.760795 | **81,789.359460** | 102,804.716650 | 74.700 | 46.300 | 47.59 |
+| component-shortage-shock | **classical** | 102,834.785064 | **95,445.445064** | 113,584.863463 | 74.721 | 46.279 | 48.05 |
+| demand-surge | **classical** | 100,734.738785 | **94,165.363245** | 115,161.538279 | 74.747 | 46.253 | 47.97 |
+| stress-large | **classical** | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 | 75.975 | 45.025 | 48.38 |
+
+- **All four classical objectives reproduce the Iteration 3 values exactly** (81,789 / 95,445 /
+  94,165 / 2,521,615). Seeded determinism is intact across a full container rebuild and a new
+  vLLM runtime — a stronger reproducibility result than a same-image re-run.
+- **Tuned classical wins all four; PPO lost all four** (`lost_to_classical` on every scenario).
+  Guardrails intact — PPO stays visible in the benchmark, honestly labeled.
+- **RAG healthy on all four:** `advisory_text_source = llm_finalized`, 5 citations each,
+  `numeric_metrics_source = src.pipeline.bench.run_head_to_head` (advisory boundary intact).
+- Envelope flag (`>= 90%` of 121 GiB) **clear on all four**; max observed fraction 0.628.
+
+**4. Real finding — device memory rose ~7 GiB, and the cause is an unpinned base image.**
+Device peak is now **74.7–76.0 GiB** vs Iteration 3's **65–68 GiB**. Chased rather than assumed:
+- `docker/llm/Dockerfile` line 11 is **`FROM vllm/vllm-openai:latest` — unpinned.** `make up`
+  re-pulled it (a 273 s layer extraction in the build log), so the `llm` container now runs
+  **vLLM 0.26.0**, a different runtime than Iteration 3 ran. The prior base image is gone from the
+  local cache, so a side-by-side measurement of the old version is no longer possible.
+- vLLM's own startup accounting for this run: **31.48 GiB weights + 20.52 GiB KV cache + 2.52 GiB
+  CUDA-graph pool + 0.68 GiB peak activation + 0.90 GiB non-torch = ~56.1 GiB**, against the
+  54.73 GiB that `--gpu-memory-utilization 0.45` was meant to buy. The overshoot is the CUDA-graph
+  pool landing at **2.52 GiB actual vs 1.14 GiB estimated (+54.6%)**; vLLM logs this explicitly.
+  It also reports 108.36/121.63 GiB free at its own startup, i.e. ~13.3 GiB was already in use.
+  13.3 + 56.1 ≈ 69.4 GiB before the suite runs, plus ~1.5–1.9 GiB of `api` RSS → the observed peak.
+- **Honesty limit:** this accounting fully explains the *current* 74.7–76.0 GiB, but I did **not**
+  measure the old vLLM version side by side, so "the newer vLLM is the cause of the delta" is a
+  well-supported inference, not a measured A/B.
+- **Not a guardrail breach:** 45.0–46.3 GiB headroom, envelope flag clear on all four scenarios.
+- **Not fixed in this phase, deliberately.** Pinning the base image changes the LLM runtime again
+  and needs its own reload + re-verification; doing it silently inside a "no feature code" phase
+  would be scope drift. Logged as a follow-up with a recommendation.
+
+**5. Roadmap renumbered (docs-only), per PoA §0.** Everything that called the production track
+"Iteration 4" now says **Iteration 6**, and Iterations 4/5 are named with one-line scopes:
+- `README.md` — §9 pointer corrected; §13 gained the full six-row roadmap table.
+- `docs/Iteration3_Plan_of_Action.md` — Phase 7 heading + dated renumber note; §4 table gained
+  Iterations 4 and 5; the "one more iteration" bottom line corrected (it is three).
+- `docs/iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md` — TL;DR line and §9 heading + note.
+- `docs/DEMO_GUIDE.md` **and** `docs/handoff.md` — **not listed in the PoA but both still said
+  "Iteration 4 = production"**; the DoD says *no* doc may, so both were corrected. The demo guide's
+  "What's next?" talk track now previews Iterations 4 and 5 before the production track.
+- **Past journal entries were deliberately NOT rewritten** — they are a historical record of what
+  was believed at the time. Only this snapshot block at the top was updated.
+
+**Brutal-truth review of Phase 0.**
+- No feature code changed, so there is nothing to mask; the only mutations were container recreates
+  (prescribed) and doc edits. Every result above came from a real on-device command — in-container
+  `nvidia-smi` in both containers, `/health`, `/v1/models`, `make test`, a timestamped
+  `make bench-all`, `/proc/meminfo`, `docker stats`, and the vLLM engine log — not from a build report.
+- **I went looking for something wrong and found two things**, both recorded above rather than
+  smoothed over: the memory envelope moved ~7 GiB (root-caused to an unpinned base image), and the
+  "2 xpassed" tests never actually flipped state despite the PoA anticipating they might.
+- Also verified the demo path still works end to end after the rebuild: `http://localhost:8081/`
+  → 200 (nginx 1.27.5), `/api/scenarios` returns all four through the key-injecting proxy,
+  `/demo-replay.json` → 200, and the API rejects an unauthenticated direct call with **401**.
+- Guardrails: PPO reported losing all four; naive-baseline-as-target framing preserved; no `~94%`
+  framing; bandwidth-not-capacity framing untouched; no hospital claim; data stayed on-device;
+  advisory/metric boundary intact (`llm_finalized` text, optimizer-sourced numbers); no fabricated
+  figures — every number here is copied from `benchmark/suite-summary.json` or a live command.
+- One thing I did **not** do: verify the dataset view over Tailscale from the laptop. There is no
+  dataset view yet — that starts in Phase 1. The remote-access path itself is still unverified
+  end-to-end (open since 2026-07-29).
+
+**DoD assessment: met.** Stack healthy (all four services, GPU visible in both GPU containers);
+71 tests accounted for and the xpassed pair explained precisely; four-scenario reference captured
+above; `llm` NVML state recorded honestly (fixed, with the reload cost noted); no doc anywhere still
+calls production "Iteration 4"; the PoA is committed at `docs/Iteration4_Plan_of_Action.md` (landed
+in `4245b77`).
+
+**Open follow-ups.**
+- **Pin the vLLM base image** (`vllm/vllm-openai:latest` → a digest or version tag) so `make up`
+  cannot silently change the LLM runtime and the memory envelope. Recommended before the next demo;
+  needs its own reload + re-verification, so it wants a maintenance window, not a mid-phase edit.
+- Phase 6 must compare against the **2026-07-30 reference in this entry**, not Iteration 3's
+  65–68 GiB memory figures.
+- Verify the Tailscale access path end-to-end from a laptop (carried from 2026-07-29).
+- `web/public/demo-replay.json` still carries pre-MDP PPO numbers — scheduled for recapture in
+  Iteration 4 Phase 5.
+
+---
 
 ## 2026-07-29 — Docs: remote-access section added to the demo guide (doc-only)
 **Status:** Complete. **git ref: uncommitted at time of writing (committed with this change).** Branch `main`.

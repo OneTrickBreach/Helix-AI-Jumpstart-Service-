@@ -1,0 +1,172 @@
+/**
+ * Inline glossary for the dataset view.
+ *
+ * Iteration 4, Phase 2. Every term that would otherwise stop a non-specialist
+ * reader gets one short sentence, and — the rule that matters — no definition is
+ * allowed to contain jargon of its own. "Lead time: the delay between ordering and
+ * receiving" works; "Lead time: the replenishment latency of a lane" does not.
+ *
+ * Stored centrally so Iteration 5's conversational layer can reuse it rather than
+ * inventing a second, drifting set of definitions.
+ */
+
+export type GlossaryEntry = {
+  /** The term as it appears on screen. */
+  term: string;
+  /** One sentence, no jargon inside. */
+  definition: string;
+  /** Optional concrete example, phrased in the dataset's own vocabulary. */
+  example?: string;
+};
+
+export const GLOSSARY: Record<string, GlossaryEntry> = {
+  lane: {
+    term: "Lane",
+    definition: "A shipping route between two specific places that goods can travel along.",
+    example: "Supplier SUP-001 to factory PLANT-001 is one lane.",
+  },
+  echelon: {
+    term: "Echelon",
+    definition: "One level of the supply chain, such as all the factories or all the warehouses.",
+    example: "This network has four: suppliers, factories, distribution centers, and customers.",
+  },
+  bom: {
+    term: "Bill of materials (BOM)",
+    definition: "The recipe for a product: which parts go into it, and how many of each.",
+    example: "One finished product might need 3 of one subassembly and 1 of another.",
+  },
+  lead_time: {
+    term: "Lead time",
+    definition: "How long you wait between placing an order and actually receiving it.",
+    example: "A 9-day lead time means today's order arrives in 9 days.",
+  },
+  fill_rate: {
+    term: "Fill rate",
+    definition: "The share of what customers asked for that you were able to give them on time.",
+    example: "96% fill rate means 96 of every 100 units ordered shipped when promised.",
+  },
+  days_of_inventory: {
+    term: "Days of inventory",
+    definition: "How many days you could keep selling before running out, at the current rate.",
+    example: "18 days of inventory means stock runs out in 18 days if nothing is replenished.",
+  },
+  s_S_policy: {
+    term: "(s, S) policy",
+    definition:
+      "A restocking rule: when stock drops to the lower number, order enough to bring it back up to the higher one.",
+    example: "With s=20 and S=100, hitting 20 units triggers an order of 80.",
+  },
+  safety_stock: {
+    term: "Safety stock",
+    definition: "Extra stock held on purpose, as a cushion against demand or delivery surprises.",
+  },
+  backorder: {
+    term: "Backorder",
+    definition: "An order you could not fill right away but the customer is still waiting for.",
+  },
+  lost_sale: {
+    term: "Lost sale",
+    definition: "An order you could not fill, and the customer gave up and went elsewhere.",
+    example: "The difference from a backorder is whether you keep the sale.",
+  },
+  holding_cost: {
+    term: "Holding cost",
+    definition: "What it costs to keep one unit sitting in storage for one period.",
+  },
+  ordering_cost: {
+    term: "Ordering cost",
+    definition: "The fixed cost of placing one order, no matter how large that order is.",
+  },
+  intermittent_demand: {
+    term: "Intermittent demand",
+    definition: "Demand that stops and starts, with many periods of no orders at all.",
+    example: "Spare parts often behave this way; steady weekly orders do not.",
+  },
+  auto_ets: {
+    term: "AutoETS",
+    definition:
+      "A forecasting method for demand that arrives steadily, which picks up trends and seasonal patterns.",
+  },
+  croston_sba: {
+    term: "Croston-SBA",
+    definition:
+      "A forecasting method built for demand that arrives in occasional bursts with gaps in between.",
+  },
+  seed: {
+    term: "Random seed",
+    definition:
+      "The starting number used to generate this data; the same seed always rebuilds exactly the same dataset.",
+  },
+  period: {
+    term: "Period",
+    definition: "One step of time in the plan.",
+    example: "In this dataset a period is one week.",
+  },
+  capacity: {
+    term: "Capacity",
+    definition: "The most that can be made, stored, or shipped in a single period.",
+  },
+  service_target: {
+    term: "Service target",
+    definition: "The service level promised to a customer, such as filling 96% of orders on time.",
+  },
+  objective: {
+    term: "Objective",
+    definition:
+      "The single score the optimizer tries to make as small as possible, combining every cost and penalty.",
+  },
+  criticality_tier: {
+    term: "Criticality tier",
+    definition: "How important it is that a given customer and product never runs short.",
+    example: "This dataset labels the shock scenario's customers shock-critical.",
+  },
+  on_hand: {
+    term: "On hand",
+    definition: "Stock physically sitting at a location right now, available to use.",
+  },
+  in_transit: {
+    term: "In transit",
+    definition: "Stock that has already been shipped but has not arrived yet.",
+  },
+  subassembly: {
+    term: "Subassembly",
+    definition: "A part that is itself built from smaller parts before going into the final product.",
+  },
+  days_of_cover: {
+    term: "Days of cover",
+    definition: "How many days the stock on hand would last at the current rate of demand.",
+  },
+};
+
+/** Terms in a stable, readable order — definitions first for the words a reader hits first. */
+export const GLOSSARY_ORDER: (keyof typeof GLOSSARY)[] = [
+  "lane",
+  "echelon",
+  "bom",
+  "subassembly",
+  "lead_time",
+  "period",
+  "capacity",
+  "fill_rate",
+  "service_target",
+  "criticality_tier",
+  "on_hand",
+  "in_transit",
+  "days_of_inventory",
+  "days_of_cover",
+  "safety_stock",
+  "s_S_policy",
+  "backorder",
+  "lost_sale",
+  "holding_cost",
+  "ordering_cost",
+  "intermittent_demand",
+  "auto_ets",
+  "croston_sba",
+  "objective",
+  "seed",
+];
+
+export function lookupTerm(key: string): GlossaryEntry | undefined {
+  return GLOSSARY[key];
+}

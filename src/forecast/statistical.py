@@ -21,7 +21,13 @@ from src.ingest.state import ScenarioState
 LUMPY_ZERO_FRACTION_THRESHOLD = 0.35
 
 
-def _zero_fraction(values: list[float]) -> float:
+def zero_fraction(values: list[float]) -> float:
+    """Fraction of periods with no demand. Decides CrostonSBA vs AutoETS per series.
+
+    Public because the dataset overview (`src/dataset/overview.py`) reports the same
+    split; sharing this keeps what the view says about forecasting in step with what
+    the forecaster actually does.
+    """
     if not values:
         return 1.0
     nonzero = sum(1 for value in values if value > 0)
@@ -41,7 +47,7 @@ def forecast_finished_goods(state: ScenarioState, horizon: int = 8) -> dict:
         for (customer_id, sku_id), frame in fg.group_by(["node_id", "sku_id"], maintain_order=True)
     }
     lumpy_series = {
-        key for key, values in history_by_series.items() if _zero_fraction(values) >= LUMPY_ZERO_FRACTION_THRESHOLD
+        key for key, values in history_by_series.items() if zero_fraction(values) >= LUMPY_ZERO_FRACTION_THRESHOLD
     }
 
     long_df = fg.select(

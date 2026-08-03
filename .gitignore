@@ -21,3 +21,9 @@ web/dist/
 web/*.tsbuildinfo
 # os
 .DS_Store
+
+# headless browser verification output (regenerate with `make web-check`)
+web/e2e/shots/
+web/e2e/node_modules/
+web/e2e/package*.json
+.phase3-shots/

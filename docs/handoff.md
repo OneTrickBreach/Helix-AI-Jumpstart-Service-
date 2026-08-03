@@ -72,7 +72,8 @@ for transparency.
 
 This is a **development PoC** (confirmed at kickoff). Production licensing, multi-tenant isolation,
 HA, deployment automation, fine-tuning, and larger-than-prototype scaling are intentionally out of
-scope (see Phase 7 / Iteration 4).
+scope (see Phase 7 / Iteration 6 — the production track, renumbered 2026-07-30 when Iterations 4
+(dataset transparency) and 5 (conversational what-if) were inserted ahead of it).
 
 All data stays on the device. The LLM rationale is advisory only — it explains the plan; it never
 computes or overrides a metric. Prompt injection in ingested text is flagged (including at retrieval
