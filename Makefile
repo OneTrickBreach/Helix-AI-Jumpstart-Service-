@@ -105,6 +105,36 @@ rag: check-api-running data
 	docker compose exec api python3 -m src.rag.advisory --scenario $(SCENARIO)
 
 # ---------------------------------------------------------------------------
+# Iteration 5 (BETA) — conversational analyst
+# ---------------------------------------------------------------------------
+
+CHAT_QUESTION ?= How many distribution centers are there?
+
+## Ask one grounded question (usage: make chat-ask SCENARIO=baseline CHAT_QUESTION="...")
+chat-ask: check-api-running
+	@docker compose exec api python3 -m src.chat.ask --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
+
+## Run the committed evaluation set against the real on-device LLM
+chat-eval: check-api-running
+	docker compose exec api python3 -m src.chat.eval
+
+## Run the same evaluation set on the deterministic path (no model, fast)
+chat-eval-template: check-api-running
+	docker compose exec api python3 -m src.chat.eval --no-llm
+
+# ---------------------------------------------------------------------------
+# Web unit tests — from the committed lockfile, with the repo root mounted so
+# the glossary parity test can read src/chat/glossary.json. The host
+# web/node_modules is stale and would use the wrong vitest.
+# ---------------------------------------------------------------------------
+WEB_TEST_IMAGE ?= node:22-bookworm-slim
+
+## Run the web Vitest suite in a scratch container from the committed lockfile
+web-test:
+	docker run --rm -v "$$(pwd)":/repo -w /repo/web $(WEB_TEST_IMAGE) \
+		sh -c "npm ci --silent && npx vitest run"
+
+# ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 

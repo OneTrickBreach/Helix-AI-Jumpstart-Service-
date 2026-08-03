@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
-from src.bench.profiler import BENCHMARK_DIR
+from src.bench.profiler import benchmark_dir
 from src.pipeline.bench import run_head_to_head
 from src.rag.advisory import generate_advisory_rationale
 
@@ -311,9 +311,10 @@ def run_suite(
         scenario_summaries.append(summarize_scenario(benchmark, rationale, device_memory))
 
     summary = build_suite_summary(scenario_summaries)
-    BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
-    json_path = BENCHMARK_DIR / "suite-summary.json"
-    markdown_path = BENCHMARK_DIR / "suite-summary.md"
+    directory = benchmark_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    json_path = directory / "suite-summary.json"
+    markdown_path = directory / "suite-summary.md"
     summary["artifacts"] = {
         "json": str(json_path),
         "markdown": str(markdown_path),

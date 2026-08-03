@@ -27,7 +27,7 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCENARIO_DIR = REPO_ROOT / "data" / "scenarios"
-BENCHMARK_DIR = REPO_ROOT / "benchmark"
+from src.bench.profiler import benchmark_dir
 
 USABLE_ENVELOPE_GIB = 121.0
 SA_PER_FG = 3
@@ -416,9 +416,10 @@ def run_study(
     }
 
     try:
-        BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
-        json_path = BENCHMARK_DIR / "scale-study.json"
-        md_path = BENCHMARK_DIR / "scale-study.md"
+        directory = benchmark_dir()
+        directory.mkdir(parents=True, exist_ok=True)
+        json_path = directory / "scale-study.json"
+        md_path = directory / "scale-study.md"
         json_path.write_text(json.dumps(study, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         md_path.write_text(render_markdown(study), encoding="utf-8")
         study["artifacts"] = {"json": str(json_path), "markdown": str(md_path)}

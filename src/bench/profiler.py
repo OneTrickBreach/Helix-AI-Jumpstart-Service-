@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import threading
 import time
@@ -14,6 +15,19 @@ import psutil
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
+# Env override, resolved per call rather than at import. It exists because the
+# test suite runs real benchmarks with toy parameters (horizon 4, 16 PPO steps)
+# and `run_head_to_head` writes an artifact named only after the scenario — so
+# `make test` silently overwrote the DEMO's recorded run with test numbers. Since
+# Iteration 5 reads those artifacts as its source of result truth, the chat layer
+# would then quote horizon-4 test figures as the recorded result. Tests point this
+# at a temp directory (see tests/conftest.py); nothing else sets it.
+BENCHMARK_DIR_ENV = "HELIX_BENCHMARK_DIR"
+
+
+def benchmark_dir() -> Path:
+    override = os.environ.get(BENCHMARK_DIR_ENV)
+    return Path(override) if override else BENCHMARK_DIR
 
 
 def _gpu_snapshot() -> dict:
@@ -127,7 +141,8 @@ def profile_run(name: str, scenario: str, sample_interval_seconds: float = 0.05)
 
 
 def write_json(payload: dict, filename: str) -> Path:
-    BENCHMARK_DIR.mkdir(parents=True, exist_ok=True)
-    path = BENCHMARK_DIR / filename
+    directory = benchmark_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / filename
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return path

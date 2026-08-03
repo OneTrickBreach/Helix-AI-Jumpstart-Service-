@@ -35,6 +35,28 @@ def _api_key() -> str | None:
     return None
 
 
+@pytest.fixture(scope="session", autouse=True)
+def isolate_benchmark_artifacts(tmp_path_factory):
+    """Keep the suite from overwriting the demo's recorded benchmark runs.
+
+    Several tests call the real `run_head_to_head` with toy parameters (horizon 4,
+    16 PPO timesteps). `write_json` names its artifact after the scenario alone, so
+    those runs used to overwrite `benchmark/<scenario>-head-to-head-comparison.json`
+    — the very file the demo, and now the Iteration 5 chat layer, read as the
+    recorded result. `make test` therefore left the box quoting horizon-4 test
+    figures as the real result. Redirecting writes for the whole session fixes it
+    for every current and future test instead of one call site at a time.
+    """
+    directory = tmp_path_factory.mktemp("benchmark-artifacts")
+    previous = os.environ.get("HELIX_BENCHMARK_DIR")
+    os.environ["HELIX_BENCHMARK_DIR"] = str(directory)
+    yield directory
+    if previous is None:
+        os.environ.pop("HELIX_BENCHMARK_DIR", None)
+    else:
+        os.environ["HELIX_BENCHMARK_DIR"] = previous
+
+
 @pytest.fixture(scope="session")
 def api_client():
     """HTTP client pointing at the api service."""

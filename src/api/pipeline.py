@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response, StreamingResponse
 
 from src.api.security import require_api_key
+from src.chat.answer import answer_question
 from src.dataset.overview import (
     DatasetNotGeneratedError,
     UnknownScenarioError,
@@ -63,6 +64,14 @@ class RAGRationaleRequest(BenchmarkRequest):
 
 class ScenarioComparisonRequest(RAGRationaleRequest):
     pass
+
+
+class ChatAskRequest(BaseModel):
+    scenario: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
+    # Long enough for a real planner question, short enough that the chat surface
+    # cannot be used to smuggle a large payload into the prompt path.
+    question: str = Field(min_length=1, max_length=600)
+    use_llm: bool = True
 
 
 class GenericResponse(BaseModel):
@@ -183,6 +192,28 @@ def dataset_table(
             "Content-Disposition": f'attachment; filename="{scenario}-{filename}"',
         },
     )
+
+
+@router.post("/chat/ask", response_model=GenericResponse)
+def chat_ask(req: ChatAskRequest):
+    """Iteration 5 (BETA) — grounded read-only Q&A over one scenario.
+
+    Runs no optimizer and mutates nothing: it answers from the generated data and
+    the recorded benchmark artifacts. ``use_llm=false`` returns the deterministic
+    template answer for the same facts, which is what the replay/GPU-free path
+    and the test suite use.
+    """
+    try:
+        result = answer_question(
+            req.question,
+            req.scenario,
+            llm=None if req.use_llm else False,
+        )
+        return GenericResponse(scenario=req.scenario, status="ok", data=result.as_dict())
+    except UnknownScenarioError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except DatasetNotGeneratedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
 
 @router.post("/ingest/scenario", response_model=GenericResponse)
