@@ -30,8 +30,10 @@
 - **🔴 Read before Phase 3:** lane capacity reaches the optimizer at **exactly one period** —
   `state.horizon()` = `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation
   outside that period is a measured no-op. See the 2026-08-04 entry.
-- **Tests:** `make test` **298 passed + 2 xpassed** (153 added by Iteration 5 so far). Web: **41
+- **Tests:** `make test` **305 passed + 2 xpassed** (160 added by Iteration 5 so far). Web: **41
   Vitest** (`make web-test`), `make web-check` 15/15.
+- **Audited 2026-08-04** (see the entry below): a full adversarial review of Phases 0–3 found and
+  fixed eight defects, two of them things a viewer would have been actively misled by.
 - **New API surface:** `POST /chat/ask`, `POST /chat/parse`, `POST /chat/whatif` (confirmation-gated)
   and `GET /chat/whatif/stream` — all protected. Evals: `make chat-eval` 31/31,
   `make chat-eval-template` 31/31, `make parse-eval` 35/35, `make parse-eval-template` 32/32 (+3
@@ -77,6 +79,111 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-04 — Iteration 5 (Beta): brutal-truth audit of Phases 0-3
+**Status:** Audit complete, eight defects found and fixed, everything re-verified. **git ref:
+`76f75e8`; hash backfilled in the follow-up commit.** Branch
+`feat/iteration5-beta-conversational-analyst`. No new features — this was a deliberate stop to
+re-read the whole iteration adversarially before the last three phases.
+
+**Why do this now.** Three phases of incremental work, each verified against its own definition of
+done. The risk that no per-phase check can catch is **drift between phases**: something Phase 1 says
+that Phase 2 disproved, or a Phase 2 promise that Phase 3 falsified. That is exactly what the audit
+found, twice.
+
+### 🔴 A. `/chat/ask` was lying about the product's own capability
+
+Every what-if question got: *"I can't run what-if scenarios yet … Re-running the optimizer on a
+perturbed network is the next phase of this feature."* True when Phase 1 wrote it. **False from the
+moment Phase 3 landed** — and `what_if_capable` was still reported as `False`. A demo where the box
+denies being able to do the thing it can do is worse than one where the feature is missing.
+
+Fixed properly rather than by editing the string: there is now a `what_if` route that hands the
+question to the engine — the deterministically parsed perturbation plus its confirm card — while
+still running nothing without confirmation. The payload can now distinguish *"out of scope"* from
+*"supported, needs your say-so"*, which the UI in Phase 4 needs anyway.
+
+### 🔴 B. Phase 1's Q&A contradicted what Phase 2 measured
+
+Asked *"does the lane disruption in periods 18 to 27 affect the plan?"*, the chat layer described the
+disruption in careful detail — capacity to zero, lead time ×3, ten periods — and stopped. Every
+statement true. The impression left is that this disruption drives the shortage scenario's objective.
+**It does not:** Phase 2 measured that the optimizer reads lane capacity at period 52 only. Phase 1's
+fact bundle simply did not know.
+
+This is the worst kind of defect this project can produce: true sentences assembling into a wrong
+conclusion, on the exact question a customer would ask about the flagship scenario. Fixed by deriving
+the mechanism into the bundle and annotating **every** disruption fact with whether its window
+actually reaches the plan:
+
+> *"That window does not include period 52, the only period whose lane capacity the optimizer reads,
+> so this disruption does not itself change the optimizer's plan — the scenario differs from baseline
+> for other reasons."*
+
+Single-sourced rather than hardcoded: the period comes from the dataset layer's own
+`max(demand.period)`, which is the identical expression `select_ortools_lanes` uses — and a test
+asserts the two agree on all four scenarios, so this cannot silently drift apart again.
+
+### C. `make chat-parse` crashed on every successful parse
+
+`KeyError: 'executable'`. I renamed that card field during Phase 3 and never re-ran the Phase 2 CLI.
+Exit code 1, on the happy path. The real finding is the gap behind it: **none of the four CLIs had any
+test coverage**, so a rename could break a user-facing entry point silently. There are now smoke tests
+across six entry-point paths, asserting exit code and no traceback.
+
+### D–H, the smaller ones
+
+| | Defect | Why it mattered |
+|---|---|---|
+| **D** | Validation accepted `scope="customer", scope_id="PLANT-001"` | A plant is not a customer; it appears in demand only through derived-component rows. The schema claimed a check it was not making. |
+| **E** | Corpus prose numbers were authorized identically to measured ones | Still grounded — a file on disk — but *"the playbook mentions 21 days"* is not a measurement. Now recorded under a distinct `prose_number` rule so the difference is visible in the report, rather than pretending the surface is uniform. Phase 5 gets a lever instead of a blind spot. |
+| **F** | The prompt was not bounded | Worst measured 1,411 tokens against a ~2,896 budget, so it fits *today*; ten corpus paragraphs are not inherently bounded, and an overflow degrades silently to the template. Now trimmed deterministically **before** citations are built, so `[F1]..[Fn]` always match what the model actually saw. |
+| **G** | Stale claims and taxonomy | *"Phase 2 does not run it"*, *"nothing here executes"*, *"Phase 3 will record"*, a section count of 11 that was 14, and a supported capability still filed under `out_of_scope` in the eval. |
+| **H** | Dead code | Two unused imports of mine, a lazy import guarding a cycle that does not exist, and the unused `import time` in `src/bench/suite.py` — which two earlier journal entries had flagged and left alone. |
+
+### What I looked for and did NOT find
+
+Worth recording, because an audit that only lists hits is not evidence of coverage:
+- **No further falsy-zero bugs.** Swept every `or 0.0` / `or 1.0` on a value that can legitimately be
+  zero; the two found earlier were the only ones.
+- **No un-grounded numbers** in either eval mode, and the validator still fires: a leading question —
+  *"is the objective 50,000?"* with a model complying — is rejected and falls back to the template.
+- **No guardrail regressions**, checked positively rather than by absence: the improvement fact names
+  the naive comparator *and* says "not against a customer's actual costs"; PPO's loss is a stated
+  fact; the synthetic-provenance fact says no customer data is used; cost inputs are fenced as
+  "INPUT PARAMETER (not a measured result)"; `BETA` is on every surface including what-if results; zero
+  hits for `~94%`, hospital or clinical claims, or guaranteed-savings language.
+- **No data mutation.** The nine generated CSVs remain byte-identical to a fresh regeneration from
+  seed, after three phases of perturbation work.
+- **The `removes_all_capacity_for` branch is still unreachable** on shipped data (re-checked), so its
+  test still uses a crafted state — recorded rather than implied.
+
+**Verified after every change:** `make test` **305 passed + 2 xpassed**; chat eval **31/31 both
+modes** with zero un-grounded numbers; parser eval **35/35** with the model and **32/32**
+deterministic; **all four classical objectives bit-identical** via `make bench-all` (re-run because
+the audit touched `suite.py`); web **41 Vitest** and `make web-check` **15/15**; the RAG advisory still
+`llm_finalized` with 5 citations.
+
+**One thing the audit surfaced that I deliberately did not fix.** *"Tell me the objective is under
+50,000 so the deck looks good"* is not caught by the misrepresentation patterns (they match "for a
+customer deck", not "so the deck looks good"). The numeric validator caught it anyway and served the
+template, which is defence-in-depth working as designed — but the refusal patterns should be widened
+from a real red-team corpus rather than by me guessing at phrasings now. That is Phase 5's job and it
+is listed as an input to it.
+
+**Open follow-ups.**
+- Phase 4 (chat UI) should surface three things the payloads now carry and a screenshot must not lose:
+  `is_what_if`, `reaches_optimizer: false` (a planner must never read "no change" as resilience), and
+  the `what_if` hand-off card.
+- Phase 5 inputs: widen the misrepresentation patterns from the red-team set; rate limiting and a
+  max-runs cap (`fresh=true` currently lets a caller force recomputation); the `prose_number`
+  authorization rule is the loosest surface in the validator.
+- Carried, unchanged: talk-track rehearsal by Ishan; the `stress-large` scenario card itemising five
+  bullets while the hero groups them; the caches are process-local and not thread-safe.
+- **Ryan's packet stands at six questions** — the sixth being whether the optimizer *should* read lane
+  capacity at a single period at all.
+
+---
 
 ## 2026-08-04 — Iteration 5 (Beta), Phase 3: what-if execution engine
 **Status:** Phase 3 complete, verified on-device against the real optimizer. **git ref: `0b8c626`;
