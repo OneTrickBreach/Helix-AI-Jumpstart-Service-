@@ -122,6 +122,18 @@ chat-eval: check-api-running
 chat-eval-template: check-api-running
 	docker compose exec api python3 -m src.chat.eval --no-llm
 
+## Read one what-if sentence into a validated perturbation (does NOT run it)
+chat-parse: check-api-running
+	@docker compose exec api python3 -m src.chat.parse --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
+
+## Run the committed parser evaluation set (deterministic rules + LLM fallback)
+parse-eval: check-api-running
+	docker compose exec api python3 -m src.chat.parse_eval
+
+## Run the parser evaluation set with the deterministic rules only
+parse-eval-template: check-api-running
+	docker compose exec api python3 -m src.chat.parse_eval --no-llm
+
 # ---------------------------------------------------------------------------
 # Web unit tests — from the committed lockfile, with the repo root mounted so
 # the glossary parity test can read src/chat/glossary.json. The host

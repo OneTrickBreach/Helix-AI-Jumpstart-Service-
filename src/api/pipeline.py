@@ -15,7 +15,9 @@ from pydantic import BaseModel, Field
 from starlette.responses import Response, StreamingResponse
 
 from src.api.security import require_api_key
+from src.bench.profiler import benchmark_dir
 from src.chat.answer import answer_question
+from src.chat.intent import parse_intent
 from src.dataset.overview import (
     DatasetNotGeneratedError,
     UnknownScenarioError,
@@ -64,6 +66,12 @@ class RAGRationaleRequest(BenchmarkRequest):
 
 class ScenarioComparisonRequest(RAGRationaleRequest):
     pass
+
+
+class ChatParseRequest(BaseModel):
+    scenario: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
+    question: str = Field(min_length=1, max_length=600)
+    use_llm: bool = True
 
 
 class ChatAskRequest(BaseModel):
@@ -117,6 +125,26 @@ def _scenario_configs() -> list[dict[str, Any]]:
             }
         )
     return scenarios
+
+
+def _recorded_latencies(scenario: str) -> dict[str, float]:
+    """Per-approach latencies from the recorded run, for the confirm card's estimate.
+
+    Returns an empty mapping when no run is on record; the estimator then falls
+    back to conservative defaults rather than inventing a figure.
+    """
+    path = benchmark_dir() / f"{scenario}-head-to-head-comparison.json"
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return {
+        str(row["approach"]): float(row["latency_seconds"])
+        for row in payload.get("comparison", [])
+        if "approach" in row and "latency_seconds" in row
+    }
 
 
 def _run_scenario_comparison(
@@ -214,6 +242,28 @@ def chat_ask(req: ChatAskRequest):
         raise HTTPException(status_code=404, detail=str(exc))
     except DatasetNotGeneratedError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post("/chat/parse", response_model=GenericResponse)
+def chat_parse(req: ChatParseRequest):
+    """Iteration 5 (BETA) — read a what-if sentence into a validated perturbation.
+
+    **This endpoint does not execute anything.** It returns a parse plus a
+    confirm-before-run card, a clarifying question, or a refusal. Running a
+    perturbation through the real pipeline is Phase 3; there is deliberately no
+    execution path at this checkpoint, which is why every payload carries
+    ``executable: false``.
+    """
+    try:
+        result = parse_intent(
+            req.question,
+            req.scenario,
+            llm=None if req.use_llm else False,
+            recorded_latencies=_recorded_latencies(req.scenario),
+        )
+        return GenericResponse(scenario=req.scenario, status="ok", data=result.as_dict())
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=409, detail=f"Scenario data has not been generated yet: {exc}")
 
 
 @router.post("/ingest/scenario", response_model=GenericResponse)
