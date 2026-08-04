@@ -126,6 +126,14 @@ chat-eval-template: check-api-running
 chat-parse: check-api-running
 	@docker compose exec api python3 -m src.chat.parse --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
 
+## Show the confirm card for a what-if (usage: make whatif CHAT_QUESTION="...")
+whatif: check-api-running
+	@docker compose exec api python3 -m src.chat.run_whatif --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
+
+## Actually run a what-if through the real pipeline and print before/after
+whatif-run: check-api-running
+	@docker compose exec api python3 -m src.chat.run_whatif --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)" --confirm
+
 ## Run the committed parser evaluation set (deterministic rules + LLM fallback)
 parse-eval: check-api-running
 	docker compose exec api python3 -m src.chat.parse_eval

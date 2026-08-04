@@ -212,10 +212,12 @@ def test_confirmation_card_states_its_reading_and_refuses_to_be_executable(state
     assert "DC-001 unable to ship or receive" in card["reading"]
     assert "nothing else changed" in card["reading"]
     assert card["requires_confirmation"] is True
-    assert card["executable"] is False
     assert card["ppo_included"] is False
     assert card["estimated_seconds"] > 0
-    assert "25 ms per series" in card["estimate_basis"]
+    # A capacity perturbation leaves demand alone, so the estimate excludes
+    # forecasting and the basis says so rather than claiming a cost it did not count.
+    assert "no forecasting" in card["estimate_basis"]
+    assert "confirmed=true" in card["how_to_run"]
     assert card["fingerprint"] == perturbation.fingerprint()
 
 
@@ -459,8 +461,9 @@ def test_nothing_in_this_phase_can_execute(state):
         payload = result.as_dict()
         assert payload["executable"] is False
         if payload["confirmation"]:
-            assert payload["confirmation"]["executable"] is False
-            assert "Phase 3" in payload["confirmation"]["not_executable_reason"]
+            # The card describes a runnable perturbation; producing it ran nothing.
+            assert payload["confirmation"]["requires_confirmation"] is True
+            assert payload["confirmation"]["runnable"] is True
 
 
 def test_parsing_does_not_touch_the_generated_data(state, tmp_path):
@@ -519,7 +522,7 @@ def test_parse_eval_checker_fails_a_wrong_parse():
         message = "something else entirely"
         perturbation = {"kind": "demand_multiplier"}
         impact = {"reaches_optimizer": True, "lanes_affected_count": 0}
-        confirmation = {"reading": "x", "requires_confirmation": True, "executable": False, "warnings": []}
+        confirmation = {"reading": "x", "requires_confirmation": True, "runnable": True, "warnings": []}
         executable = False
         beta = True
         label = "BETA"

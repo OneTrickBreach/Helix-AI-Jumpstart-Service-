@@ -473,11 +473,12 @@ def build_confirmation_card(
         "estimate_basis": _estimate_basis(perturbation),
         "warnings": warnings,
         "requires_confirmation": True,
-        "executable": False,
-        "not_executable_reason": (
-            "Iteration 5 Phase 2 builds the parser and the schema only. Running a perturbation through the "
-            "real pipeline is Phase 3; nothing here executes."
-        ),
+        # `runnable` is about the perturbation ("could this be executed?"), not
+        # about this call ("did anything run?"). Producing a card never runs
+        # anything, which is why the parse result reports executable=False while
+        # the card it carries says runnable=True.
+        "runnable": True,
+        "how_to_run": "POST /chat/whatif with this perturbation and confirmed=true",
         "ppo_included": False,
         "beta": True,
     }

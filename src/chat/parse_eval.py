@@ -88,7 +88,7 @@ def check_parse(case: dict[str, Any], result: Any) -> list[dict[str, Any]]:
     if result.outcome == "parsed":
         card = result.confirmation or {}
         record("has_confirmation_card", bool(card.get("reading")) and card.get("requires_confirmation") is True)
-        record("card_not_executable", card.get("executable") is False)
+        record("card_needs_confirmation", card.get("requires_confirmation") is True)
     else:
         record("no_perturbation_without_parse", not result.perturbation)
     return checks
