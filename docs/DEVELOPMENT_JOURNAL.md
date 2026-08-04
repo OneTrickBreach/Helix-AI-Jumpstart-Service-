@@ -18,14 +18,19 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration5-beta-conversational-analyst` (from `main` @ `7c8d0e2`, which is
-  Iteration 4 merged). **Iteration 5 Phase 1 complete (2026-08-03).**
-- **Phase:** Iteration 5 (Beta) — conversational scenario analyst. Phase 0 (orientation/baseline) and
-  Phase 1 (grounded read-only Q&A) done; Phase 2 (intent parser) next. Iteration 4 is complete and
-  merged; **Ryan has not reviewed it** (PTO), so Iteration 5 ships behind a visible `BETA` label.
-- **Tests:** `make test` **199 passed + 2 xpassed** (54 added by Iteration 5 Phase 1). Web: **41
+  Iteration 4 merged). **Iteration 5 Phase 2 complete (2026-08-04).**
+- **Phase:** Iteration 5 (Beta) — conversational scenario analyst. Phases 0 (baseline), 1 (grounded
+  read-only Q&A) and 2 (intent parser + perturbation schema) done; **Phase 3 (what-if execution)
+  next**. Iteration 4 is complete and merged; **Ryan has not reviewed it** (PTO), so Iteration 5
+  ships behind a visible `BETA` label.
+- **🔴 Read before Phase 3:** lane capacity reaches the optimizer at **exactly one period** —
+  `state.horizon()` = `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation
+  outside that period is a measured no-op. See the 2026-08-04 entry.
+- **Tests:** `make test` **264 passed + 2 xpassed** (119 added by Iteration 5 so far). Web: **41
   Vitest** (`make web-test`), `make web-check` 15/15.
-- **New API surface:** `POST /chat/ask` (protected). Evals: `make chat-eval` (real LLM, 31/31) and
-  `make chat-eval-template` (deterministic, 31/31).
+- **New API surface:** `POST /chat/ask` and `POST /chat/parse` (both protected; neither executes a
+  perturbation). Evals: `make chat-eval` 31/31, `make chat-eval-template` 31/31, `make parse-eval`
+  35/35, `make parse-eval-template` 32/32 (+3 model-only cases skipped).
 - **vLLM base image is now PINNED by digest** (`v0.26.0`, build `ffd46bfab212`) — follow-up carried
   since Iteration 4 Phase 0 is closed, with no runtime change.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
@@ -67,6 +72,180 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-04 — Iteration 5 (Beta), Phase 2: intent parser & perturbation schema (no execution)
+**Status:** Phase 2 complete, verified on-device. **git ref: `f5493a0`; hash backfilled in the
+follow-up commit.** Branch `feat/iteration5-beta-conversational-analyst`.
+
+**Scope (per the PoA):** turn a sentence into a validated structured perturbation or a clear refusal.
+Three whitelisted kinds, entity resolution against the real ids, a confirm-before-run card, and a
+committed parser eval. **No execution path exists at this checkpoint** — that is Phase 3, and it is
+asserted from every outcome rather than merely intended.
+
+### 🔴 1. The measured finding that reshaped this phase — a third silent no-op
+
+Before designing the schema I checked how a capacity change actually reaches the optimizer, because
+§1 of the PoA exists precisely to stop this class of mistake. Both lane selectors do:
+
+```python
+latest_period = state.horizon()                    # = max(demand.period)
+periods = state.lane_periods.filter(pl.col("period") == latest_period)
+```
+
+**Lane capacity is read at exactly ONE period** — 52 on the three small scenarios, 104 on
+`stress-large`. Measured on a copy of the real data (base objective 104,141.524105 on
+`component-shortage-shock`):
+
+| Perturbation | Objective | Verdict |
+|---|---:|---|
+| zero the 7 lanes touching PLANT-001 at periods 3–6 | 104,141.524105 | **NO-OP** |
+| the same lanes at periods 18–27 | 104,141.524105 | **NO-OP** |
+| the same lanes at period 52 | 105,039.331144 | **MOVED** (lane choice changed too) |
+| DC-004's 28 lanes on `stress-large` at periods 3–6 | 2,710,638.551287 | **NO-OP** |
+| the same at period 104 | 2,726,750.469121 | **MOVED** |
+
+A **demand** change, by contrast, reaches the plan from *any* period — the whole history feeds the
+forecast (x2 on periods 3–6 alone moved the objective, as did every other variant tested).
+
+**So the PoA's §1.3 lever — "zero `effective_capacity_units` on every lane touching that node, **for
+the chosen periods**" — is a no-op for every period but one.** This is a *third* silent no-op after
+Iteration 4's two (no stock at DCs; `nodes.csv` never read downstream). And the PoA's supporting
+claim that *"`component-shortage-shock` does exactly this to 2 lanes and it moves the objective"* is
+**wrong on its stated mechanism**: that scenario's disruption sits at periods 18–27, which the
+optimizer never reads. Its objective differs from baseline for other reasons (the 24 config deltas
+and the demand shock baked into `demand.csv`).
+
+**What I did about it, rather than working around it.** Every parse now carries a **reachability
+verdict** computed from the state — never a hardcoded 52 — and a perturbation that cannot move the
+plan says so *before* any GPU time is spent. The PoA's own demo example now reads:
+
+```
+DC-004 unable to ship or receive from period 3 to period 6 — 28 lanes affected, nothing else changed.
+⚠  This would not change the plan. The optimizer reads lane capacity at period 104 only (verified
+   against the source), and periods 3-6 do not include it — so the run would report no impact for a
+   reason that has nothing to do with your question.
+```
+
+Without this, Phase 3 would have computed a confident zero and reported "no impact" to Ryan's own
+question. **This is the single most important thing in the phase.** I did not change the optimizer:
+that would break the bit-identical objective invariant everything else rests on. It is flagged below
+for Phase 3 and for Ryan.
+
+### 2. What shipped
+
+**`src/chat/perturbation.py`** — the whitelist (`node_outage`, `lane_disruption`,
+`demand_multiplier`), schema validation with real bounds (period range inside the data, multiplier
+0–10, entity must exist), the reachability/impact analysis, and the confirm-before-run card.
+`node_outage`'s footprint is *the lanes touching the node* — verified 28 for DC-004 on `stress-large`
+(4 `plant_to_dc` + 24 `dc_to_customer`), matching the PoA's own figure. The card also warns when an
+outage would strip a whole lane type of capacity, because the optimizer then has no route of that
+kind at all — a bigger change than a single outage and worth saying up front.
+
+**`src/chat/intent.py`** — deterministic rules first (reproducible, no GPU, 15–28 ms end to end), the
+model only where they fall short, **both validated by the same schema**. Entity resolution now
+answers §1.1 in full, offering the scenario that actually has what was asked for:
+
+```
+Q: What if warehouse 4 is completely depleted?
+   There is no warehouse 4 in the component-shortage-shock scenario. It has 2 distribution
+   centers: DC-001, DC-002. Did you mean one of those, or shall I run it on stress-large,
+   which has 4 or more distribution centers?
+```
+
+**`POST /chat/parse`** on the protected router, and `make chat-parse` / `parse-eval` /
+`parse-eval-template`.
+
+**The committed 35-question parser eval** (`src/chat/parse_eval_questions.yaml`): node outages, lane
+disruptions, demand changes, paraphrases, ambiguity, unknown entities, nine out-of-scope refusals and
+two schema-bound cases.
+
+| Mode | Result | Model-assisted parses | Notes |
+|---|---|---|---|
+| `make parse-eval` (rules + real LLM) | **35/35** | 3 (`L01`–`L03`) | 15 s |
+| `make parse-eval-template` (rules only) | **32/32** | 0 | 3 model-only cases **skipped, not failed** |
+
+Every case also asserts the phase boundary: `executable: false`, and `execution_paths_exercised: 0`.
+
+### 3. Brutal-truth review — what I went looking for and what I found
+
+- **🔴 A falsy-zero bug on the one screen a planner approves.** `multiplier or 1.0` treats a
+  legitimate `0.0` as missing, so *"what if demand for FG-001 drops to zero?"* parsed correctly and
+  then **displayed "scaled to 1x" on the confirmation card**. Found by deliberately testing the zero
+  case. Fixed with an explicit reader and pinned by a test.
+- **🔴 I was delegating a missing magnitude to the model.** *"What if demand spikes?"* went to the
+  LLM. Measured: it did **not** invent a number — it returned `unsupported`, which turned a question
+  one sentence could resolve into a flat refusal. Either way it was wrong, and it brushed against
+  guardrail 2. Now the rules **ask** when the sentence states no magnitude, and consult the model
+  only when a magnitude *is* stated but unreadable by regex ("a third of its usual volume"). A
+  missing *entity* is never delegated — the model must not choose which warehouse was meant.
+- **🔴 My own defence-in-depth check was defeated by entity ids.** The guard "reject a magnitude the
+  sentence never stated" tested for digits — and `CUST-001` contains digits, so a stub model's
+  invented 1.5x passed the very check meant to catch it. Found by the test I wrote for the guard.
+  Entity ids and period references are now stripped before that check.
+- **"volume" is a demand word, and a named lane lost to it.** *"LANE-0015 can only carry half its
+  usual volume"* parsed as an all-demand change. A named lane now wins.
+- **I contradicted the dataset view and caught it in my own output.** Scaling all demand reported
+  "56 series" where Iteration 4's page says "32 demand series" (finished goods only). Both are true —
+  56 counts derived-component rows — but two surfaces disagreeing on screen is a defect. Now reported
+  as "32 finished-good customer plus 24 derived-component".
+- **Three refusal patterns missed real phrasings**, all found by the eval, not by reading: a
+  hyphenated "fill-rate target" (`fill\s*rate` does not match a hyphen), a 23-character gap against a
+  20-character window in the BOM pattern, and percentages over three digits — so *"demand goes up
+  5000%"* was answered "by how much?" instead of with the honest bound.
+- **The estimate basis was inaccurate for half the cases.** It claimed forecasting was included even
+  for capacity perturbations, which exclude it (decision 8's cache). Now it states what was actually
+  counted, including that the cache is a Phase 3 feature.
+- **The eval stopped exercising the model path and I nearly shipped that.** Once the rules were
+  sharpened, all 32 cases resolved deterministically — the LLM fallback was untested while reporting
+  35/35. Added three paraphrases the rules provably cannot read, plus a **coverage check** that fails
+  the eval in LLM mode if no case is model-assisted.
+- **Cleanups from re-reading my own code:** a dead `VAGUE_MAGNITUDE` constant whose two branches
+  returned the same value, an unused `DEFERRED_KINDS` import, a lazy-import wrapper guarding a cycle
+  that does not exist, and an unused local.
+- **Guardrails checked, not assumed:** `executable: false` on every outcome and every card;
+  prompt-injection scanning on the parse path (`X08` in the eval); the deferred five perturbation
+  types refused *by name* with the honest reason; compounding refused because it would make attribution
+  impossible; a structural test asserts `intent.py` contains no `build_plan`/`run_head_to_head`/
+  `write_csv`; a test asserts parsing leaves the generated CSVs byte-identical; the API exposes only
+  `/chat/ask` and `/chat/parse`.
+- **No regression:** `make test` **264 passed + 2 xpassed**; Phase 1's chat evals still **31/31 in
+  both modes**; classical objectives **81,789.359460** and **95,445.445064** recomputed on the *live*
+  data (no regeneration) and unchanged; the nine generated CSVs are **byte-identical to a fresh
+  regeneration from seed**, so none of my perturbation experiments leaked into the real data;
+  `make web-check` **15/15** with no web changes this phase.
+
+**DoD assessment: met.** A committed parser eval covers paraphrases, ambiguity, out-of-scope and the
+no-such-node case; every accepted parse validates against the schema; every ambiguous parse asks
+instead of assuming; and no execution path exists — asserted structurally, behaviourally, and in the
+API surface.
+
+**Honest caveats.**
+- The deterministic rules are a vocabulary, not a language model: they cover the phrasings in the eval
+  set and hand anything else to the LLM. A paraphrase that states a magnitude the rules cannot read
+  *and* trips the LLM's own deliberation limit ends as a clarifying question, not a parse.
+- The runtime estimate on the card is an estimate, labelled as one, built from the scale study's
+  ~25 ms/series and the recorded per-approach latencies. Phase 3 should replace it with measured
+  medians once it has them.
+- `_states_a_magnitude` is heuristic. It fails safe (asking rather than assuming), but it is the piece
+  most likely to need widening as real phrasings arrive.
+
+**Open follow-ups.**
+- **🔴 Phase 3 must decide how a period range maps onto a single-period read.** Three options, none of
+  which I took unilaterally: (a) apply the perturbation to the requested range and honestly report a
+  no-op when it misses the read period — correct but often useless; (b) apply it to the range **and**
+  the read period, disclosing that on the card; (c) treat the range as advisory and always perturb the
+  read period. **The PoA's Phase 3 DoD example — "what if DC-004 is knocked out from period 3?" —
+  produces no change under (a).** This needs a decision before the engine is built, and it belongs in
+  Ryan's packet as a sixth question.
+- Whether the optimizer *should* read capacity across the plan horizon rather than one period is a
+  real modelling question, not a chat-layer one. Flagging it for Ryan / the production track; changing
+  it would move every recorded objective.
+- Carried, unchanged: talk-track rehearsal by Ishan; the `stress-large` scenario card itemising five
+  bullets while the hero groups them.
+- Pre-existing and untouched: unused `time` import in `src/bench/suite.py`, `math` in
+  `src/bench/scale_study.py`.
+
+---
 
 ## 2026-08-03 — Iteration 5 (Beta), Phase 0 close-out + Phase 1: grounded read-only Q&A
 **Status:** Phase 0 and Phase 1 complete, verified on-device. **git ref: `60a1935`; hash backfilled in
