@@ -20,17 +20,22 @@
 - **Branch:** `feat/iteration5-beta-conversational-analyst` (from `main` @ `7c8d0e2`, which is
   Iteration 4 merged). **Iteration 5 Phase 2 complete (2026-08-04).**
 - **Phase:** Iteration 5 (Beta) — conversational scenario analyst. Phases 0 (baseline), 1 (grounded
-  read-only Q&A) and 2 (intent parser + perturbation schema) done; **Phase 3 (what-if execution)
-  next**. Iteration 4 is complete and merged; **Ryan has not reviewed it** (PTO), so Iteration 5
-  ships behind a visible `BETA` label.
+  read-only Q&A), 2 (intent parser + perturbation schema) and 3 (what-if execution) done; **Phase 4
+  (chat UI) next**. Iteration 4 is complete and merged; **Ryan has not reviewed it** (PTO), so
+  Iteration 5 ships behind a visible `BETA` label.
+- **What-if is live end-to-end:** a validated perturbation runs through the real pipeline on an
+  in-memory overlay (nothing on disk is ever written), returning real before/after objectives, costs,
+  fill rate and CVaR-75. Cold 0.45–1.4 s on the small scenarios, 18.9 s on `stress-large` (its
+  288-series forecast), **0.0 s cached**.
 - **🔴 Read before Phase 3:** lane capacity reaches the optimizer at **exactly one period** —
   `state.horizon()` = `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation
   outside that period is a measured no-op. See the 2026-08-04 entry.
-- **Tests:** `make test` **264 passed + 2 xpassed** (119 added by Iteration 5 so far). Web: **41
+- **Tests:** `make test` **298 passed + 2 xpassed** (153 added by Iteration 5 so far). Web: **41
   Vitest** (`make web-test`), `make web-check` 15/15.
-- **New API surface:** `POST /chat/ask` and `POST /chat/parse` (both protected; neither executes a
-  perturbation). Evals: `make chat-eval` 31/31, `make chat-eval-template` 31/31, `make parse-eval`
-  35/35, `make parse-eval-template` 32/32 (+3 model-only cases skipped).
+- **New API surface:** `POST /chat/ask`, `POST /chat/parse`, `POST /chat/whatif` (confirmation-gated)
+  and `GET /chat/whatif/stream` — all protected. Evals: `make chat-eval` 31/31,
+  `make chat-eval-template` 31/31, `make parse-eval` 35/35, `make parse-eval-template` 32/32 (+3
+  model-only cases skipped).
 - **vLLM base image is now PINNED by digest** (`v0.26.0`, build `ffd46bfab212`) — follow-up carried
   since Iteration 4 Phase 0 is closed, with no runtime change.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
@@ -72,6 +77,155 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-04 — Iteration 5 (Beta), Phase 3: what-if execution engine
+**Status:** Phase 3 complete, verified on-device against the real optimizer. **git ref: `0b8c626`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration5-beta-conversational-analyst`.
+
+**Scope (per the PoA):** run a validated perturbation through the real pipeline, deterministically and
+fast, as an overlay on a copy — never mutating the data. Reuse `run_head_to_head`, keep the seed, the
+objective and CVaR-75, cache the forecast, stream truthful progress.
+
+### 1. The period-range decision I flagged at the end of Phase 2
+
+Three options were open. **Chosen: apply the window faithfully.** Exactly what the planner asked for,
+never silently widened to manufacture a difference. The consequence is stated rather than hidden: a
+capacity window that misses the one period the optimizer reads is a genuine no-op, and the result says
+so *in terms of the mechanism* —
+
+> *"Nothing changed, and not because the network absorbed it: the optimizer reads lane capacity at
+> period 104 only … The perturbation was applied exactly as asked; it simply does not touch anything
+> this optimizer reads."*
+
+The alternatives were rejected for the same reason: widening the range to include the read period
+would make *"nothing else changed"* false on the card the planner just approved, and treating the
+range as advisory would report numbers for a perturbation nobody asked for. **Ryan's own question
+works unqualified** — *"what if DC-004 is knocked out?"* takes the default full range, which includes
+the read period, and returns real numbers. Only a narrow window that excludes it is a no-op, and that
+case is warned about at parse time *and* explained at result time. The decision is carried in every
+payload as `period_semantics`, and it is question six in Ryan's packet.
+
+### 2. What shipped
+
+**`src/chat/whatif.py`.** The perturbation is applied as an **in-memory overlay** — a new
+`ScenarioState` built with `dataclasses.replace`, so only the touched frame is replaced and **nothing
+is written to disk at any point**. "The on-disk files are byte-identical after a what-if run" is
+therefore true by construction, not by discipline; the test asserts it anyway, and independently
+verifies the nine CSVs against a fresh regeneration from seed.
+
+- **Both sides are computed the same way.** The base half is re-run here rather than read from the
+  recorded artifact, because that artifact may have been produced at a different horizon or PPO
+  budget and comparing across settings would be a dishonest before/after.
+- **Int64 preserved.** Both perturbed columns are Int64 whole units, so the overlay rounds and casts
+  back. That also makes a multiplier of exactly 1.0 an exact identity, which is what the fairness
+  invariant needs.
+- **Forecast cache** keyed on (scenario, horizon, demand fingerprint) — and the fingerprint covers
+  only the finished-good customer rows, because that is precisely what `forecast_finished_goods`
+  fits.
+- **Result cache** keyed on the perturbation fingerprint, bounded, and a cache hit reports its own
+  cost rather than presenting a dictionary lookup as optimizer latency.
+
+**`src/pipeline/bench.py`** gained four keywords — `state`, `forecast`, `include_ppo`,
+`write_artifact` — each defaulting to the previous behaviour. This is the most load-bearing function
+in the repo, so the gate is the benchmark: **all 12 objectives across the four scenarios are
+bit-identical afterwards.**
+
+**API:** `POST /chat/whatif`, confirmation-gated (decision 6) and re-validating the client's
+perturbation server-side, plus `GET /chat/whatif/stream` following the existing truthful-SSE pattern.
+
+**Measured latency (real runs, not estimates):**
+
+| Case | Total | base opt | what-if opt | forecast cached (base/what-if) |
+|---|---:|---:|---:|---|
+| shock · `node_outage` DC-001, cold | 1.39 s | 0.35 s | 0.22 s | no / **yes** |
+| shock · `node_outage` DC-002, warm | **0.45 s** | 0.21 s | 0.21 s | yes / yes |
+| shock · demand ×2 | 1.25 s | 0.22 s | 0.22 s | yes / **no** (correctly refit) |
+| `stress-large` · `node_outage` DC-004, cold | 18.91 s | 0.37 s | 0.38 s | no / yes |
+| `stress-large` · `node_outage` DC-003, warm | 0.82 s | 0.40 s | 0.37 s | yes / yes |
+| identical repeat, cached | **0.0 s** | — | — | — |
+
+The forecast cache does exactly what decision 8 predicted: a capacity perturbation reuses it, a demand
+perturbation invalidates it. `stress-large`'s 18.9 s cold run is its 288-series forecast, the ceiling
+the Iteration 3 scale study already identified — the optimizer itself is 0.4 s.
+
+**The plan's own DoD example, end to end:**
+```
+DC-004 unable to ship or receive from period 1 to period 104 — 28 lanes affected, nothing else changed.
+metric                      base        what-if     change
+objective            2,521,615.07   2,538,845.90    +0.68%
+cvar_75                440,909.57     443,978.58    +0.70%
+seed 12345 · horizon 8 · PPO excluded · 19.0s
+```
+
+### 3. Brutal-truth review — what I went looking for and what I found
+
+- **🔴 Phase 3 made Phase 2's confirm card lie.** The card still said *"Iteration 5 Phase 2 builds the
+  parser and the schema only … nothing here executes."* True when written, false the moment the engine
+  landed — and it is the text a planner reads before approving a run. Fixed by separating two things
+  that were sharing one word: the card now says **`runnable: true`** (about the perturbation) while a
+  parse result keeps **`executable: false`** (about that call). Found by a Phase 2 test failing for
+  the right reason.
+- **🔴 The SSE stream went completely silent on a cache hit** — no stage events, then `done`. A UI
+  would have shown a spinner that never moved for a result that was already in hand. It now emits a
+  `cache/hit` stage, which is a real event rather than a fabricated one.
+- **🔴 Two of my own API tests depended on a cold cache in a process that outlives pytest.** They
+  passed once and failed on the immediate re-run — the worst kind of test. Fixed properly with a
+  `fresh` flag on both endpoints, which is also a genuine "re-run this" control for the UI. Verified by
+  running the suite twice back to back.
+- **My determinism assertion compared measured latency**, which legitimately varies. Determinism here
+  means the decision-relevant numbers; latency is measured and reported, not asserted. The test now
+  says so explicitly.
+- **A false cache invalidation.** The demand fingerprint hashed derived-component rows, which the
+  forecaster never reads, so a raw-component demand change refit all 32 series for nothing.
+- **A duplicated nested `notify`** left behind by a patch whose second replacement silently did not
+  match. Caught by asserting on the file afterwards rather than trusting the edit.
+- **I checked whether a warning I wrote is even reachable.** `removes_all_capacity_for` fires when an
+  outage strips a whole lane type. Swept every node in all four scenarios: **no single node outage can
+  trigger it** on the shipped data. So the branch is tested against a crafted state, and this entry
+  records that it is not demonstrable on the demo data rather than implying it has been seen in
+  practice.
+- **Guardrails:** every payload carries `is_what_if: true`, the `BETA` label, the seed, the horizon,
+  the perturbation diff, and a warning that this is a synthetic perturbation of seeded data and not a
+  forecast of a real network; PPO exclusion is stated *and symmetric* (both sides exclude it, so the
+  comparison stays like-for-like) with `ppo_outcome: not_evaluated` rather than a silent omission;
+  nothing runs without explicit confirmation; a client-supplied perturbation is re-validated
+  server-side (a `DC-404` request returns 422); the engine writes **no** run artifact, so it cannot
+  overwrite the recorded base run — the Phase 1 lesson, re-asserted here.
+- **No regression:** `make test` **298 passed + 2 xpassed**; **all 12 benchmark objectives
+  bit-identical**; Phase 1 chat evals **31/31** in both modes; Phase 2 parser evals **35/35** and
+  **32/32**; `make web-check` **15/15** with no web changes; generated data byte-identical to a fresh
+  regeneration.
+
+**DoD assessment: met.** *"What if DC-004 is knocked out?"* produces real numbers end to end; the same
+perturbation twice returns identical results (and identically from cache); a no-op perturbation
+reproduces the base benchmark objective exactly, in two different senses (an identity multiplier, and
+a real rewrite of 112 rows that the optimizer cannot see); no committed file is mutated; a cached
+what-if is served in 0.0 s; latency is recorded honestly, including the 18.9 s cold `stress-large`
+case rather than only the flattering ones.
+
+**Honest caveats.**
+- **The caches are process-local and not thread-safe.** Two concurrent what-ifs could race on cache
+  eviction — worst case a lost entry, never corruption, since every result is recomputed from
+  immutable inputs. Same class of note as the Qdrant cleanup concurrency caveat from Iteration 3, and
+  it belongs to the production track.
+- **`fresh=true` lets a client force a recomputation**, which is a cheap way to keep the box busy.
+  Phase 5 owns rate limiting and the max-runs-per-session cap.
+- **The base side is recomputed for every new perturbation** on a scenario. It is 0.2–0.4 s, so
+  caching it was not worth the invalidation risk; noted as an available optimisation.
+- **No UI yet** — Phase 4 owns making a what-if visually unmistakable for a benchmark result. The
+  payload flags it needs (`is_what_if`, `label`, `warnings`, `period_semantics`) are all in place.
+
+**Open follow-ups.**
+- Phase 4: the chat UI, the provenance chips, and the what-if card that cannot be mistaken for a
+  benchmark screenshot. It should also surface `reaches_optimizer: false` prominently — a planner must
+  not read "no change" as resilience.
+- **Ryan's packet gains a sixth question:** the optimizer reading lane capacity at a single period is a
+  modelling choice, not a chat-layer one. Whether it *should* read capacity across the plan horizon is
+  worth his call; changing it would move every recorded objective, so I did not.
+- Carried, unchanged: talk-track rehearsal by Ishan; the `stress-large` scenario card itemising five
+  bullets while the hero groups them.
+
+---
 
 ## 2026-08-04 — Iteration 5 (Beta), Phase 2: intent parser & perturbation schema (no execution)
 **Status:** Phase 2 complete, verified on-device. **git ref: `f5493a0`; hash backfilled in the
