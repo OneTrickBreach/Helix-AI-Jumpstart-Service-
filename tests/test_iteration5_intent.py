@@ -218,6 +218,7 @@ def test_confirmation_card_states_its_reading_and_refuses_to_be_executable(state
     # forecasting and the basis says so rather than claiming a cost it did not count.
     assert "no forecasting" in card["estimate_basis"]
     assert "confirmed=true" in card["how_to_run"]
+    assert card["runnable"] is True
     assert card["fingerprint"] == perturbation.fingerprint()
 
 
@@ -578,8 +579,8 @@ def test_parse_endpoint_bounds_the_question_length(api_client, api_headers):
     assert response.status_code == 422
 
 
-def test_ask_endpoint_still_declines_what_ifs(api_client, api_headers):
-    """Phase 2 adds a parser; it does not make /chat/ask able to run anything."""
+def test_ask_endpoint_hands_a_what_if_off_and_never_runs_it(api_client, api_headers):
+    """/chat/ask parses a what-if and hands back the card. It still runs nothing."""
     response = api_client.post(
         "/chat/ask",
         json={
@@ -591,5 +592,8 @@ def test_ask_endpoint_still_declines_what_ifs(api_client, api_headers):
     )
     assert response.status_code == 200
     payload = response.json()["data"]
-    assert payload["route"] == "declined"
-    assert payload["what_if_capable"] is False
+    assert payload["route"] == "what_if"
+    assert payload["what_if"]["requires_confirmation"] is True
+    # No result numbers: answering it here would mean running the optimizer
+    # without confirmation.
+    assert "base" not in payload and "deltas" not in payload

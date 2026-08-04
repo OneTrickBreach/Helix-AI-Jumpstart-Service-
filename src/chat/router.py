@@ -6,9 +6,12 @@ Four outcomes, decided deterministically:
 ``entity_not_found``  — the question names a place that is not in this scenario;
                         answered by naming the places that ARE, never by quietly
                         answering about a different one.
-``declined``          — out of scope for this read-only layer (what-if, business
-                        forecasting, "make the numbers look better", asking for
-                        actions). Refused with what it CAN do, never approximated.
+``what_if``           — a real what-if. This path does not answer it: it hands back
+                        the parsed perturbation and its confirm card, because
+                        running one costs compute and needs confirmation first.
+``declined``          — out of scope (business forecasting, "make the numbers look
+                        better", asking for actions). Refused with what it CAN do,
+                        never approximated.
 ``grounded``          — everything else: retrieve facts, let the model phrase them.
 
 Refusing well is a feature. The failure mode this guards against is a
@@ -74,6 +77,7 @@ CAPABILITIES = (
     "quote any figure from the generated dataset, including lane lead times, capacities and costs",
     "explain the recorded optimizer result: objectives, costs, fill rate, tail risk and which approach won",
     "define the jargon on screen in plain English",
+    "run a what-if on the real optimizer once you confirm it — an outage, a lane's capacity, or demand",
 )
 
 
@@ -260,17 +264,26 @@ def route_question(question: str, bundle: FactBundle) -> Decision:
         # iteration exists for, and on this scenario warehouse 4 does not exist.
         # Declining the what-if without saying so answers the wrong half: correct
         # the premise first, then explain what cannot be run yet.
-        premise = _entity_not_found_message(unresolved, bundle) + " " if unresolved else ""
+        # "I can run that" reads badly straight after "there is no warehouse 4",
+        # because there is nothing to run until they name a place that exists.
+        if unresolved:
+            message = (
+                _entity_not_found_message(unresolved, bundle)
+                + " Name a place that is in this scenario and I can run the outage on the real optimizer: "
+                "I'd show you exactly what would change — which lanes, over which periods — and you'd "
+                "confirm before any compute is spent."
+            )
+        else:
+            message = (
+                "I can run that on the real optimizer, but not from this answer path and not without "
+                "your say-so first: a what-if re-runs the pipeline on a perturbed copy of the data, so I "
+                "show you exactly what I would change — which lanes or demand rows, over which periods — "
+                "and you confirm before any compute is spent. I won't estimate the answer in the meantime."
+            )
         return Decision(
-            route="declined",
-            reason="what_if_not_available_yet",
-            message=(
-                premise
-                + "Either way I can't run what-if scenarios yet — this read-only layer answers from the "
-                "dataset and the run already on record, and I won't guess at a number I haven't computed. "
-                "Re-running the optimizer on a perturbed network is the next phase of this feature. "
-                + _capability_sentence()
-            ),
+            route="what_if",
+            reason="what_if_needs_confirmation",
+            message=message,
             sources=["dataset_overview.network"] if unresolved else [],
             unresolved=unresolved,
         )

@@ -59,7 +59,8 @@ MAX_MULTIPLIER = 10.0
 
 # Forecast cost per series, from the Iteration 3 Phase 5 scale study (~25 ms per
 # series, measured across six scale levels). Used only to estimate runtime for
-# the confirm card; Phase 3 will record real elapsed times.
+# the confirm card. The engine records real elapsed times per run, which is what
+# should eventually replace this estimate.
 FORECAST_MS_PER_SERIES = 25.0
 
 
@@ -69,7 +70,7 @@ class PerturbationError(ValueError):
 
 @dataclass(frozen=True)
 class Perturbation:
-    """One validated, executable-shaped perturbation. Phase 2 does not run it."""
+    """One validated perturbation. Running it is ``src.chat.whatif.run_what_if``."""
 
     kind: str
     scenario: str
@@ -219,13 +220,23 @@ def validate(perturbation: Perturbation, state: ScenarioState) -> Perturbation:
         if scope != "all":
             if not perturbation.scope_id:
                 raise PerturbationError(f"A {scope}-scoped demand change needs to say which {scope}.")
-            column = "node_id" if scope == "customer" else "sku_id"
-            known = set(state.demand.select(column).unique().to_series().to_list())
-            if perturbation.scope_id not in known:
-                raise PerturbationError(
-                    f"There is no demand recorded for {perturbation.scope_id} in the "
-                    f"{perturbation.scenario} scenario."
-                )
+            if scope == "customer":
+                # Checked against the customer nodes, not merely against every node
+                # that appears in demand: plants appear there too (derived-component
+                # rows), so "demand at PLANT-001" used to validate as a customer.
+                known = set(state.customers())
+                if perturbation.scope_id not in known:
+                    raise PerturbationError(
+                        f"{perturbation.scope_id} is not a customer in the {perturbation.scenario} "
+                        f"scenario."
+                    )
+            else:
+                known = set(state.demand.select("sku_id").unique().to_series().to_list())
+                if perturbation.scope_id not in known:
+                    raise PerturbationError(
+                        f"There is no demand recorded for {perturbation.scope_id} in the "
+                        f"{perturbation.scenario} scenario."
+                    )
 
     return perturbation
 
@@ -451,8 +462,9 @@ def build_confirmation_card(
 ) -> dict[str, Any]:
     """The card a planner confirms before any compute is spent.
 
-    ``executable`` is deliberately False everywhere in Phase 2: the parser and the
-    schema exist, and no execution path does.
+    ``runnable`` describes the perturbation, not this call: building a card never
+    runs anything, which is why a parse result reports ``executable: false`` while
+    the card it carries says ``runnable: true``.
     """
     warnings: list[str] = []
     if not impact.reaches_optimizer:

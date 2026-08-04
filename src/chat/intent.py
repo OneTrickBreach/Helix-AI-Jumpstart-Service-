@@ -15,7 +15,9 @@ Four outcomes:
     ``refused``       outside the whitelist, and refused rather than approximated.
     ``not_found``     names a place that is not in this scenario (with what is).
 
-No outcome executes anything. Phase 2 has no execution path by construction.
+No outcome executes anything: parsing is separate from running on purpose, so a
+misread sentence cannot spend compute. Running a validated perturbation is
+``src.chat.whatif.run_what_if``, and it requires explicit confirmation.
 """
 
 from __future__ import annotations
@@ -589,7 +591,7 @@ def parse_intent(
     recorded_latencies: dict[str, float] | None = None,
     data_root: Any = None,
 ) -> ParseResult:
-    """Read one what-if sentence. Never executes; Phase 3 owns execution.
+    """Read one what-if sentence. Never executes; ``src.chat.whatif`` runs them.
 
     ``llm=False`` restricts parsing to the deterministic rules, which is what the
     test suite and the template eval mode use.

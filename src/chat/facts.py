@@ -573,7 +573,22 @@ def _dataset_facts(collector: _Collector, overview: dict[str, Any]) -> dict[str,
         keywords=["disrupted", "disruption", "broken", "outage", "shock", "how many lanes affected"],
         numbers=[lanes["disrupted_lane_count"]],
     )
+    capacity_period = int(overview["demand"]["history_periods"])
     for entry in lanes.get("disruption_timeline", []):
+        # Say plainly whether this disruption can reach the plan. Describing the
+        # window without this let a reader conclude the shortage drives the
+        # result, when the optimizer never reads those periods.
+        reaches = int(entry["from_period"]) <= capacity_period <= int(entry["to_period"])
+        effect = (
+            f" That window includes period {_num(capacity_period)}, the only period whose lane capacity the "
+            f"optimizer reads, so it does change the plan."
+            if reaches
+            else (
+                f" That window does not include period {_num(capacity_period)}, the only period whose lane "
+                f"capacity the optimizer reads, so this disruption does not itself change the optimizer's "
+                f"plan — the scenario differs from baseline for other reasons."
+            )
+        )
         collector.add(
             f"dataset.lanes.disruption.{entry['lane_id']}",
             f"{src}.lanes",
@@ -583,7 +598,8 @@ def _dataset_facts(collector: _Collector, overview: dict[str, Any]) -> dict[str,
             f"disrupted from period {_num(entry['from_period'])} to {_num(entry['to_period'])} — "
             f"{_num(entry['periods_affected'])} periods — with capacity falling to a multiplier of "
             f"{_num(entry['min_capacity_multiplier'], 2)} and lead time rising to a multiplier of "
-            f"{_num(entry['max_lead_time_multiplier'], 2)}. The disruption code is {entry['disruption_code']}.",
+            f"{_num(entry['max_lead_time_multiplier'], 2)}. The disruption code is "
+            f"{entry['disruption_code']}.{effect}",
             keywords=[
                 "disruption",
                 "disrupted",
@@ -592,6 +608,8 @@ def _dataset_facts(collector: _Collector, overview: dict[str, Any]) -> dict[str,
                 "shortage",
                 "when",
                 "how long",
+                "affect the plan",
+                "change the plan",
                 entry["lane_id"].lower(),
                 str(entry["from"]).lower(),
                 str(entry["to"]).lower(),
@@ -829,6 +847,42 @@ def _dataset_facts(collector: _Collector, overview: dict[str, Any]) -> dict[str,
             keywords=["difference", "differs", "compared to baseline", "config", "settings", "what else changed"],
             numbers=[total_config_changes, *groups.values()],
         )
+
+    # 🔴 The measured mechanism, stated as a fact so the read-only Q&A cannot
+    # imply that a disruption outside this period drives the result. Verified in
+    # Iteration 5 Phase 2: both lane selectors read lane_periods at
+    # `state.horizon()` == max(demand.period), which the dataset layer reports as
+    # `demand.history_periods` (the identical expression — asserted by test).
+    capacity_period = int(demand["history_periods"])
+    collector.add(
+        "dataset.pipeline.capacity_read_period",
+        f"{src}.pipeline_link",
+        "dataset",
+        "Which period's lane capacity the optimizer actually reads",
+        f"The optimizer reads each lane's available capacity at one period only — period "
+        f"{_num(capacity_period)}, the last {demand['period_unit']} of the history — and plans forward from "
+        f"there. A capacity change confined to earlier periods therefore does not change the plan at all. "
+        f"This was verified against the optimizer source, not assumed.",
+        keywords=[
+            "capacity",
+            "period",
+            "which period",
+            "read",
+            "reads",
+            "affect the plan",
+            "affects the plan",
+            "change the plan",
+            "matter",
+            "matters",
+            "disruption",
+            "disrupted",
+            "shortage",
+            "no impact",
+            "why did nothing change",
+            "does it matter",
+        ],
+        numbers=[capacity_period],
+    )
 
     pipeline = overview["pipeline_link"]
     collector.add(

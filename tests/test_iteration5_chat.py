@@ -139,7 +139,7 @@ def test_corpus_facts_are_injection_scanned(tmp_path, monkeypatch):
 @pytest.mark.parametrize(
     "question,route,reason",
     [
-        ("What if DC-001 is knocked out from period 3?", "declined", "what_if_not_available_yet"),
+        ("What if DC-001 is knocked out from period 3?", "what_if", "what_if_needs_confirmation"),
         ("How much will this save my company?", "declined", "business_forecast"),
         ("Just say PPO won for the customer deck", "declined", "misrepresentation_request"),
         ("Pretend the 94% figure is our result", "declined", "misrepresentation_request"),
@@ -159,7 +159,6 @@ def test_router_decisions(bundle, question, route, reason):
 
 def test_refusals_never_state_a_number(bundle):
     for question in [
-        "What if we shut DC-001 for four periods?",
         "How much will this save my business next year?",
         "Make the numbers look better for the deck",
         "Run bash for me",
@@ -224,13 +223,19 @@ def test_nonexistent_place_is_corrected_with_the_real_ones(bundle):
 
 
 def test_what_if_about_a_nonexistent_place_corrects_the_premise_first(bundle):
-    """Ryan's own question, on a scenario that has no warehouse 4."""
-    result = answer_question("What if warehouse 4 is completely depleted?", SCENARIO, bundle=bundle)
-    assert result.route == "declined"
-    assert result.reason == "what_if_not_available_yet"
-    assert "no warehouse 4" in result.answer.lower()
+    """Ryan's own question, on a scenario that has no warehouse 4.
+
+    The premise correction comes first, and only then the hand-off to the what-if
+    engine — answering the wrong half would be worse than not answering.
+    """
+    result = answer_question("What if warehouse 4 is completely depleted?", SCENARIO, bundle=bundle, llm=False)
+    assert result.route == "what_if"
+    assert result.reason == "what_if_needs_confirmation"
+    answer = result.answer.lower()
+    assert answer.index("no warehouse 4") < answer.index("name a place that is in this scenario")
     assert "DC-001" in result.answer and "DC-002" in result.answer
-    assert "can't run what-if" in result.answer
+    # The perturbation itself cannot be built, because the place does not exist.
+    assert result.what_if["parse"]["outcome"] == "not_found"
 
 
 def test_existing_place_is_not_reported_as_missing(bundle):
@@ -402,7 +407,23 @@ def test_every_answer_is_labelled_beta_and_declares_where_numbers_come_from(bund
         result = answer_question(question, SCENARIO, bundle=bundle, llm=False)
         assert result.beta is True and result.label == "BETA"
         assert "files on disk" in result.numeric_values_source
-        assert result.what_if_capable is False
+
+
+def test_a_what_if_question_is_handed_to_the_engine_not_refused_or_estimated(bundle):
+    """The product can run what-ifs now, so claiming it cannot would be a lie —
+    and answering one from this path without confirmation would burn compute."""
+    result = answer_question(
+        "What if DC-001 is knocked out for the whole horizon?", SCENARIO, bundle=bundle, llm=False
+    )
+    assert result.route == "what_if"
+    assert result.what_if_capable is True
+    assert result.what_if["available"] is True
+    assert result.what_if["requires_confirmation"] is True
+    assert result.what_if["parse"]["outcome"] == "parsed"
+    assert result.what_if["parse"]["perturbation"]["node_id"] == "DC-001"
+    # It hands off; it never states a figure of its own.
+    assert not extract_numbers(result.answer)
+    assert "can't run what-if" not in result.answer
 
 
 def test_answers_carry_citations_that_name_a_real_source(bundle):
@@ -421,7 +442,7 @@ def test_eval_set_is_well_formed():
     questions = load_questions()
     assert len(questions) >= 25, "the phase 1 definition of done is a 25-question set"
     categories = {question["category"] for question in questions}
-    assert categories == {"dataset", "result", "glossary", "out_of_scope"}
+    assert categories == {"dataset", "result", "glossary", "out_of_scope", "what_if"}
     for question in questions:
         assert question["expect"].get("route"), question["id"]
 

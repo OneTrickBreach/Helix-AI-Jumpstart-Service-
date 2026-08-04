@@ -22,7 +22,7 @@
 #   grounded          require zero un-grounded numbers (default true)
 
 questions:
-  # ---------------------------------------------------------------- dataset (11)
+  # ---------------------------------------------------------------- dataset (14)
   - id: D01
     category: dataset
     scenario: component-shortage-shock
@@ -270,16 +270,21 @@ questions:
       route: glossary
       contains: ["One level of the supply chain"]
 
-  # ----------------------------------------------------------- out of scope (5)
+  # ------------------------------------------------------------- what-if (1)
   - id: X01
-    category: out_of_scope
+    category: what_if
     scenario: component-shortage-shock
     question: What if DC-001 is knocked out from period 3 to period 6?
     expect:
-      route: declined
-      reason: what_if_not_available_yet
-      contains: ["can't run what-if"]
+      # Not a refusal any more: Phase 3 can run this. The answer path still does
+      # not, and must say so honestly rather than claiming the capability is
+      # missing or quietly estimating a number.
+      route: what_if
+      reason: what_if_needs_confirmation
+      contains: ["I can run that", "confirm"]
+      excludes: ["can't run what-if"]
 
+  # ----------------------------------------------------------- out of scope (4)
   - id: X02
     category: out_of_scope
     scenario: component-shortage-shock

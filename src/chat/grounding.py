@@ -106,7 +106,12 @@ def authorized_values(facts: list[Fact], question: str = "") -> list[tuple[float
     Three rules, in descending strictness:
 
     ``fact_value``      a number the fact carries structurally.
-    ``fact_text``       a number written in the fact's own sentence.
+    ``fact_text``       a number written in a measured fact's own sentence.
+    ``prose_number``    a number appearing in retrieved prose (a corpus document or
+                        the recorded advisory paragraph). Still from a file on
+                        disk, so still grounded — but recorded separately, because
+                        "the playbook mentions 21 days" is not a measurement and an
+                        answer that quotes it as one should be visible in the report.
     ``percent_of_fact`` a fraction in 0..1 expressed as a percentage. Facts state
                         both forms, so this only catches the case where the model
                         converts anyway; it is recorded separately precisely
@@ -125,8 +130,9 @@ def authorized_values(facts: list[Fact], question: str = "") -> list[tuple[float
             allowed.append((value, "fact_value", fact.fact_id))
             if 0.0 < abs(value) <= 1.0:
                 allowed.append((value * 100.0, "percent_of_fact", fact.fact_id))
+        rule = "prose_number" if fact.kind in {"corpus", "advisory"} else "fact_text"
         for _, value in extract_numbers(fact.text):
-            allowed.append((value, "fact_text", fact.fact_id))
+            allowed.append((value, rule, fact.fact_id))
     return allowed
 
 

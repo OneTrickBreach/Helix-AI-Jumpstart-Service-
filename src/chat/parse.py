@@ -41,8 +41,9 @@ def main() -> int:
     for warning in (result.confirmation or {}).get("warnings", []):
         print(f"\n⚠  {warning}")
     if result.confirmation:
-        print(f"\nrun it? requires confirmation — and nothing can run yet: executable={result.confirmation['executable']}")
-        print(f"        {result.confirmation['not_executable_reason']}")
+        print(f"\nrunnable: {result.confirmation['runnable']} — but only with confirmation.")
+        print(f"          {result.confirmation['how_to_run']}")
+        print(f"          estimated {result.confirmation['estimated_seconds']}s")
     return 0
 
 

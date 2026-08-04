@@ -5,8 +5,8 @@
                      of ``make test``.
 
 Exits non-zero on any failure and writes ``benchmark/parse-eval-phase2.json``.
-Nothing here executes a perturbation: Phase 2 has no execution path, and one of
-the assertions below is that every parse says so.
+Nothing here executes a perturbation — parsing and running are deliberately
+separate — and one of the assertions below is that every parse says so.
 """
 
 from __future__ import annotations

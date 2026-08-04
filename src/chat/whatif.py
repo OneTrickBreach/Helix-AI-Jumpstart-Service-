@@ -38,7 +38,6 @@ from src.chat.perturbation import (
     Perturbation,
     analyse,
     build_confirmation_card,
-    capacity_read_period,
     lanes_touching,
     plain_english,
     validate,

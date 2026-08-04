@@ -574,3 +574,40 @@ def test_whatif_stream_asks_for_confirmation_when_not_given(api_client, api_head
         body = "".join(response.iter_text())
     assert "event: confirm" in body
     assert "event: done" not in body
+
+
+# ------------------------------------------------------------------ the CLIs
+
+# These exist because a Phase 3 field rename silently broke `make chat-parse`
+# (KeyError on every successful parse) and nothing caught it: the CLIs had no
+# coverage at all. A smoke test per entry point is cheap and would have.
+
+
+@pytest.mark.parametrize(
+    "module,args",
+    [
+        ("src.chat.ask", ["--scenario", SCENARIO, "--question", "How many suppliers are there?", "--no-llm"]),
+        ("src.chat.parse", ["--scenario", SCENARIO, "--question", "What if DC-001 goes down?", "--no-llm"]),
+        ("src.chat.parse", ["--scenario", SCENARIO, "--question", "What if demand spikes?", "--no-llm"]),
+        ("src.chat.parse", ["--scenario", SCENARIO, "--question", "What if warehouse 9 fails?", "--no-llm"]),
+        ("src.chat.run_whatif", ["--scenario", SCENARIO, "--question", "What if DC-001 goes down?", "--no-llm"]),
+        (
+            "src.chat.run_whatif",
+            ["--scenario", SCENARIO, "--question", "What if DC-001 goes down?", "--no-llm", "--confirm"],
+        ),
+    ],
+)
+def test_cli_entry_points_run_cleanly(module, args):
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-m", module, *args],
+        capture_output=True,
+        text=True,
+        cwd=str(Path(__file__).resolve().parents[1]),
+        timeout=300,
+    )
+    assert result.returncode == 0, f"{module} {args} failed:\n{result.stderr[-1500:]}"
+    assert result.stdout.strip()
+    assert "Traceback" not in result.stderr

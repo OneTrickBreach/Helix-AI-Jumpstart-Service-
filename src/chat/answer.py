@@ -23,6 +23,7 @@ from typing import Any, Callable
 
 from src.chat.facts import FactBundle, build_fact_bundle
 from src.chat.grounding import GroundingReport, validate_numbers
+from src.chat.intent import parse_intent
 from src.chat.retrieve import ScoredFact, select_facts
 from src.chat.router import Decision, route_question
 from src.rag.advisory import call_shared_llm, strip_reasoning_scratchpad
@@ -30,6 +31,13 @@ from src.rag.advisory import call_shared_llm, strip_reasoning_scratchpad
 
 BETA_LABEL = "BETA"
 MAX_FACTS_IN_PROMPT = 10
+
+# The model's context is 4,096 tokens and MAX_ANSWER_TOKENS reserves 1,200 of it,
+# leaving roughly 2,900 tokens (~11,600 characters) for the whole prompt. Corpus
+# facts are paragraphs, so ten of them are not inherently bounded: this budget
+# keeps the facts block well inside the window, deterministically, instead of
+# relying on the chunks happening to be short. Dropped facts are recorded.
+MAX_FACT_BLOCK_CHARS = 8000
 
 # 1200, for the same measured reason Iteration 3 Phase 2 raised the advisory
 # budget from 700: `/no_think` shrinks Nemotron's scratchpad but does not always
@@ -70,7 +78,10 @@ class ChatAnswer:
     beta: bool = True
     label: str = BETA_LABEL
     numeric_values_source: str = "files on disk (generated scenario data and recorded benchmark artifacts)"
-    what_if_capable: bool = False
+    # The product CAN run what-ifs (Phase 3). This answer path never does: it hands
+    # back a parse and a confirm card for the caller to act on.
+    what_if_capable: bool = True
+    what_if: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -90,7 +101,25 @@ class ChatAnswer:
             "label": self.label,
             "numeric_values_source": self.numeric_values_source,
             "what_if_capable": self.what_if_capable,
+            "what_if": self.what_if,
         }
+
+
+def trim_to_prompt_budget(scored: list[ScoredFact], budget: int = MAX_FACT_BLOCK_CHARS) -> list[ScoredFact]:
+    """Keep the highest-scoring facts that fit the prompt budget, in order.
+
+    Applied before citations are built, so the [F1]-[Fn] the model is shown are
+    exactly the ones the answer is validated against.
+    """
+    kept: list[ScoredFact] = []
+    used = 0
+    for item in scored:
+        cost = len(item.fact.text) + len(item.fact.source) + 12
+        if kept and used + cost > budget:
+            continue
+        kept.append(item)
+        used += cost
+    return kept
 
 
 def _citations(scored: list[ScoredFact]) -> list[dict[str, str]]:
@@ -266,6 +295,30 @@ def answer_question(
             },
         )
 
+    if decision.route == "what_if":
+        # Parse it deterministically only — no GPU on a path that is not going to
+        # answer the question anyway — so the caller gets the reading and the card.
+        parsed = parse_intent(question, bundle.scenario, llm=False)
+        return ChatAnswer(
+            **base,
+            answer=decision.message,
+            answer_source="deterministic_what_if_referral",
+            citations=[],
+            grounding={
+                "ok": True,
+                "numbers_checked": 0,
+                "numbers_ungrounded": 0,
+                "ungrounded_tokens": [],
+                "note": "no numbers stated: this hands off to the what-if engine rather than answering",
+            },
+            what_if={
+                "available": True,
+                "requires_confirmation": True,
+                "how_to_run": "POST /chat/whatif with the parsed perturbation and confirmed=true",
+                "parse": parsed.as_dict(),
+            },
+        )
+
     if decision.route in {"declined", "entity_not_found"}:
         return ChatAnswer(
             **base,
@@ -292,7 +345,9 @@ def answer_question(
             },
         )
 
-    scored = select_facts(question, bundle, limit=fact_limit)
+    selected = select_facts(question, bundle, limit=fact_limit)
+    scored = trim_to_prompt_budget(selected)
+    dropped_for_budget = len(selected) - len(scored)
     citations = _citations(scored)
     facts = [item.fact for item in scored]
 
@@ -375,6 +430,8 @@ def answer_question(
         )
 
     report: GroundingReport = validate_numbers(candidate, facts, question)
+    if dropped_for_budget:
+        report.authorized_rules.setdefault("facts_dropped_for_prompt_budget", dropped_for_budget)
     if not report.ok:
         text = template_answer(question, scored)
         fallback_report = validate_numbers(text, facts, question)
