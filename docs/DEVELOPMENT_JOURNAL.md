@@ -86,7 +86,7 @@
 ## Entries (newest first)
 
 ## 2026-08-05 — Iteration 5 (Beta), Phase 4: the chat UI ("Ask the plan", Beta-labelled)
-**Status:** Phase 4 complete, verified in a real browser engine on-device. **git ref: `PHASE4_HASH`;
+**Status:** Phase 4 complete, verified in a real browser engine on-device. **git ref: `dade2d8`;
 hash backfilled in the follow-up commit.** Branch `feat/iteration5-beta-conversational-analyst`.
 
 **Scope (per the PoA §5):** a surface that makes provenance obvious and never lets a what-if look like
