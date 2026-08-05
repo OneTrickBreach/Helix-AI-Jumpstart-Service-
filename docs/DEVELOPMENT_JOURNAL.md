@@ -101,7 +101,7 @@
 
 ## 2026-08-05 — Iteration 5 (Beta), Phase 6: demo, docs, handoff & merge PREPARED
 **Status:** Phase 6 complete. **The merge to `main` is prepared and held for Ishan's explicit go; the
-Ryan packet is drafted and not sent.** git ref: `PHASE6` (hash backfilled in the follow-up commit).
+Ryan packet is drafted and not sent.** **git ref: `64399d6`; hash backfilled in this follow-up commit.**
 Branch `feat/iteration5-beta-conversational-analyst` (Phase 5 pushed as `bd06aae`).
 
 **Scope (PoA §5 Phase 6):** make the iteration presentable and honest on paper — a demo-guide option
