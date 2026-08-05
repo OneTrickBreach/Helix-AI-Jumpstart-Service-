@@ -1,7 +1,9 @@
-import { AlertTriangle, CheckCircle2, Cpu, DatabaseZap, FileClock, Loader2, Play, ShieldAlert, Table2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Cpu, DatabaseZap, FileClock, Loader2, MessageSquare, Play, ShieldAlert, Table2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import BetaChip from "./chat/BetaChip";
+import ChatPanel from "./chat/ChatPanel";
 import DatasetView from "./DatasetView";
 import { fetchScenarios, scenarioStreamUrl } from "./lib/api";
 import { buildMetricComparisons, winnerMessage } from "./lib/deltas";
@@ -28,12 +30,13 @@ type View = "results" | "dataset";
  * stays bookmarkable so `?view=dataset&scenario=X` can be shared directly. Revisit
  * if a third view appears.
  */
-function readViewFromUrl(): { view: View; scenario: string | null; replay: boolean } {
+function readViewFromUrl(): { view: View; scenario: string | null; replay: boolean; chat: boolean } {
   const params = new URLSearchParams(window.location.search);
   return {
     view: params.get("view") === "dataset" ? "dataset" : "results",
     scenario: params.get("scenario"),
     replay: params.get("replay") === "true",
+    chat: params.get("chat") === "true",
   };
 }
 
@@ -46,6 +49,15 @@ function writeViewToUrl(view: View, scenario: string) {
     params.delete("view");
     params.delete("scenario");
   }
+  const query = params.toString();
+  window.history.pushState({}, "", query ? `?${query}` : window.location.pathname);
+}
+
+/** `?chat=true` so a chat-open walkthrough can be linked to directly. */
+function writeChatToUrl(open: boolean) {
+  const params = new URLSearchParams(window.location.search);
+  if (open) params.set("chat", "true");
+  else params.delete("chat");
   const query = params.toString();
   window.history.pushState({}, "", query ? `?${query}` : window.location.pathname);
 }
@@ -66,6 +78,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [view, setView] = useState<View>(() => readViewFromUrl().view);
+  const [chatOpen, setChatOpen] = useState<boolean>(() => readViewFromUrl().chat);
   const streamRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -102,9 +115,18 @@ export default function App() {
 
   // Keep the back/forward buttons working without pulling in a router.
   useEffect(() => {
-    const onPopState = () => setView(readViewFromUrl().view);
+    const onPopState = () => {
+      const state = readViewFromUrl();
+      setView(state.view);
+      setChatOpen(state.chat);
+    };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const toggleChat = useCallback((open: boolean) => {
+    setChatOpen(open);
+    writeChatToUrl(open);
   }, []);
 
   const openDataset = useCallback(() => {
@@ -201,19 +223,36 @@ export default function App() {
     };
   }
 
+  /**
+   * The chat panel sits *beside* whichever view is open — it does not replace
+   * either, and neither view knows it exists. Closed by default so every Iteration
+   * 4 layout guarantee (Level 1 above the fold) holds unchanged unless a viewer
+   * deliberately opens it.
+   */
+  const withChat = (body: JSX.Element) => (
+    <div className="flex min-h-screen flex-col lg:flex-row">
+      <div className="min-w-0 flex-1">{body}</div>
+      {chatOpen ? (
+        <ChatPanel scenario={scenario} replay={isReplayMode()} onClose={() => toggleChat(false)} />
+      ) : (
+        <AskThePlanButton onClick={() => toggleChat(true)} />
+      )}
+    </div>
+  );
+
   if (view === "dataset") {
-    return (
+    return withChat(
       <DatasetView
         scenario={scenario}
         scenarios={scenarios}
         onScenarioChange={changeDatasetScenario}
         onBack={openResults}
         replay={isReplayMode()}
-      />
+      />,
     );
   }
 
-  return (
+  return withChat(
     <main className="min-h-screen bg-field text-ink">
       <section className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -280,7 +319,29 @@ export default function App() {
         <StageStepper stages={stages} running={running} />
         {result ? <ResultsView benchmark={result.benchmark} rationale={result.rationale} /> : <EmptyState running={running} />}
       </div>
-    </main>
+    </main>,
+  );
+}
+
+/**
+ * The way into the chat panel, on both views.
+ *
+ * One control rather than a button per header: `DatasetView` owns its own sticky
+ * header and does not need to know the panel exists. The `BETA` chip rides along
+ * here too, so the label is visible before the panel is even opened.
+ */
+function AskThePlanButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Ask a grounded question about this dataset or this run (beta)"
+      className="fixed bottom-5 right-5 z-30 inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink shadow-soft transition hover:bg-field focus:outline-none focus:ring-2 focus:ring-[#b8cfbd]"
+    >
+      <MessageSquare className="h-4 w-4 text-[#2f6f4e]" />
+      Ask the plan
+      <BetaChip />
+    </button>
   );
 }
 

@@ -72,6 +72,16 @@ _ID_PREFIX_BY_NODE_TYPE = {
     "customer": "CUST",
 }
 
+# Appended to an entity-not-found answer on the what-if path. Exported because
+# `src.chat.answer` reuses it verbatim when it substitutes the parser's fuller
+# correction (which names the scenario that does have what was asked for) — two
+# copies of this sentence would be two things to keep in step.
+WHAT_IF_ENTITY_FOLLOW_UP = (
+    "Name a place that is in this scenario and I can run the outage on the real optimizer: "
+    "I'd show you exactly what would change — which lanes, over which periods — and you'd "
+    "confirm before any compute is spent."
+)
+
 CAPABILITIES = (
     "count and list the places, products, lanes and demand series in this scenario",
     "quote any figure from the generated dataset, including lane lead times, capacities and costs",
@@ -267,12 +277,7 @@ def route_question(question: str, bundle: FactBundle) -> Decision:
         # "I can run that" reads badly straight after "there is no warehouse 4",
         # because there is nothing to run until they name a place that exists.
         if unresolved:
-            message = (
-                _entity_not_found_message(unresolved, bundle)
-                + " Name a place that is in this scenario and I can run the outage on the real optimizer: "
-                "I'd show you exactly what would change — which lanes, over which periods — and you'd "
-                "confirm before any compute is spent."
-            )
+            message = _entity_not_found_message(unresolved, bundle) + " " + WHAT_IF_ENTITY_FOLLOW_UP
         else:
             message = (
                 "I can run that on the real optimizer, but not from this answer path and not without "

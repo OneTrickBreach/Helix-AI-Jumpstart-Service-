@@ -208,6 +208,292 @@ if (errorShown === 0) failures++;
   await context.close();
 }
 
+// --- Iteration 5 Phase 4: the chat panel ("Ask the plan", BETA) --------------
+//
+// What these assert that a unit test cannot: that the panel opens *alongside* both
+// views rather than replacing either, that provenance chips reach the screen, that
+// nothing runs before the confirm card is accepted, that a what-if card carries its
+// WHAT-IF/BETA labelling inside its own bounding box (so a cropped screenshot still
+// carries them), that a perturbation which cannot reach the optimizer says so
+// instead of reading as resilience, and that the user's own text is never rendered
+// as markup.
+const CHAT_PANEL = 'aside[aria-label="Ask the plan (beta)"]';
+// Direct children of the live region only. The provenance chips are themselves
+// <li> elements, so a plain `li` selector silently returns a chip as "the last
+// message" — which is exactly how the first run of these checks failed.
+const MESSAGES = `${CHAT_PANEL} ul[aria-live] > li`;
+const CONFIRM_CARD = 'section[aria-label="What-if confirmation"]';
+const RESULT_CARD = 'section[data-what-if="true"]';
+
+async function askStarter(page, question, timeout = 90000) {
+  const before = await page.locator(MESSAGES).count();
+  await page.click(`${CHAT_PANEL} button:text-is("${question}")`);
+  await page.waitForFunction(
+    ([selector, count]) => document.querySelectorAll(selector).length > count + 1,
+    [MESSAGES, before],
+    { timeout },
+  );
+}
+
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+
+  // 1. Opens from the results view, beside it — the results are still on screen.
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await page.click("text=Ask the plan");
+  await page.waitForSelector(CHAT_PANEL, { timeout: 10000 });
+  const betaInHeader = await page.locator(`${CHAT_PANEL} header >> text=Beta`).count();
+  const resultsStillThere = await page.locator("text=Scenario Comparison").count();
+  const chatUrl = page.url();
+  const openOk = betaInHeader > 0 && resultsStillThere > 0 && chatUrl.includes("chat=true") && errs.length === 0;
+  if (!openOk) failures++;
+  console.log(
+    `${openOk ? "PASS" : "FAIL"} chat opens beside results  beta=${betaInHeader} ` +
+    `resultsVisible=${resultsStillThere} url=${chatUrl.replace(BASE, "")} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+  errs.length = 0;
+
+  // 2. A grounded answer arrives with its provenance chips.
+  await askStarter(page, "How many distribution centers are there?");
+  const answerText = await page.locator(MESSAGES).last().innerText();
+  const chipLabels = await page.locator(`${CHAT_PANEL} ul[aria-label="Where this answer came from"] span`).allInnerTexts();
+  const groundedOk =
+    chipLabels.some((label) => /from dataset/i.test(label)) &&
+    chipLabels.some((label) => /(explained by llm|deterministic template)/i.test(label)) &&
+    /numbers from:/i.test(answerText) &&
+    errs.length === 0;
+  if (!groundedOk) failures++;
+  console.log(
+    `${groundedOk ? "PASS" : "FAIL"} grounded answer chips     ${JSON.stringify(chipLabels)} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+  errs.length = 0;
+
+  // 3. Ryan's own question: the premise is corrected and stress-large is offered.
+  await askStarter(page, "What if warehouse 4 is completely depleted?");
+  const premise = await page.locator(MESSAGES).last().innerText();
+  const premiseOk =
+    /no warehouse 4/i.test(premise) && /DC-001/.test(premise) && /stress-large/.test(premise) &&
+    (await page.locator(RESULT_CARD).count()) === 0;
+  if (!premiseOk) failures++;
+  console.log(`${premiseOk ? "PASS" : "FAIL"} warehouse-4 premise      names DC-001/DC-002 and offers stress-large`);
+
+  // 4. Confirm-before-run: the card appears and NOTHING has run yet.
+  await askStarter(page, "What if DC-001 goes down?");
+  await page.waitForSelector(CONFIRM_CARD, { timeout: 20000 });
+  const confirmText = await page.locator(CONFIRM_CARD).last().innerText();
+  const resultsBeforeConfirm = await page.locator(RESULT_CARD).count();
+  const confirmOk =
+    resultsBeforeConfirm === 0 &&
+    /DC-001 unable to ship or receive/i.test(confirmText) &&
+    /Beta/i.test(confirmText) &&
+    /seed 12345/i.test(confirmText) &&
+    /Run it on the optimizer/i.test(confirmText);
+  if (!confirmOk) failures++;
+  console.log(
+    `${confirmOk ? "PASS" : "FAIL"} confirm before run       resultCardsBefore=${resultsBeforeConfirm} ` +
+    `reading+seed+beta present=${confirmOk}`
+  );
+  await page.locator(CONFIRM_CARD).last().screenshot({ path: `${SHOT_DIR}/chat-confirm-card.png` });
+
+  // 5. Run it for real and check the card cannot be read as a benchmark result.
+  await page.click(`${CONFIRM_CARD} >> text=Run it on the optimizer`);
+  await page.waitForSelector(RESULT_CARD, { timeout: 120000 });
+  const cardText = await page.locator(RESULT_CARD).last().innerText();
+  // $81,789.36 is the recorded classical objective for `baseline`, which is the
+  // scenario the results screen opens on and therefore the base side of this run.
+  // Asserting it ties the number on screen to the recorded benchmark.
+  const cardOk =
+    /WHAT-IF/i.test(cardText) &&
+    /Beta/i.test(cardText) &&
+    /not the recorded benchmark result/i.test(cardText) &&
+    /CVaR-75/i.test(cardText) &&
+    /\$81,789\.36/.test(cardText) &&
+    /seed 12345/i.test(cardText) &&
+    /synthetic perturbation of seeded demo data/i.test(cardText) &&
+    errs.length === 0;
+  if (!cardOk) failures++;
+  console.log(
+    `${cardOk ? "PASS" : "FAIL"} what-if card labelling   whatIfChip=${/WHAT-IF/i.test(cardText)} ` +
+    `beta=${/Beta/i.test(cardText)} disclaimer=${/not the recorded benchmark/i.test(cardText)} ` +
+    `cvar=${/CVaR-75/i.test(cardText)} baseObjective=${/\$81,789\.36/.test(cardText)} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+  errs.length = 0;
+  await page.locator(RESULT_CARD).last().screenshot({ path: `${SHOT_DIR}/chat-whatif-card.png` });
+  await page.screenshot({ path: `${SHOT_DIR}/chat-results-view.png` });
+
+  // 6. A window that misses the one period the optimizer reads must say so.
+  await page.fill(`${CHAT_PANEL} textarea`, "What if DC-001 goes down from period 3 to period 6?");
+  const beforeNoop = await page.locator(MESSAGES).count();
+  await page.press(`${CHAT_PANEL} textarea`, "Enter");
+  await page.waitForFunction(
+    ([selector, count]) =>
+      document.querySelectorAll("section[aria-label='What-if confirmation']").length > 1 &&
+      document.querySelectorAll(selector).length > count + 1,
+    [MESSAGES, beforeNoop],
+    { timeout: 90000 },
+  );
+  const noopCard = page.locator(CONFIRM_CARD).last();
+  const noopWarned = /would not change the plan/i.test(await noopCard.innerText());
+  await noopCard.locator("text=Run it anyway").click();
+  await page.waitForFunction(
+    (selector) => {
+      const cards = document.querySelectorAll(selector);
+      return cards.length > 1;
+    },
+    RESULT_CARD,
+    { timeout: 120000 },
+  );
+  const noopResult = await page.locator(RESULT_CARD).last().innerText();
+  const noopOk =
+    noopWarned &&
+    /Do not read this as resilience/i.test(noopResult) &&
+    /No change/i.test(noopResult) &&
+    /period 52 only/i.test(noopResult);
+  if (!noopOk) failures++;
+  console.log(
+    `${noopOk ? "PASS" : "FAIL"} no-op is honest          warnedBeforeRun=${noopWarned} ` +
+    `resilienceWarning=${/Do not read this as resilience/i.test(noopResult)}`
+  );
+  await page.locator(RESULT_CARD).last().screenshot({ path: `${SHOT_DIR}/chat-whatif-noop-card.png` });
+
+  // 7. The user's own text is text, never markup.
+  await page.fill(`${CHAT_PANEL} textarea`, '<img src=x onerror="window.__injected=1"> what is a lane?');
+  const beforeInjection = await page.locator(MESSAGES).count();
+  await page.press(`${CHAT_PANEL} textarea`, "Enter");
+  await page.waitForFunction(
+    ([selector, count]) => document.querySelectorAll(selector).length > count,
+    [MESSAGES, beforeInjection],
+    { timeout: 90000 },
+  );
+  const injectedElements = await page.locator(`${CHAT_PANEL} img`).count();
+  const injectedGlobal = await page.evaluate(() => window.__injected ?? null);
+  const echoed = await page.locator(MESSAGES).nth(beforeInjection).innerText();
+  const escapeOk = injectedElements === 0 && injectedGlobal === null && echoed.includes("<img");
+  if (!escapeOk) failures++;
+  console.log(
+    `${escapeOk ? "PASS" : "FAIL"} question rendered as text imgElements=${injectedElements} ` +
+    `globalSet=${injectedGlobal} echoedLiterally=${echoed.includes("<img")}`
+  );
+
+  // 7b. Switching scenario must not leave answers about the old dataset on screen.
+  const messagesBeforeSwitch = await page.locator(MESSAGES).count();
+  await page.selectOption("select", "demand-surge");
+  await page.waitForFunction(
+    ([selector, count]) => document.querySelectorAll(selector).length < count,
+    [MESSAGES, messagesBeforeSwitch],
+    { timeout: 15000 },
+  );
+  const afterSwitch = await page.locator(MESSAGES).allInnerTexts();
+  const groundedIn = await page.locator(`${CHAT_PANEL} header`).innerText();
+  const switchOk =
+    afterSwitch.length === 1 &&
+    /Scenario changed to demand-surge/i.test(afterSwitch[0]) &&
+    /demand-surge/.test(groundedIn) &&
+    (await page.locator(RESULT_CARD).count()) === 0;
+  if (!switchOk) failures++;
+  console.log(
+    `${switchOk ? "PASS" : "FAIL"} scenario switch resets   messages=${afterSwitch.length} ` +
+    `headerNamesScenario=${/demand-surge/.test(groundedIn)} staleCards=${await page.locator(RESULT_CARD).count()}`
+  );
+
+  // 8. Opens beside the dataset view too, without pushing Level 1 off screen at 1080p.
+  for (const [vpName, viewport] of Object.entries(VIEWPORTS)) {
+    await page.setViewportSize(viewport);
+    await page.goto(`${BASE}/?view=dataset&scenario=component-shortage-shock&chat=true`, { waitUntil: "networkidle" });
+    await page.waitForSelector(CHAT_PANEL, { timeout: 10000 });
+    await page.waitForSelector("svg[role=img]", { timeout: 15000 });
+    const badge = await page.locator("text=not customer data").count();
+    const foldBottom = await page.evaluate(() => {
+      const strip = Array.from(document.querySelectorAll("h2")).find((h) =>
+        h.textContent?.includes("How the network is laid out"),
+      );
+      const section = strip?.closest("section");
+      return section ? Math.round(section.getBoundingClientRect().bottom + window.scrollY) : null;
+    });
+    const bothOk = badge > 0 && foldBottom !== null && errs.length === 0;
+    if (!bothOk) failures++;
+    console.log(
+      `${bothOk ? "PASS" : "FAIL"} chat beside dataset ${vpName.padEnd(7)} badge=${badge} ` +
+      `errors=${errs.length}`
+    );
+    // Informational, deliberately NOT a gate: the Iteration 4 "Level 1 above the
+    // fold" guarantee is about the shipped default, which is chat closed (asserted
+    // above). Opening the panel narrows the page, and on a 1440x900 laptop that
+    // pushes the bottom of the network map just below the fold. Measured and
+    // recorded rather than glossed over or quietly re-defined.
+    console.log(
+      `INFO chat beside dataset ${vpName.padEnd(7)} level1BottomWithChatOpen=${foldBottom}px/` +
+      `${viewport.height}px stillAboveFold=${foldBottom <= viewport.height}`
+    );
+    if (errs.length) console.log("   errors:", errs.slice(0, 3));
+    errs.length = 0;
+    if (vpName === "desktop") await page.screenshot({ path: `${SHOT_DIR}/chat-dataset-view.png` });
+  }
+
+  await context.close();
+}
+
+// --- Iteration 5 Phase 4: chat replay parity (no backend at all) --------------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => {
+    const t = m.text();
+    if (m.type() === "error" && !t.includes("ERR_FAILED")) errs.push(t);
+  });
+  let apiCalls = 0;
+  await page.route("**/api/**", (route) => { apiCalls++; return route.abort(); });
+
+  await page.goto(`${BASE}/?replay=true&chat=true`, { waitUntil: "networkidle" });
+  await page.waitForSelector(CHAT_PANEL, { timeout: 15000 });
+  await page.waitForSelector(`${CHAT_PANEL} >> text=Recorded transcript`, { timeout: 15000 });
+  const callsAfterLoad = apiCalls;
+
+  await askStarter(page, "What if warehouse 4 is completely depleted?", 20000);
+  const recordedPremise = await page.locator(MESSAGES).last().innerText();
+
+  await askStarter(page, "What if DC-001 goes down?", 20000);
+  await page.waitForSelector(CONFIRM_CARD, { timeout: 15000 });
+  await page.click(`${CONFIRM_CARD} >> text=Run it on the optimizer`);
+  await page.waitForSelector(RESULT_CARD, { timeout: 15000 });
+  const recordedCard = await page.locator(RESULT_CARD).last().innerText();
+  const composerLocked = await page.locator(`${CHAT_PANEL} textarea`).isDisabled();
+  // With the API blocked the scenario list never loads, so the panel must take the
+  // scenario from the recording itself rather than claiming "no scenario selected"
+  // above answers that are plainly about one.
+  const replayHeader = await page.locator(`${CHAT_PANEL} header`).innerText();
+
+  const replayOk =
+    /component-shortage-shock/.test(replayHeader) &&
+    /stress-large/.test(recordedPremise) &&
+    /WHAT-IF/i.test(recordedCard) &&
+    /\$95,445\.45/.test(recordedCard) &&
+    /CVaR-75/i.test(recordedCard) &&
+    composerLocked &&
+    apiCalls === callsAfterLoad &&
+    errs.length === 0;
+  if (!replayOk) failures++;
+  console.log(
+    `${replayOk ? "PASS" : "FAIL"} replay chat (API blocked) recordedWhatIf=${/WHAT-IF/i.test(recordedCard)} ` +
+    `baseObjective=${/\$95,445\.45/.test(recordedCard)} composerLocked=${composerLocked} ` +
+    `headerScenario=${/component-shortage-shock/.test(replayHeader)} ` +
+    `apiCallsWhileChatting=${apiCalls - callsAfterLoad} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+  await page.screenshot({ path: `${SHOT_DIR}/chat-replay.png` });
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

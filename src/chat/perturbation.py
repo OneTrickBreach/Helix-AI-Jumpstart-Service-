@@ -449,9 +449,11 @@ def _estimate_basis(perturbation: Perturbation) -> str:
             "forecasting every finished-good series at the ~25 ms per series measured in the Iteration 3 "
             f"scale study, plus {optimizer}"
         )
+    # No phase numbers here: this string is read by a planner on the card they are
+    # about to approve, and "implemented in Phase 3" tells them nothing.
     return (
-        "no forecasting, because this perturbation does not touch demand and the cached forecast can be "
-        f"reused (implemented in Phase 3); plus {optimizer}"
+        "no forecasting, because this perturbation does not touch demand, so the cached forecast is "
+        f"reused; plus {optimizer}"
     )
 
 

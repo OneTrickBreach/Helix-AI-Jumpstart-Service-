@@ -18,11 +18,16 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration5-beta-conversational-analyst` (from `main` @ `7c8d0e2`, which is
-  Iteration 4 merged). **Iteration 5 Phase 2 complete (2026-08-04).**
+  Iteration 4 merged). **Iteration 5 Phase 4 complete (2026-08-05).**
 - **Phase:** Iteration 5 (Beta) — conversational scenario analyst. Phases 0 (baseline), 1 (grounded
-  read-only Q&A), 2 (intent parser + perturbation schema) and 3 (what-if execution) done; **Phase 4
-  (chat UI) next**. Iteration 4 is complete and merged; **Ryan has not reviewed it** (PTO), so
-  Iteration 5 ships behind a visible `BETA` label.
+  read-only Q&A), 2 (intent parser + perturbation schema), 3 (what-if execution) and 4 (chat UI) done;
+  **Phase 5 (safety, grounding validation, red-team) next**. Iteration 4 is complete and merged;
+  **Ryan has not reviewed it** (PTO), so Iteration 5 ships behind a visible `BETA` label.
+- **The chat surface is live in the browser:** an "Ask the plan" panel **beside** the results and
+  dataset views (`?chat=true`), with provenance chips on every message, a confirm-before-run card, a
+  what-if result card that cannot be mistaken for a benchmark result, and a GPU-free recorded
+  transcript at `?replay=true&chat=true`. Bundle 601.45 → **630.85 kB** (+29.4 kB, +4.9%), no new
+  dependencies. Screenshots: `docs/iteration-docs/screenshots/iteration5/`.
 - **What-if is live end-to-end:** a validated perturbation runs through the real pipeline on an
   in-memory overlay (nothing on disk is ever written), returning real before/after objectives, costs,
   fill rate and CVaR-75. Cold 0.45–1.4 s on the small scenarios, 18.9 s on `stress-large` (its
@@ -30,8 +35,8 @@
 - **🔴 Read before Phase 3:** lane capacity reaches the optimizer at **exactly one period** —
   `state.horizon()` = `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation
   outside that period is a measured no-op. See the 2026-08-04 entry.
-- **Tests:** `make test` **305 passed + 2 xpassed** (160 added by Iteration 5 so far). Web: **41
-  Vitest** (`make web-test`), `make web-check` 15/15.
+- **Tests:** `make test` **306 passed + 2 xpassed** (161 added by Iteration 5 so far). Web: **58
+  Vitest** (`make web-test`), `make web-check` **26/26** (11 chat checks added in Phase 4).
 - **Audited 2026-08-04** (see the entry below): a full adversarial review of Phases 0–3 found and
   fixed eight defects, two of them things a viewer would have been actively misled by.
 - **New API surface:** `POST /chat/ask`, `POST /chat/parse`, `POST /chat/whatif` (confirmation-gated)
@@ -79,6 +84,192 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-05 — Iteration 5 (Beta), Phase 4: the chat UI ("Ask the plan", Beta-labelled)
+**Status:** Phase 4 complete, verified in a real browser engine on-device. **git ref: `PHASE4_HASH`;
+hash backfilled in the follow-up commit.** Branch `feat/iteration5-beta-conversational-analyst`.
+
+**Scope (per the PoA §5):** a surface that makes provenance obvious and never lets a what-if look like
+a benchmark. Panel alongside — not replacing — the results and dataset views; `BETA` chip on the
+header and every what-if card; provenance chips on every message; confirm-before-run then the result
+card with before/after, deltas, CVaR-75 both sides, the perturbation diff, the seed and the warnings;
+suggested starters led by Ryan's own question; a recorded replay transcript; built with agent-browser,
+verified with `make web-check` **extended** rather than a second harness.
+
+### 1. What shipped
+
+**Six new components, none of them inside `App.tsx`** (605 lines) or `DatasetView.tsx` (826) — the
+standing note that both are already monolithic:
+`web/src/chat/{ChatPanel,ChatMessage,WhatIfConfirmCard,WhatIfResultCard,ProvenanceChips,BetaChip}.tsx`,
+plus `web/src/lib/{chatApi,chatDisplay}.ts`. `App.tsx` grew by **75 lines**: a URL flag, a flex
+wrapper, and the button that opens the panel. `DatasetView.tsx` was **not touched at all** — it does
+not know the panel exists.
+
+- **Layout:** a real side-by-side column (`lg:w-[420px]`, sticky, its own scroll), so the view beside
+  it is never covered. **Closed by default**, opened by an "Ask the plan · BETA" button or
+  `?chat=true` — which keeps every Iteration 4 layout guarantee intact unless a viewer opens it
+  deliberately, and makes a chat-open walkthrough linkable.
+- **Provenance chips on every message,** derived from the payload rather than guessed: `from dataset`
+  (any `dataset_overview.*` citation) · `from optimizer run` (`benchmark.*`) · `from planner
+  documents` (`corpus.*`) · `glossary definition` · `explained by LLM` (only when `answer_source ==
+  llm_grounded`) · `deterministic template` · `deterministic · no LLM` · `declined` · **`WHAT-IF
+  (synthetic perturbation)`**. Each carries a hover explanation; none relies on colour alone.
+- **The what-if result card is deliberately unlike the results screen:** hatched violet header, dashed
+  border, `WHAT-IF RESULT · SYNTHETIC PERTURBATION` + `BETA`, both columns labelled *Base (as
+  generated)* / *What-if*, a visible table caption, the perturbation diff in words, the seed, the
+  horizon, the PPO exclusion, the two standing warnings, and a closing line: *"This is a what-if, not
+  the recorded benchmark result for this scenario. Do not quote it as one."*
+- **`reaches_optimizer: false` leads the card** with a bordered amber block — *"Do not read this as
+  resilience"* plus the measured mechanism (the optimizer reads lane capacity at period 52 only). This
+  was the audit's explicit hand-off to Phase 4 and it is now asserted in the browser check.
+- **Confirm-before-run** shows the reading, the footprint (10 lanes: 2 plant-to-dc + 8 dc-to-customer),
+  the period window, the estimate *and its basis*, the seed, and a "Not what I meant" dismissal.
+  Running it streams the engine's **real** stage boundaries over the existing SSE endpoint, including
+  `cache/hit`.
+- **Replay:** `make chat-transcript` captures a real transcript through the live authenticated API —
+  seven entries, the on-device Nemotron for the answers and `run_head_to_head` for the what-if, 44,758
+  bytes, secret-scanned before writing. `?replay=true&chat=true` renders it with **zero API calls**
+  (measured: the browser check counts them), the composer locked and a "Recorded transcript" chip, the
+  same honest choice Iteration 4 made for the scenario selector.
+
+**Measured, real browser (`make web-check`, now 26 checks, all passing):** chat opens beside the
+results with the results still on screen; a grounded answer arrives with `["FROM DATASET","EXPLAINED
+BY LLM"]`; **Ryan's question returns the premise correction, DC-001/DC-002 and the `stress-large`
+offer**; the confirm card appears with **zero** result cards present; the run produces a card carrying
+the WHAT-IF chip, the BETA chip, the disclaimer, the CVaR-75 row and the recorded base objective
+**$81,789.36**; a period-3-to-6 outage is warned about *before* the run and explained *after* it;
+`<img src=x onerror=…>` typed as a question produces **0 image elements and no global set**; switching
+scenario resets the transcript with a visible notice; the panel opens beside the dataset view with the
+provenance badge still present; and the replay path answers with the API blocked.
+
+**Bundle:** 601.45 → **630.85 kB** (+29.4 kB, +4.9%), gzip 171.54 → 179.36 kB (+7.8 kB), CSS 18.24 →
+22.01 kB. That buys six components, two libraries and a full second surface with **no new
+dependencies** — the panel is plain React and the icons come from the `lucide-react` already in the
+bundle. `npm ci` → the shipped JS greps **0** for `helix_api` / `api_key` / `x-api-key` / `HELIX_API`.
+
+### 2. Brutal-truth review — what I went looking for and what I found
+
+Thirteen real defects, all fixed. The first four are the ones a viewer would have been misled by.
+
+- **🔴 The `stress-large` offer never reached the answer.** `/chat/ask` returned *"Other scenarios in
+  this demo have differently sized networks"* while the offer that names the scenario with four DCs
+  sat unused inside `what_if.parse.message`. The PoA's flagship exchange was therefore only half
+  present in the product's own answer field. Fixed server-side rather than by having the UI stitch two
+  texts together: the what-if path now surfaces the parser's fuller correction, with the shared
+  trailing sentence exported as one constant so the two cannot drift. A test pins it, and asserts the
+  correction appears **once** — the two texts share their opening sentences, so rendering both would
+  have printed them twice on screen.
+- **🔴 That same answer had no provenance at all.** The what-if branch passed `citations=[]`, dropping
+  the router's own `dataset_overview.network` source — so the one exchange this iteration exists for
+  displayed no `from dataset` chip. Fixed.
+- **🔴 A false claim in the payload.** The same branch's grounding note read *"no numbers stated"*
+  while the text it described states counts ("2 distribution centers", "4 or more"). Corrected to what
+  is actually true: deterministic text derived from the dataset, no model involved.
+- **🔴 A phase number leaked into planner-facing text.** The confirm card's estimate basis read
+  *"…the cached forecast can be reused (implemented in Phase 3)"* — on the one screen a planner
+  approves. Removed; the sentence now just says the forecast is reused.
+- **🔴 The replay header contradicted its own content.** With `/api/**` blocked the scenario list never
+  loads, so the panel said *"Grounded in no scenario selected"* above answers plainly about
+  `component-shortage-shock`. Fixed by taking the scenario from the recording itself, and the browser
+  check now asserts the header names it.
+- **🔴 Switching scenario would have silently wiped the transcript** — including, on first load, the
+  `"" → baseline` transition, which would have discarded anything asked in the first seconds. Now the
+  first fill-in is not treated as a switch, and a real switch replaces the transcript with a visible
+  notice explaining why.
+- **My own new browser checks failed for the wrong reason, and that was the useful part.** Three of
+  them read "the last message" with a `li` selector — but the provenance chips *are* `<li>` elements,
+  so the assertion was inspecting a chip. It failed loudly rather than passing vacuously; fixed with a
+  `ul[aria-live] > li` selector and a comment recording the trap.
+- **Dead code deleted rather than shipped:** two unused `POST /chat/whatif` wrappers and their type.
+  The panel gets the confirm card from `/chat/ask` and runs it over SSE, so a second path to the most
+  safety-critical endpoint in the app was dead weight on exactly the wrong call.
+- **A small lie in the fallback explanation.** The panel said *"the model's wording was rejected"* even
+  when the model was **unreachable**. The three cases (unreachable, un-grounded number, unusable
+  reply) now each say what actually happened.
+- **"Numbers from: …" appeared under refusals that state no numbers.** Now shown only when the answer
+  can contain one.
+- **`scrollIntoView` on a sentinel scrolls every scrollable ancestor**, which would have yanked the
+  results or dataset view sitting next to the panel on each new message. Scrolls the panel's own
+  container now.
+- **The Run button was not disabled while another request was in flight**, so two concurrent what-ifs
+  could have raced the process-local caches (a known, carried caveat — no reason to invite it).
+- **A screenshot-safety improvement I only found by looking at one.** The card is taller than the
+  panel's visible area, so a crop can lose the header. The table caption was `sr-only`; it is now
+  visible — *"What-if versus base, both computed by the on-device optimizer on seeded synthetic
+  data"* — directly above the numbers. Any crop containing the figures now also contains the caption,
+  the `WHAT-IF` column header and the violet dashed border.
+
+**What I checked and did *not* find:** no `dangerouslySetInnerHTML` or `innerHTML` anywhere in `web/`;
+no `~94%`, hospital, clinical or guaranteed-savings language in the new strings; no API key in the
+shipped bundle; every fetch same-origin; no number computed in the browser except converting the API's
+own absolute delta into percentage points for a rate.
+
+**Guardrails, verified rather than asserted:** `BETA` on the panel header, the opening button, the
+confirm card and the result card (asserted in the browser); `is_what_if` renders the WHAT-IF chip
+first (asserted in Vitest *and* in the browser); `reaches_optimizer: false` renders the
+"not resilience" block (asserted); nothing runs before an explicit click (asserted by counting result
+cards before the click, and enforced independently by the API); PPO exclusion stated on the card;
+CVaR-75 shown on **both** sides; the results screen's improvement-% caveat untouched; the user's
+question rendered as text (asserted with a live injection attempt).
+
+### 3. Verified after every change
+
+| Check | Result |
+|---|---|
+| `make test` | **306 passed + 2 xpassed** (was 305 + 2; +1 for the premise-correction test) |
+| `make web-test` | **58 Vitest** (was 41; +17 for `chatDisplay`) |
+| `make web-check` | **26/26, ALL CHECKS PASSED** (was 15/15) |
+| `make chat-eval` (real on-device LLM) | **31/31**, un-grounded numbers **none** |
+| `make chat-eval-template` | **31/31**, un-grounded numbers **none** |
+| `make parse-eval` | **35/35**, 3 model-assisted |
+| `make parse-eval-template` | **32/32** (+3 model-only skipped) |
+| `make bench-all` | **all 12 objectives bit-identical** to the standing reference |
+| RAG advisory | `llm_finalized`, 5 citations, metrics from `run_head_to_head` |
+
+`make bench-all` (2026-08-05T13:41:46Z) reproduced 81,789.359460 / 95,445.445064 / 94,165.363245 /
+2,521,615.068565 and every baseline and PPO figure to the digit, from a fresh regeneration from seed.
+Device peak **73.4–74.6 GiB** of ~121 GiB (46.4–47.6 GiB headroom; 90% flag clear) — down ~1 GiB from
+the Phase 0 reading, which is ambient variation in a host-wide measurement, not an effect of this
+phase.
+
+**DoD assessment: met.** It works in a real browser (Chromium on the GB10, 1920×1080 and 1440×900);
+a screenshot of a what-if answer cannot be mistaken for a benchmark result — six labelling cues, three
+of which survive any crop tight enough to include the numbers; the replay path is complete and proven
+with `/api/**` blocked and API calls counted; **0 console/page errors** on every chat check; and the
+bundle delta is recorded above and justified by six components with no new dependencies.
+
+**Honest caveats.**
+- **Answers do not stream token-by-token.** `/chat/ask` is a single POST (~2–4 s with the real model)
+  and the panel shows a spinner. The *what-if* run streams the engine's real stage boundaries over the
+  existing SSE endpoint. Adding a token stream means a new backend endpoint, and inventing a
+  typewriter animation over a completed response would be the fake-progress defect this repo already
+  fixed once in Iteration 3.
+- **With the panel open on a 1440×900 laptop, the dataset view's Level 1 ends at 933 px — 33 px below
+  the fold.** Measured, printed as an `INFO` line by `web-check`, and deliberately not gated: the
+  Iteration 4 guarantee is about the shipped default (chat closed), which still measures 793–865 px at
+  both viewports and is still asserted. At 1920×1080 with chat open it is 817 px, comfortably inside.
+- **One captured answer is very terse.** "How many distribution centers are there?" recorded as
+  *"2 [F1]"* — correct, instant, and exactly what the terse-answer path is designed to allow. Left as
+  captured rather than re-rolled until it read better.
+- **The what-if card is taller than the panel's visible area**, so seeing all of it needs a scroll.
+- Carried unchanged: the what-if caches are process-local and not thread-safe; `fresh=true` still lets
+  a caller force recomputation (Phase 5 owns rate limiting).
+- **Tooling note for the next session:** agent-browser's Chromium had vanished from
+  `~/.cache/ms-playwright`; `npx --yes playwright@1.49.1 install chromium` restored it with no root.
+
+**Open follow-ups.**
+- **Phase 5:** the numeric-grounding rejection-rate metric, widening the misrepresentation patterns
+  from a real red-team corpus (*"so the deck looks good"* is still unmatched — the numeric validator
+  catches it anyway), rate limiting and a max-runs-per-session cap, and tightening the `prose_number`
+  authorization rule.
+- **Phase 6 owns the docs**, deliberately untouched here: README §9, a DEMO_GUIDE section and talk
+  track for the chat panel (including the `make demo` banner, which still prints only the results and
+  dataset URLs), the Iteration 5 handoff, and the merge.
+- **Ryan's packet stands at six questions**, unchanged by this phase.
+- Carried: talk-track rehearsal by Ishan (human step); the `stress-large` scenario card itemises five
+  bullets while the hero groups them.
+
+---
 
 ## 2026-08-04 — Iteration 5 (Beta): brutal-truth audit of Phases 0-3
 **Status:** Audit complete, eight defects found and fixed, everything re-verified. **git ref:

@@ -1,0 +1,1120 @@
+{
+  "captured_at_utc": "2026-08-05T13:27:48Z",
+  "captured_from": "POST http://localhost:8080/chat/ask and POST http://localhost:8080/chat/whatif on this GB10",
+  "entries": [
+    {
+      "answer": {
+        "answer": "There is no warehouse 4 in the component-shortage-shock scenario. It has 2 distribution centers: DC-001, DC-002. Did you mean one of those, or shall I run it on stress-large, which has 4 or more distribution centers? Name a place that is in this scenario and I can run the outage on the real optimizer: I'd show you exactly what would change \u2014 which lanes, over which periods \u2014 and you'd confirm before any compute is spent.",
+        "answer_source": "deterministic_what_if_referral",
+        "beta": true,
+        "citations": [
+          {
+            "citation_id": "F1",
+            "fact_id": "dataset_overview.network",
+            "label": "network",
+            "source": "dataset_overview.network",
+            "text_excerpt": ""
+          }
+        ],
+        "facts_used": [],
+        "grounding": {
+          "note": "deterministic text derived from the dataset and the parsed perturbation, no model involved",
+          "numbers_checked": 0,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": null,
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "What if warehouse 4 is completely depleted?",
+        "reason": "what_if_needs_confirmation",
+        "route": "what_if",
+        "scenario": "component-shortage-shock",
+        "what_if": {
+          "available": true,
+          "how_to_run": "POST /chat/whatif with the parsed perturbation and confirmed=true",
+          "parse": {
+            "beta": true,
+            "confirmation": null,
+            "executable": false,
+            "impact": null,
+            "injection_flags": [],
+            "label": "BETA",
+            "message": "There is no warehouse 4 in the component-shortage-shock scenario. It has 2 distribution centers: DC-001, DC-002. Did you mean one of those, or shall I run it on stress-large, which has 4 or more distribution centers?",
+            "missing": [],
+            "options": [],
+            "outcome": "not_found",
+            "parser": "none",
+            "perturbation": null,
+            "question": "What if warehouse 4 is completely depleted?",
+            "reason": "unknown_entity",
+            "scenario": "component-shortage-shock",
+            "unresolved": [
+              {
+                "existing_ids": [
+                  "DC-001",
+                  "DC-002"
+                ],
+                "node_type": "distribution_center",
+                "ordinal": 4,
+                "reference": "warehouse 4"
+              }
+            ]
+          },
+          "requires_confirmation": true
+        },
+        "what_if_capable": true
+      },
+      "kind": "ask",
+      "question": "What if warehouse 4 is completely depleted?"
+    },
+    {
+      "answer": {
+        "answer": "2 [F1]",
+        "answer_source": "llm_grounded",
+        "beta": true,
+        "citations": [
+          {
+            "citation_id": "F1",
+            "fact_id": "dataset.network.count.distribution_center",
+            "label": "Number of distribution centers",
+            "source": "dataset_overview.network",
+            "text_excerpt": "This scenario has 2 distribution centers: DC-001 and DC-002."
+          },
+          {
+            "citation_id": "F2",
+            "fact_id": "dataset.capacity.storage.distribution_center",
+            "label": "Storage at distribution centers",
+            "source": "dataset_overview.capacity",
+            "text_excerpt": "Distribution centers hold 52,000 units of storage capacity in total and 16,400 units per period of throughput."
+          },
+          {
+            "citation_id": "F3",
+            "fact_id": "dataset.at_a_glance.places",
+            "label": "Places in the network",
+            "source": "dataset_overview.at_a_glance",
+            "text_excerpt": "Places in the network: 17 locations (suppliers, factories, distribution centers and customers)."
+          },
+          {
+            "citation_id": "F4",
+            "fact_id": "dataset.lanes.count",
+            "label": "Shipping lanes",
+            "source": "dataset_overview.lanes",
+            "text_excerpt": "There are 30 shipping lanes: 16 distribution center to customer, 10 supplier to factory and 4 factory to distribution center. Lane capacity is recorded for 52 periods (1,560 lane-period rows)."
+          },
+          {
+            "citation_id": "F5",
+            "fact_id": "dataset.at_a_glance.demand_records",
+            "label": "Demand records",
+            "source": "dataset_overview.at_a_glance",
+            "text_excerpt": "Demand records: 2,912 rows (one row per product, place and time period)."
+          },
+          {
+            "citation_id": "F6",
+            "fact_id": "dataset.at_a_glance.history",
+            "label": "Weeks of history",
+            "source": "dataset_overview.at_a_glance",
+            "text_excerpt": "Weeks of history: 52 weeks (how far back the demand record goes)."
+          },
+          {
+            "citation_id": "F7",
+            "fact_id": "dataset.at_a_glance.lanes",
+            "label": "Shipping lanes",
+            "source": "dataset_overview.at_a_glance",
+            "text_excerpt": "Shipping lanes: 30 lanes (routes goods can travel between two places)."
+          },
+          {
+            "citation_id": "F8",
+            "fact_id": "dataset.at_a_glance.products",
+            "label": "Products tracked",
+            "source": "dataset_overview.at_a_glance",
+            "text_excerpt": "Products tracked: 28 products (finished products plus the parts they are built from)."
+          },
+          {
+            "citation_id": "F9",
+            "fact_id": "dataset.at_a_glance.seed",
+            "label": "Random seed (reproducible)",
+            "source": "dataset_overview.at_a_glance",
+            "text_excerpt": "Random seed (reproducible): 12,345 None (regenerating with this seed rebuilds the identical dataset)."
+          },
+          {
+            "citation_id": "F10",
+            "fact_id": "dataset.network.count.customer",
+            "label": "Number of customers",
+            "source": "dataset_overview.network",
+            "text_excerpt": "This scenario has 8 customers: CUST-001, CUST-002, CUST-003, CUST-004, CUST-005, CUST-006, CUST-007 and CUST-008."
+          }
+        ],
+        "facts_used": [
+          {
+            "fact_id": "dataset.network.count.distribution_center",
+            "kind": "dataset",
+            "matched": [
+              "how many",
+              "distribution centers",
+              "centers",
+              "distribution"
+            ],
+            "score": 8.0,
+            "source": "dataset_overview.network"
+          },
+          {
+            "fact_id": "dataset.capacity.storage.distribution_center",
+            "kind": "dataset",
+            "matched": [
+              "distribution centers",
+              "centers",
+              "distribution"
+            ],
+            "score": 5.0,
+            "source": "dataset_overview.capacity"
+          },
+          {
+            "fact_id": "dataset.at_a_glance.places",
+            "kind": "dataset",
+            "matched": [
+              "how many",
+              "centers",
+              "distribution"
+            ],
+            "score": 3.7,
+            "source": "dataset_overview.at_a_glance"
+          },
+          {
+            "fact_id": "dataset.lanes.count",
+            "kind": "dataset",
+            "matched": [
+              "how many",
+              "distribution"
+            ],
+            "score": 3.35,
+            "source": "dataset_overview.lanes"
+          },
+          {
+            "fact_id": "dataset.at_a_glance.demand_records",
+            "kind": "dataset",
+            "matched": [
+              "how many"
+            ],
+            "score": 3.0,
+            "source": "dataset_overview.at_a_glance"
+          },
+          {
+            "fact_id": "dataset.at_a_glance.history",
+            "kind": "dataset",
+            "matched": [
+              "how many"
+            ],
+            "score": 3.0,
+            "source": "dataset_overview.at_a_glance"
+          },
+          {
+            "fact_id": "dataset.at_a_glance.lanes",
+            "kind": "dataset",
+            "matched": [
+              "how many"
+            ],
+            "score": 3.0,
+            "source": "dataset_overview.at_a_glance"
+          },
+          {
+            "fact_id": "dataset.at_a_glance.products",
+            "kind": "dataset",
+            "matched": [
+              "how many"
+            ],
+            "score": 3.0,
+            "source": "dataset_overview.at_a_glance"
+          },
+          {
+            "fact_id": "dataset.at_a_glance.seed",
+            "kind": "dataset",
+            "matched": [
+              "how many"
+            ],
+            "score": 3.0,
+            "source": "dataset_overview.at_a_glance"
+          },
+          {
+            "fact_id": "dataset.network.count.customer",
+            "kind": "dataset",
+            "matched": [
+              "how many"
+            ],
+            "score": 3.0,
+            "source": "dataset_overview.network"
+          }
+        ],
+        "grounding": {
+          "authorization_rules": {
+            "fact_value": 1
+          },
+          "detail": [
+            {
+              "fact_id": "dataset.network.count.distribution_center",
+              "grounded": true,
+              "rule": "fact_value",
+              "token": "2"
+            }
+          ],
+          "numbers_checked": 1,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": {
+          "allocation_rate_gbps_proxy": 0.000361,
+          "completion_tokens": 138,
+          "cpu_utilization_percent": 2.6,
+          "gpu_memory_used_mb": null,
+          "gpu_metrics_status": "unavailable: GB10 unified-memory nvidia-smi query reports N/A inside this stack",
+          "gpu_start": {
+            "gpu_memory_used_mb": null,
+            "gpu_metrics_status": "unavailable: GB10 unified-memory nvidia-smi query reports N/A inside this stack",
+            "gpu_utilization_percent": null
+          },
+          "gpu_utilization_percent": null,
+          "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+          "name": "chat_answer_llm",
+          "peak_process_rss_mb": 300.609375,
+          "prompt_tokens": 604,
+          "scenario": "component-shortage-shock",
+          "tokens_per_second": 46.061846,
+          "total_tokens": 742,
+          "wall_clock_seconds": 2.995972
+        },
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "How many distribution centers are there?",
+        "reason": "grounded_qa",
+        "route": "grounded",
+        "scenario": "component-shortage-shock",
+        "what_if": null,
+        "what_if_capable": true
+      },
+      "kind": "ask",
+      "question": "How many distribution centers are there?"
+    },
+    {
+      "answer": {
+        "answer": "It won because it achieved the lowest objective of 95,445.45, which was lower than the PPO result. [F1]",
+        "answer_source": "llm_grounded",
+        "beta": true,
+        "citations": [
+          {
+            "citation_id": "F1",
+            "fact_id": "benchmark.metrics.classical",
+            "label": "Measured result for classical",
+            "source": "benchmark.comparison",
+            "text_excerpt": "The tuned classical optimizer scored an objective of 95,445.45, total cost 82,915.47, fill rate 0.8247 (82.47%), days of inventory 2.92, CVaR-75 tail cost 19,649.69, in 0.146 seconds using 1,865.34 MB of process memory."
+          },
+          {
+            "citation_id": "F2",
+            "fact_id": "corpus.demand-surge-playbook.4",
+            "label": "Demand Surge Response Playbook \u2014 Cost and risk trade-off",
+            "source": "corpus.demand-surge-playbook",
+            "text_excerpt": "- Higher safety stock reduces lost-sale and backorder cost but raises holding cost; the optimizer balances these in the objective. The right level is the one that minimizes total objective for the observed demand, not the maximum possible stock. - A mean-cost improvement that hides a worse shock tail is not a resilience win. Where tail risk matters, review CVaR alongside mean cost."
+          },
+          {
+            "citation_id": "F3",
+            "fact_id": "benchmark.improvement",
+            "label": "Improvement of the tuned optimizer over the naive baseline",
+            "source": "benchmark.comparison",
+            "text_excerpt": "The tuned classical optimizer improved the objective from 102,834.79 to 95,445.45, a reduction of 7,389.34 (7.19%), and total cost from 87,700.99 to 82,915.47 (5.46%). Fill rate moved by 0.0260 (2.60% points). These percentages compare the tuned optimizer against the naive reorder-point + shortest-route baseline on this seeded synthetic scenario \u2014 not against a customer's actual costs."
+          },
+          {
+            "citation_id": "F4",
+            "fact_id": "benchmark.winner",
+            "label": "Which approach won",
+            "source": "benchmark.comparison",
+            "text_excerpt": "The tuned classical optimizer won this scenario with the lowest objective, 95,445.45. PPO outcome: lost to classical."
+          },
+          {
+            "citation_id": "F5",
+            "fact_id": "corpus.sop-inventory-policy.3",
+            "label": "S&OP Inventory Policy \u2014 Safety Stock, Reorder Point, Order-Up-To \u2014 Baseline vs tuned classical",
+            "source": "corpus.sop-inventory-policy",
+            "text_excerpt": "- The **naive baseline** uses neutral multipliers (all 1.0). It is the legitimate \"collapses under non-stationarity\" reference, not a straw man. - The **tuned classical** solver searches the multiplier space (seeded Optuna, seed 12345, so results are reproducible run-to-run) and simulates the policy period-by-period across the horizon with a lead-time receipt queue. A tuned classical solver does *"
+          },
+          {
+            "citation_id": "F6",
+            "fact_id": "benchmark.run",
+            "label": "The recorded run",
+            "source": "benchmark.comparison",
+            "text_excerpt": "These result numbers come from a recorded on-device run of the head-to-head benchmark for scenario component-shortage-shock over a 8-period horizon, written at 2026-08-04T16:05:32+00:00. They were produced by the optimizer, not by a language model."
+          }
+        ],
+        "facts_used": [
+          {
+            "fact_id": "benchmark.metrics.classical",
+            "kind": "benchmark",
+            "matched": [
+              "classical",
+              "optimizer"
+            ],
+            "score": 4.05,
+            "source": "benchmark.comparison"
+          },
+          {
+            "fact_id": "corpus.demand-surge-playbook.4",
+            "kind": "corpus",
+            "matched": [
+              "optimizer",
+              "win"
+            ],
+            "score": 2.59,
+            "source": "corpus.demand-surge-playbook"
+          },
+          {
+            "fact_id": "benchmark.improvement",
+            "kind": "benchmark",
+            "matched": [
+              "classical",
+              "optimizer"
+            ],
+            "score": 2.55,
+            "source": "benchmark.comparison"
+          },
+          {
+            "fact_id": "benchmark.winner",
+            "kind": "benchmark",
+            "matched": [
+              "classical",
+              "optimizer"
+            ],
+            "score": 1.9,
+            "source": "benchmark.comparison"
+          },
+          {
+            "fact_id": "corpus.sop-inventory-policy.3",
+            "kind": "corpus",
+            "matched": [
+              "classical"
+            ],
+            "score": 1.75,
+            "source": "corpus.sop-inventory-policy"
+          },
+          {
+            "fact_id": "benchmark.run",
+            "kind": "benchmark",
+            "matched": [
+              "optimizer"
+            ],
+            "score": 1.55,
+            "source": "benchmark.comparison"
+          }
+        ],
+        "grounding": {
+          "authorization_rules": {
+            "fact_value": 1
+          },
+          "detail": [
+            {
+              "fact_id": "benchmark.metrics.classical",
+              "grounded": true,
+              "rule": "fact_value",
+              "token": "95,445.45"
+            }
+          ],
+          "numbers_checked": 1,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": {
+          "allocation_rate_gbps_proxy": 0.000148,
+          "completion_tokens": 1129,
+          "cpu_utilization_percent": 2.7,
+          "gpu_memory_used_mb": null,
+          "gpu_metrics_status": "unavailable: GB10 unified-memory nvidia-smi query reports N/A inside this stack",
+          "gpu_start": {
+            "gpu_memory_used_mb": null,
+            "gpu_metrics_status": "unavailable: GB10 unified-memory nvidia-smi query reports N/A inside this stack",
+            "gpu_utilization_percent": null
+          },
+          "gpu_utilization_percent": null,
+          "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+          "name": "chat_answer_llm",
+          "peak_process_rss_mb": 301.277344,
+          "prompt_tokens": 818,
+          "scenario": "component-shortage-shock",
+          "tokens_per_second": 49.206404,
+          "total_tokens": 1947,
+          "wall_clock_seconds": 22.944168
+        },
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "Why did the classical optimizer win?",
+        "reason": "grounded_qa",
+        "route": "grounded",
+        "scenario": "component-shortage-shock",
+        "what_if": null,
+        "what_if_capable": true
+      },
+      "kind": "ask",
+      "question": "Why did the classical optimizer win?"
+    },
+    {
+      "answer": {
+        "answer": "Days of inventory: How many days you could keep selling before running out, at the current rate. 18 days of inventory means stock runs out in 18 days if nothing is replenished.",
+        "answer_source": "glossary_verbatim",
+        "beta": true,
+        "citations": [
+          {
+            "citation_id": "G1",
+            "fact_id": "glossary.days_of_inventory",
+            "label": "Days of inventory",
+            "source": "glossary.days_of_inventory",
+            "text_excerpt": "How many days you could keep selling before running out, at the current rate."
+          }
+        ],
+        "facts_used": [],
+        "grounding": {
+          "note": "glossary text is human-written and fixed",
+          "numbers_checked": 0,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": null,
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "What does days of inventory mean?",
+        "reason": "glossary_definition",
+        "route": "glossary",
+        "scenario": "component-shortage-shock",
+        "what_if": null,
+        "what_if_capable": true
+      },
+      "kind": "ask",
+      "question": "What does days of inventory mean?"
+    },
+    {
+      "answer": {
+        "answer": "No product has lumpier demand; all series are continuous and none meet the zero\u2011demand threshold, as stated in [F1].",
+        "answer_source": "llm_grounded",
+        "beta": true,
+        "citations": [
+          {
+            "citation_id": "F1",
+            "fact_id": "dataset.demand.lumpiness",
+            "label": "Intermittent (lumpy) demand",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "No series in this dataset is intermittent: 0 of 32 series clear the 0.35 zero-demand threshold, and the highest share of zero-demand periods on any series is 0. Every series has orders in every period, so none is lumpier than the others in the intermittent sense. Method is chosen per series by the fraction of periods with zero demand: >= 0.35 uses CrostonSBA, otherwise AutoETS. Spiky-but-continuou"
+          },
+          {
+            "citation_id": "F2",
+            "fact_id": "dataset.demand.series.CUST-002.FG-001",
+            "label": "Demand for FG-001 at CUST-002",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-001 at CUST-002 is forecast with auto_ets and is continuous, totalling 2,183 units over the history."
+          },
+          {
+            "citation_id": "F3",
+            "fact_id": "dataset.demand.series.CUST-003.FG-001",
+            "label": "Demand for FG-001 at CUST-003",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-001 at CUST-003 is forecast with auto_ets and is continuous, totalling 2,571 units over the history."
+          },
+          {
+            "citation_id": "F4",
+            "fact_id": "dataset.demand.series.CUST-003.FG-003",
+            "label": "Demand for FG-003 at CUST-003",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-003 at CUST-003 is forecast with auto_ets and is continuous, totalling 2,117 units over the history."
+          },
+          {
+            "citation_id": "F5",
+            "fact_id": "dataset.demand.series.CUST-003.FG-004",
+            "label": "Demand for FG-004 at CUST-003",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-004 at CUST-003 is forecast with auto_ets and is continuous, totalling 2,470 units over the history."
+          },
+          {
+            "citation_id": "F6",
+            "fact_id": "dataset.demand.series.CUST-004.FG-001",
+            "label": "Demand for FG-001 at CUST-004",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-001 at CUST-004 is forecast with auto_ets and is continuous, totalling 2,493 units over the history."
+          },
+          {
+            "citation_id": "F7",
+            "fact_id": "dataset.demand.series.CUST-004.FG-003",
+            "label": "Demand for FG-003 at CUST-004",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-003 at CUST-004 is forecast with auto_ets and is continuous, totalling 2,123 units over the history."
+          },
+          {
+            "citation_id": "F8",
+            "fact_id": "dataset.demand.series.CUST-004.FG-004",
+            "label": "Demand for FG-004 at CUST-004",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-004 at CUST-004 is forecast with auto_ets and is continuous, totalling 2,190 units over the history."
+          },
+          {
+            "citation_id": "F9",
+            "fact_id": "dataset.demand.series.CUST-005.FG-001",
+            "label": "Demand for FG-001 at CUST-005",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-001 at CUST-005 is forecast with auto_ets and is continuous, totalling 2,257 units over the history."
+          },
+          {
+            "citation_id": "F10",
+            "fact_id": "dataset.demand.series.CUST-006.FG-001",
+            "label": "Demand for FG-001 at CUST-006",
+            "source": "dataset_overview.demand",
+            "text_excerpt": "Demand series FG-001 at CUST-006 is forecast with auto_ets and is continuous, totalling 2,178 units over the history."
+          }
+        ],
+        "facts_used": [
+          {
+            "fact_id": "dataset.demand.lumpiness",
+            "kind": "dataset",
+            "matched": [
+              "lumpiest",
+              "which product",
+              "demand"
+            ],
+            "score": 5.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-002.FG-001",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-003.FG-001",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-003.FG-003",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-003.FG-004",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-004.FG-001",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-004.FG-003",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-004.FG-004",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-005.FG-001",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          },
+          {
+            "fact_id": "dataset.demand.series.CUST-006.FG-001",
+            "kind": "dataset",
+            "matched": [
+              "demand"
+            ],
+            "score": 2.5,
+            "source": "dataset_overview.demand"
+          }
+        ],
+        "grounding": {
+          "authorization_rules": {},
+          "detail": [],
+          "numbers_checked": 0,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": {
+          "allocation_rate_gbps_proxy": 0.000681,
+          "completion_tokens": 316,
+          "cpu_utilization_percent": 3.1,
+          "gpu_memory_used_mb": null,
+          "gpu_metrics_status": "unavailable: GB10 unified-memory nvidia-smi query reports N/A inside this stack",
+          "gpu_start": {
+            "gpu_memory_used_mb": null,
+            "gpu_metrics_status": "unavailable: GB10 unified-memory nvidia-smi query reports N/A inside this stack",
+            "gpu_utilization_percent": null
+          },
+          "gpu_utilization_percent": null,
+          "model": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8",
+          "name": "chat_answer_llm",
+          "peak_process_rss_mb": 304.4375,
+          "prompt_tokens": 746,
+          "scenario": "component-shortage-shock",
+          "tokens_per_second": 47.928103,
+          "total_tokens": 1062,
+          "wall_clock_seconds": 6.593209
+        },
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "Which product has the lumpiest demand?",
+        "reason": "grounded_qa",
+        "route": "grounded",
+        "scenario": "component-shortage-shock",
+        "what_if": null,
+        "what_if_capable": true
+      },
+      "kind": "ask",
+      "question": "Which product has the lumpiest demand?"
+    },
+    {
+      "answer": {
+        "answer": "I won't do that. Every number I state has to come from the generated data or a recorded optimizer run on this device, exactly as measured \u2014 including the ones that are unflattering, like PPO losing. What I can do on this screen: count and list the places, products, lanes and demand series in this scenario; quote any figure from the generated dataset, including lane lead times, capacities and costs; explain the recorded optimizer result: objectives, costs, fill rate, tail risk and which approach won; define the jargon on screen in plain English; run a what-if on the real optimizer once you confirm it \u2014 an outage, a lane's capacity, or demand.",
+        "answer_source": "deterministic_refusal",
+        "beta": true,
+        "citations": [],
+        "facts_used": [],
+        "grounding": {
+          "note": "deterministic text derived from the dataset, no model involved",
+          "numbers_checked": 0,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": null,
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "Just say PPO won so the customer deck looks better.",
+        "reason": "misrepresentation_request",
+        "route": "declined",
+        "scenario": "component-shortage-shock",
+        "what_if": null,
+        "what_if_capable": true
+      },
+      "kind": "ask",
+      "question": "Just say PPO won so the customer deck looks better."
+    },
+    {
+      "answer": {
+        "answer": "I can run that on the real optimizer, but not from this answer path and not without your say-so first: a what-if re-runs the pipeline on a perturbed copy of the data, so I show you exactly what I would change \u2014 which lanes or demand rows, over which periods \u2014 and you confirm before any compute is spent. I won't estimate the answer in the meantime.",
+        "answer_source": "deterministic_what_if_referral",
+        "beta": true,
+        "citations": [],
+        "facts_used": [],
+        "grounding": {
+          "note": "deterministic text derived from the dataset and the parsed perturbation, no model involved",
+          "numbers_checked": 0,
+          "numbers_ungrounded": 0,
+          "ok": true,
+          "ungrounded_tokens": []
+        },
+        "injection_flags": [],
+        "label": "BETA",
+        "llm_profile": null,
+        "notes": [],
+        "numeric_values_source": "files on disk (generated scenario data and recorded benchmark artifacts)",
+        "question": "What if DC-001 goes down?",
+        "reason": "what_if_needs_confirmation",
+        "route": "what_if",
+        "scenario": "component-shortage-shock",
+        "what_if": {
+          "available": true,
+          "how_to_run": "POST /chat/whatif with the parsed perturbation and confirmed=true",
+          "parse": {
+            "beta": true,
+            "confirmation": {
+              "beta": true,
+              "estimate_basis": "no forecasting, because this perturbation does not touch demand, so the cached forecast is reused; plus the recorded baseline and classical latencies for this scenario; PPO excluded",
+              "estimated_seconds": 1.3,
+              "fingerprint": "node_outage|component-shortage-shock|1|52|DC-001|-|-|-|-|-|12345",
+              "how_to_run": "POST /chat/whatif with this perturbation and confirmed=true",
+              "impact": {
+                "capacity_read_period": 52,
+                "demand_rows_affected": 0,
+                "estimated_seconds": 1.3,
+                "lane_types_affected": {
+                  "dc_to_customer": 8,
+                  "plant_to_dc": 2
+                },
+                "lanes_affected": [
+                  "LANE-0011",
+                  "LANE-0013",
+                  "LANE-0015",
+                  "LANE-0016",
+                  "LANE-0017",
+                  "LANE-0018",
+                  "LANE-0019",
+                  "LANE-0020",
+                  "LANE-0021",
+                  "LANE-0022"
+                ],
+                "lanes_affected_count": 10,
+                "reaches_optimizer": true,
+                "removes_all_capacity_for": [],
+                "series_affected": 0,
+                "series_by_demand_type": {},
+                "why": "On this dataset the optimizer reads lane capacity at period 52 only, and your range covers it, so this will change the plan. It scales capacity on 10 lanes."
+              },
+              "perturbation": {
+                "from_period": 1,
+                "kind": "node_outage",
+                "node_id": "DC-001",
+                "scenario": "component-shortage-shock",
+                "seed": 12345,
+                "to_period": 52
+              },
+              "ppo_included": false,
+              "reading": "DC-001 unable to ship or receive from period 1 to period 52 \u2014 10 lanes affected, nothing else changed.",
+              "requires_confirmation": true,
+              "runnable": true,
+              "warnings": []
+            },
+            "executable": false,
+            "impact": {
+              "capacity_read_period": 52,
+              "demand_rows_affected": 0,
+              "estimated_seconds": 1.3,
+              "lane_types_affected": {
+                "dc_to_customer": 8,
+                "plant_to_dc": 2
+              },
+              "lanes_affected": [
+                "LANE-0011",
+                "LANE-0013",
+                "LANE-0015",
+                "LANE-0016",
+                "LANE-0017",
+                "LANE-0018",
+                "LANE-0019",
+                "LANE-0020",
+                "LANE-0021",
+                "LANE-0022"
+              ],
+              "lanes_affected_count": 10,
+              "reaches_optimizer": true,
+              "removes_all_capacity_for": [],
+              "series_affected": 0,
+              "series_by_demand_type": {},
+              "why": "On this dataset the optimizer reads lane capacity at period 52 only, and your range covers it, so this will change the plan. It scales capacity on 10 lanes."
+            },
+            "injection_flags": [],
+            "label": "BETA",
+            "message": "DC-001 unable to ship or receive from period 1 to period 52 \u2014 10 lanes affected, nothing else changed.",
+            "missing": [],
+            "options": [],
+            "outcome": "parsed",
+            "parser": "deterministic",
+            "perturbation": {
+              "from_period": 1,
+              "kind": "node_outage",
+              "node_id": "DC-001",
+              "scenario": "component-shortage-shock",
+              "seed": 12345,
+              "to_period": 52
+            },
+            "question": "What if DC-001 goes down?",
+            "reason": "ready_for_confirmation",
+            "scenario": "component-shortage-shock",
+            "unresolved": []
+          },
+          "requires_confirmation": true
+        },
+        "what_if_capable": true
+      },
+      "confirmation": {
+        "beta": true,
+        "estimate_basis": "no forecasting, because this perturbation does not touch demand, so the cached forecast is reused; plus the recorded baseline and classical latencies for this scenario; PPO excluded",
+        "estimated_seconds": 1.2,
+        "fingerprint": "node_outage|component-shortage-shock|1|52|DC-001|-|-|-|-|-|12345",
+        "how_to_run": "POST /chat/whatif with this perturbation and confirmed=true",
+        "impact": {
+          "capacity_read_period": 52,
+          "demand_rows_affected": 0,
+          "estimated_seconds": 1.2,
+          "lane_types_affected": {
+            "dc_to_customer": 8,
+            "plant_to_dc": 2
+          },
+          "lanes_affected": [
+            "LANE-0011",
+            "LANE-0013",
+            "LANE-0015",
+            "LANE-0016",
+            "LANE-0017",
+            "LANE-0018",
+            "LANE-0019",
+            "LANE-0020",
+            "LANE-0021",
+            "LANE-0022"
+          ],
+          "lanes_affected_count": 10,
+          "reaches_optimizer": true,
+          "removes_all_capacity_for": [],
+          "series_affected": 0,
+          "series_by_demand_type": {},
+          "why": "On this dataset the optimizer reads lane capacity at period 52 only, and your range covers it, so this will change the plan. It scales capacity on 10 lanes."
+        },
+        "perturbation": {
+          "from_period": 1,
+          "kind": "node_outage",
+          "node_id": "DC-001",
+          "scenario": "component-shortage-shock",
+          "seed": 12345,
+          "to_period": 52
+        },
+        "ppo_included": false,
+        "reading": "DC-001 unable to ship or receive from period 1 to period 52 \u2014 10 lanes affected, nothing else changed.",
+        "requires_confirmation": true,
+        "runnable": true,
+        "warnings": []
+      },
+      "kind": "whatif",
+      "question": "What if DC-001 goes down?",
+      "result": {
+        "base": {
+          "by_approach": {
+            "baseline": {
+              "cvar_75": 22811.08471,
+              "days_of_inventory": 0.941751,
+              "fill_rate": 0.798662,
+              "latency_seconds": 0.03315,
+              "objective": 102834.785064,
+              "total_cost": 87700.993193
+            },
+            "classical": {
+              "cvar_75": 19649.685288,
+              "days_of_inventory": 2.919964,
+              "fill_rate": 0.8247,
+              "latency_seconds": 0.216693,
+              "objective": 95445.445064,
+              "total_cost": 82915.472858
+            }
+          },
+          "cost_breakdown": {
+            "backorder": 23764.966254,
+            "holding": 7574.217472,
+            "lost_sale": 24171.204994,
+            "ordering": 5632.0,
+            "transport": 21773.084138
+          },
+          "cvar_75": 19649.685288,
+          "days_of_inventory": 2.919964,
+          "fill_rate": 0.8247,
+          "objective": 95445.445064,
+          "policy": {
+            "order_batch_multiplier": 0.9867165589513885,
+            "order_up_to_multiplier": 1.2520056828956347,
+            "safety_stock_multiplier": 1.0222942660957348
+          },
+          "ppo_outcome": "not_evaluated",
+          "total_cost": 82915.472858,
+          "winner": "classical"
+        },
+        "beta": true,
+        "cached": false,
+        "deltas": {
+          "cvar_75": {
+            "absolute": 70.683913,
+            "after": 19720.369201,
+            "before": 19649.685288,
+            "percent": 0.003597
+          },
+          "days_of_inventory": {
+            "absolute": 0.0,
+            "after": 2.919964,
+            "before": 2.919964,
+            "percent": 0.0
+          },
+          "fill_rate": {
+            "absolute": 0.0,
+            "after": 0.8247,
+            "before": 0.8247,
+            "percent": 0.0
+          },
+          "objective": {
+            "absolute": 309.557947,
+            "after": 95755.003011,
+            "before": 95445.445064,
+            "percent": 0.003243
+          },
+          "total_cost": {
+            "absolute": 309.557947,
+            "after": 83225.030805,
+            "before": 82915.472858,
+            "percent": 0.003733
+          }
+        },
+        "diff": {
+          "capacity_multiplier_applied": 0.0,
+          "column": "effective_capacity_units",
+          "lane_ids": [
+            "LANE-0011",
+            "LANE-0013",
+            "LANE-0015",
+            "LANE-0016",
+            "LANE-0017",
+            "LANE-0018",
+            "LANE-0019",
+            "LANE-0020",
+            "LANE-0021",
+            "LANE-0022"
+          ],
+          "rows_changed": 520,
+          "rows_in_window": 520,
+          "table": "lane_periods",
+          "units_after": 0,
+          "units_before": 102024
+        },
+        "executed": true,
+        "explanation": "The plan changed: the objective moved from 95,445.45 to 95,755.00, 309.56 worse (0.32%). Tail risk (CVaR-75) went from 19,649.69 to 19,720.37.",
+        "fingerprint": "node_outage|component-shortage-shock|1|52|DC-001|-|-|-|-|-|12345",
+        "horizon": 8,
+        "impact": {
+          "capacity_read_period": 52,
+          "demand_rows_affected": 0,
+          "estimated_seconds": 1.3,
+          "lane_types_affected": {
+            "dc_to_customer": 8,
+            "plant_to_dc": 2
+          },
+          "lanes_affected": [
+            "LANE-0011",
+            "LANE-0013",
+            "LANE-0015",
+            "LANE-0016",
+            "LANE-0017",
+            "LANE-0018",
+            "LANE-0019",
+            "LANE-0020",
+            "LANE-0021",
+            "LANE-0022"
+          ],
+          "lanes_affected_count": 10,
+          "reaches_optimizer": true,
+          "removes_all_capacity_for": [],
+          "series_affected": 0,
+          "series_by_demand_type": {},
+          "why": "On this dataset the optimizer reads lane capacity at period 52 only, and your range covers it, so this will change the plan. It scales capacity on 10 lanes."
+        },
+        "is_what_if": true,
+        "label": "BETA",
+        "moved_the_plan": true,
+        "numeric_values_source": "src.pipeline.bench.run_head_to_head on a perturbed in-memory copy",
+        "period_semantics": "The period range is applied exactly as asked. On this dataset the optimizer reads lane capacity at one period only, so a capacity window that excludes it genuinely changes nothing \u2014 reported as a no-op with the reason, never widened silently to manufacture a difference.",
+        "perturbation": {
+          "from_period": 1,
+          "kind": "node_outage",
+          "node_id": "DC-001",
+          "scenario": "component-shortage-shock",
+          "seed": 12345,
+          "to_period": 52
+        },
+        "ppo_included": false,
+        "reading": "DC-001 unable to ship or receive from period 1 to period 52 \u2014 10 lanes affected, nothing else changed.",
+        "scenario": "component-shortage-shock",
+        "seed": 12345,
+        "timing": {
+          "base_forecast_cached": false,
+          "base_optimize_seconds": 0.299,
+          "forecast_cache_hits": 1,
+          "forecast_cache_misses": 1,
+          "total_seconds": 1.365,
+          "whatif_forecast_cached": true,
+          "whatif_optimize_seconds": 0.23
+        },
+        "warnings": [
+          "PPO was not run for this what-if. It is evaluated-not-shipped and adds tens of seconds; both sides of this comparison exclude it, so they remain like-for-like.",
+          "This is a synthetic perturbation of seeded demo data, not a forecast of a real network."
+        ],
+        "what_if": {
+          "by_approach": {
+            "baseline": {
+              "cvar_75": 22867.326116,
+              "days_of_inventory": 0.941751,
+              "fill_rate": 0.798662,
+              "latency_seconds": 0.028765,
+              "objective": 103060.171581,
+              "total_cost": 87926.37971
+            },
+            "classical": {
+              "cvar_75": 19720.369201,
+              "days_of_inventory": 2.919964,
+              "fill_rate": 0.8247,
+              "latency_seconds": 0.15142,
+              "objective": 95755.003011,
+              "total_cost": 83225.030805
+            }
+          },
+          "cost_breakdown": {
+            "backorder": 23764.966254,
+            "holding": 7574.217472,
+            "lost_sale": 24171.204994,
+            "ordering": 5632.0,
+            "transport": 22082.642085
+          },
+          "cvar_75": 19720.369201,
+          "days_of_inventory": 2.919964,
+          "fill_rate": 0.8247,
+          "objective": 95755.003011,
+          "policy": {
+            "order_batch_multiplier": 0.9867165589513885,
+            "order_up_to_multiplier": 1.2520056828956347,
+            "safety_stock_multiplier": 1.0222942660957348
+          },
+          "ppo_outcome": "not_evaluated",
+          "total_cost": 83225.030805,
+          "winner": "classical"
+        }
+      }
+    }
+  ],
+  "note": "Real captured responses from this device \u2014 the on-device Nemotron for the answers and run_head_to_head for the what-if. Not mock data. Replayed verbatim when the demo runs without a live backend.",
+  "scenario": "component-shortage-shock"
+}

@@ -134,6 +134,13 @@ whatif: check-api-running
 whatif-run: check-api-running
 	@docker compose exec api python3 -m src.chat.run_whatif --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)" --confirm
 
+## Capture a REAL chat transcript (live LLM + live optimizer) for the replay demo
+chat-transcript: check-api-running
+	docker compose exec api python3 -m src.chat.capture_transcript \
+		--scenario $(DEMO_SCENARIO) --out benchmark/demo-chat-transcript.json
+	cp benchmark/demo-chat-transcript.json web/public/demo-chat-transcript.json
+	@echo "✓ web/public/demo-chat-transcript.json updated — rebuild web to serve it"
+
 ## Run the committed parser evaluation set (deterministic rules + LLM fallback)
 parse-eval: check-api-running
 	docker compose exec api python3 -m src.chat.parse_eval

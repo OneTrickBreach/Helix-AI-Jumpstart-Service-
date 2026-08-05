@@ -25,7 +25,7 @@ from src.chat.facts import FactBundle, build_fact_bundle
 from src.chat.grounding import GroundingReport, validate_numbers
 from src.chat.intent import parse_intent
 from src.chat.retrieve import ScoredFact, select_facts
-from src.chat.router import Decision, route_question
+from src.chat.router import WHAT_IF_ENTITY_FOLLOW_UP, Decision, route_question
 from src.rag.advisory import call_shared_llm, strip_reasoning_scratchpad
 
 
@@ -299,17 +299,44 @@ def answer_question(
         # Parse it deterministically only — no GPU on a path that is not going to
         # answer the question anyway — so the caller gets the reading and the card.
         parsed = parse_intent(question, bundle.scenario, llm=False)
+        answer_text = decision.message
+        if parsed.outcome == "not_found" and parsed.message:
+            # Both layers resolve "warehouse 4" honestly, but only the parser's
+            # resolver names the scenario that actually has a fourth one ("shall I
+            # run it on stress-large?"). The router's copy is deliberately minimal
+            # (Phase 1 shipped it before Phase 2 existed) and only says other
+            # scenarios differ. Surface the fuller one instead of both: they share
+            # two sentences verbatim, so rendering both repeats them on screen.
+            answer_text = f"{parsed.message} {WHAT_IF_ENTITY_FOLLOW_UP}"
         return ChatAnswer(
             **base,
-            answer=decision.message,
+            answer=answer_text,
             answer_source="deterministic_what_if_referral",
-            citations=[],
+            # The premise correction names the real locations, so it *is* sourced to
+            # the dataset and says so. An earlier version dropped the router's
+            # sources here, which cost the answer its provenance on the one question
+            # this iteration exists for.
+            citations=[
+                {
+                    "citation_id": "F1",
+                    "fact_id": source,
+                    "source": source,
+                    "label": "network",
+                    "text_excerpt": "",
+                }
+                for source in decision.sources
+            ],
             grounding={
                 "ok": True,
                 "numbers_checked": 0,
                 "numbers_ungrounded": 0,
                 "ungrounded_tokens": [],
-                "note": "no numbers stated: this hands off to the what-if engine rather than answering",
+                # Deliberately not "no numbers stated": when the premise is corrected
+                # this text does state counts. They are read from the dataset, and no
+                # model wrote any of it, which is the claim that matters.
+                "note": (
+                    "deterministic text derived from the dataset and the parsed perturbation, no model involved"
+                ),
             },
             what_if={
                 "available": True,

@@ -238,6 +238,22 @@ def test_what_if_about_a_nonexistent_place_corrects_the_premise_first(bundle):
     assert result.what_if["parse"]["outcome"] == "not_found"
 
 
+def test_what_if_premise_correction_offers_the_scenario_that_has_the_place(bundle):
+    """Iteration 5 Phase 4: the offer must reach the *answer*, not just the parse.
+
+    Both layers correct the premise, but only the Phase 2 resolver names the
+    scenario that actually has a fourth distribution center. The chat answer now
+    carries that sentence, and carries it exactly once — the two texts share their
+    opening sentences, so surfacing both would print them twice on screen.
+    """
+    result = answer_question("What if warehouse 4 is completely depleted?", SCENARIO, bundle=bundle, llm=False)
+    assert "stress-large" in result.answer
+    assert result.answer.lower().count("no warehouse 4") == 1
+    # The parse's own message is a prefix of the answer, so a UI that renders both
+    # can detect the overlap instead of repeating it.
+    assert result.what_if["parse"]["message"] in result.answer
+
+
 def test_existing_place_is_not_reported_as_missing(bundle):
     for question in [
         "What is the storage capacity of DC-002?",
