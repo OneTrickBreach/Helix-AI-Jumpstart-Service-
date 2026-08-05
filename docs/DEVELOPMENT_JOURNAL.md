@@ -294,8 +294,10 @@ artifact.
 
 `feat/iteration5-beta-conversational-analyst` → `main`. `main` is at `7c8d0e2` (Iteration 4) and has
 not moved since the branch was cut (`git rev-list --left-right --count main...HEAD` = `0  12` before
-this phase's commits), so this is a **fast-forward with no conflicts**. What it would contain:
-**14 commits** — Phases 0–6, 57 files, ~14.5k added lines: the `src/chat/` package (facts, retrieve, router, glossary,
+this phase's commits), so this is a **fast-forward with no conflicts**. What it would contain: **every
+commit on the branch** — Phases 0–6, 57 files, ~14.5k added lines (run
+`git rev-list --left-right --count main...HEAD` for the live count rather than trusting a number that
+goes stale with the next commit): the `src/chat/` package (facts, retrieve, router, glossary,
 grounding, answer, intent, perturbation, whatif, redteam, capture_transcript, four CLIs, three eval
 runners), `src/api/ratelimit.py` and the four chat endpoints, `web/src/chat/` (six components) and two
 libs, the extended `web/e2e` harness, the vLLM digest pin, **202 new tests**, the recorded chat
