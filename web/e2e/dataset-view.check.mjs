@@ -225,6 +225,33 @@ const MESSAGES = `${CHAT_PANEL} ul[aria-live] > li`;
 const CONFIRM_CARD = 'section[aria-label="What-if confirmation"]';
 const RESULT_CARD = 'section[data-what-if="true"]';
 
+/**
+ * Screenshot one card **in full**.
+ *
+ * Playwright clips an element screenshot to what is on screen, and these cards are
+ * taller than the 420px-wide panel's visible area — so the plain element shot lost
+ * the card's own header band (the `WHAT-IF RESULT · SYNTHETIC PERTURBATION` + `BETA`
+ * row) and, on the no-op card, the "Do not read this as resilience" line. Committed
+ * evidence that is missing the labels the card exists to carry is worse than no
+ * screenshot, so the viewport is grown for the shot and restored afterwards.
+ */
+async function shootCard(page, locator, path) {
+  const viewport = page.viewportSize();
+  const box = await locator.boundingBox();
+  // Room for the card plus the panel's sticky header and composer, so that centring
+  // the card leaves its own header band clear of the overlay.
+  const needed = Math.ceil((box?.height ?? 0) + 420);
+  const grew = needed > viewport.height;
+  if (grew) await page.setViewportSize({ width: viewport.width, height: needed });
+  await locator.evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(200);
+  await locator.screenshot({ path });
+  if (grew) {
+    await page.setViewportSize(viewport);
+    await page.waitForTimeout(150);
+  }
+}
+
 async function askStarter(page, question, timeout = 90000) {
   const before = await page.locator(MESSAGES).count();
   await page.click(`${CHAT_PANEL} button:text-is("${question}")`);
@@ -299,7 +326,7 @@ async function askStarter(page, question, timeout = 90000) {
     `${confirmOk ? "PASS" : "FAIL"} confirm before run       resultCardsBefore=${resultsBeforeConfirm} ` +
     `reading+seed+beta present=${confirmOk}`
   );
-  await page.locator(CONFIRM_CARD).last().screenshot({ path: `${SHOT_DIR}/chat-confirm-card.png` });
+  await shootCard(page, page.locator(CONFIRM_CARD).last(), `${SHOT_DIR}/chat-confirm-card.png`);
 
   // 5. Run it for real and check the card cannot be read as a benchmark result.
   await page.click(`${CONFIRM_CARD} >> text=Run it on the optimizer`);
@@ -325,7 +352,7 @@ async function askStarter(page, question, timeout = 90000) {
   );
   if (errs.length) console.log("   errors:", errs.slice(0, 3));
   errs.length = 0;
-  await page.locator(RESULT_CARD).last().screenshot({ path: `${SHOT_DIR}/chat-whatif-card.png` });
+  await shootCard(page, page.locator(RESULT_CARD).last(), `${SHOT_DIR}/chat-whatif-card.png`);
   await page.screenshot({ path: `${SHOT_DIR}/chat-results-view.png` });
 
   // 6. A window that misses the one period the optimizer reads must say so.
@@ -361,7 +388,7 @@ async function askStarter(page, question, timeout = 90000) {
     `${noopOk ? "PASS" : "FAIL"} no-op is honest          warnedBeforeRun=${noopWarned} ` +
     `resilienceWarning=${/Do not read this as resilience/i.test(noopResult)}`
   );
-  await page.locator(RESULT_CARD).last().screenshot({ path: `${SHOT_DIR}/chat-whatif-noop-card.png` });
+  await shootCard(page, page.locator(RESULT_CARD).last(), `${SHOT_DIR}/chat-whatif-noop-card.png`);
 
   // 7. The user's own text is text, never markup.
   await page.fill(`${CHAT_PANEL} textarea`, '<img src=x onerror="window.__injected=1"> what is a lane?');
@@ -489,6 +516,11 @@ async function askStarter(page, question, timeout = 90000) {
     `apiCallsWhileChatting=${apiCalls - callsAfterLoad} errors=${errs.length}`
   );
   if (errs.length) console.log("   errors:", errs.slice(0, 3));
+  // Let the recorded results finish rendering before the shot: a screenshot of the
+  // panel beside a still-animating stepper is weak evidence for "the panel opens
+  // beside the results and does not cover them".
+  await page.waitForSelector("text=Why this plan", { timeout: 20000 }).catch(() => {});
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: `${SHOT_DIR}/chat-replay.png` });
 
   await context.close();

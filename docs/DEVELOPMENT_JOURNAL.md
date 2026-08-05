@@ -236,12 +236,59 @@ computes one), and README now says the fallback can happen instead of claiming a
 `llm_finalized`. It is a useful reminder in the same week as the latency finding: model *prose* is the
 non-deterministic part of this stack.
 
-**DoD assessment: met, with two items that cannot be met here and are not counted as met.**
+**DoD assessment: met after the second pass in §3b, with two items that cannot be met here and are not
+counted as met.**
 A cold reader can run the whole demo from the guide — I proved the Option D path in a browser, and
 every claim in the handoff traces to a run above or to a committed artifact produced by one. No doc
 contradicts another (the sweep above found and fixed four cross-doc contradictions, including two
 inside this journal's own snapshot). **Not met:** the human talk-track rehearsal (Ishan), and the
 merge/send, which are held by protocol.
+
+### 3b. Second review pass (same day, prompted by Ishan asking "are you sure Phase 6 is done?")
+
+**The honest answer was no.** A second adversarial pass over my own Phase 6 output — this time
+*looking at the committed artifacts* rather than at the prose describing them — found **four more real
+defects, three of them in evidence I had already committed and pushed.**
+
+- **🔴 Two committed screenshots did not show what this handoff said they showed.** Playwright's
+  element screenshot is composited as seen, and the chat panel's **sticky header overlaid the top of
+  the tall cards** — so `chat-whatif-card.png` was **missing the card's own `WHAT-IF RESULT ·
+  SYNTHETIC PERTURBATION` + `BETA` header band**, and `chat-whatif-noop-card.png` was missing the
+  **"Do not read this as resilience."** line. Both are named in the handoff as the things those files
+  prove. This is guardrail 4 failing in the artifact rather than in the product: the card carries six
+  labelling cues, the *screenshot of it* carried three. Found by opening the PNGs, which I had not done
+  when I wrote the caption. Fixed at the source — `web-check` now grows the viewport and centres the
+  card before shooting (`shootCard()`, with the reason in a comment) — then re-captured and re-checked
+  by eye. All six cues are now in one frame.
+- **🔴 A third caption was simply wrong.** `chat-results-view.png` was described as "the panel open
+  beside the results screen, with the results still fully visible". The frame shows the **pre-run empty
+  state**, because the browser check does not sit through the 2–4 minute benchmark. Rather than only
+  re-word it, `web-check` now waits for *"Why this plan"* before the replay screenshot, so
+  **`chat-replay.png` is a single frame containing the complete recorded results beside the panel's
+  what-if card** — which is the best evidence in the iteration that the two cannot be confused, and it
+  renders with every `/api/` call blocked.
+- **🔴 A doc-vs-doc contradiction my "no doc contradicts another" sweep missed.** DEMO_GUIDE said
+  `demo-replay.json` was "recaptured 2026-07-30"; the journal says 2026-07-31, and `git log` on the
+  asset agrees (`a5d5bd5`, 2026-07-31). The guide is now right. My earlier sweep checked *numbers* and
+  *links* and never checked *dates* — that is the lesson worth keeping.
+- **🔴 A loose framing of exactly the kind Iteration 4 Phase 6 fixed on the results screen.** Option B
+  said *"Classical wins clearly (7.2% cost reduction)"*. 7.19% is the **objective** reduction; total
+  cost falls **5.46%**. Left alone, a presenter reads "7.2% cost reduction" as money off a customer's
+  bill — the precise misreading the improvement-% caveat exists to prevent. Now: *"7.2% lower objective
+  than the naive baseline (and 5.5% lower total cost)"*, with the comparator spelled out.
+- Also corrected: the advisory token rate in the troubleshooting answer (47 → ~48 tokens/s, matching
+  the 47.7–48.6 measured in the suite run above), and the handoff's TL;DR table now quotes the change
+  strings exactly as the card renders them (`+$764.12 (+0.93%) worse`).
+
+`make web-check` was re-run **three times** across these fixes and reported **26/26 ALL CHECKS PASSED**
+with 0 console errors each time; the two INFO fold lines were unchanged (817 px desktop, 933 px
+laptop). Five of the six committed screenshots were replaced; `chat-dataset-view.png` came back
+byte-identical, which is a small extra piece of evidence that the dataset render is deterministic.
+
+**What this pass says about the first one.** The Phase 6 checks that ran on-device were real and all
+passed — but I had described three committed *images* without opening them, and swept for stale numbers
+without sweeping for stale dates. "Verified" has to mean the artifact, not the sentence about the
+artifact.
 
 ### 4. The merge, prepared but NOT performed
 

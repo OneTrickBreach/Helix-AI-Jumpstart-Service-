@@ -35,11 +35,18 @@ in-memory copy, with the same seed. On `baseline`, DC-001 knocked out for the fu
 
 | Metric | Base (as generated) | What-if | Change |
 |---|---:|---:|---:|
-| Objective | $81,789.36 | $82,553.48 | **+0.93% worse** |
-| Tail risk (CVaR-75) | $20,586.86 | $20,816.87 | **+1.12% worse** |
+| Objective | $81,789.36 | $82,553.48 | **+$764.12 (+0.93%) worse** |
+| Tail risk (CVaR-75) | $20,586.86 | $20,816.87 | **+$230.01 (+1.12%) worse** |
 | Fill rate | 83.66% | 83.66% | no change |
 
-1.3 s cold, 0.0 s on a repeat, nothing written to disk at any point.
+1.3 s cold, 0.0 s on a repeat, nothing written to disk at any point. (That table is copied from the
+card itself — see `screenshots/iteration5/chat-whatif-card.png`. On the recommended demo scenario,
+`component-shortage-shock`, the same outage reads $95,445.45 → $95,755.00, +$309.56, +0.32%.)
+
+Worth one more line, because it is the kind of detail that makes a planner trust the run: fill rate and
+days of inventory do **not** move, and the cost breakdown says why — holding, ordering, backorder and
+lost-sale costs are identical to the cent, and **the entire delta is transport**. The plan kept its
+service level by routing around the dead DC, and the number above is what that costs.
 
 > ### The one architectural rule that makes this defensible
 > **The LLM is an interpreter and a narrator. It is never a calculator.** If a number appears in an
@@ -152,18 +159,24 @@ afterwards for the browser to see the new file.
 ## 4. Screenshots
 
 In [`screenshots/iteration5/`](screenshots/iteration5/) — all captured from the live stack by
-`make web-check` at 1920×1080, regenerable the same way. **Every one carries the `BETA` chip.**
+`make web-check` and regenerable the same way. **Every one carries the `BETA` chip** (checked by
+looking at all six, not by assuming).
 
 | File | Shows |
 |---|---|
-| `chat-results-view.png` | **Start here.** The panel open beside the results screen, with the results still fully visible |
-| `chat-confirm-card.png` | Confirm-before-run: the reading, the 10-lane footprint, the estimate *and its basis*, the seed, "Not what I meant" |
-| `chat-whatif-card.png` | The what-if result card — violet dashed border, `WHAT-IF` + `BETA` chips, both columns labelled, CVaR-75 on both sides, and *"do not quote it as one"* |
-| `chat-whatif-noop-card.png` | The honest no-op: **"Do not read this as resilience"** plus the measured mechanism |
-| `chat-dataset-view.png` | The panel beside the dataset view, with the synthetic-data badge still present |
-| `chat-replay.png` | The recorded transcript walkthrough, rendered with the API blocked |
+| `chat-replay.png` | **Start here.** The complete recorded results — *"Why this plan"*, `Winner: Classical`, the Before-vs-After cards — **beside** the panel holding the recorded what-if card. Rendered with **every `/api/` call blocked**. One frame, and the point of the iteration: a what-if and a benchmark result side by side, looking nothing alike |
+| `chat-whatif-card.png` | The what-if card **in full**: its own `WHAT-IF RESULT · SYNTHETIC PERTURBATION` + `BETA` header band, the reading, both columns labelled *Base (as generated)* / *What-if*, CVaR-75, the perturbation diff, the three provenance chips, both standing warnings, seed 12345 · horizon 8, and *"This is a what-if, not the recorded benchmark result for this scenario. Do not quote it as one."* |
+| `chat-whatif-noop-card.png` | The honest no-op, in full: *"No change — and not because the network absorbed it"* over the amber **"Do not read this as resilience."** block and the measured mechanism (*lane capacity at period 52 only*) |
+| `chat-confirm-card.png` | Confirm-before-run: the reading, **Touches** 10 lanes (8 dc to customer, 2 plant to dc), **Periods**, **Estimate** with its basis, **Fixed** seed 12345 · PPO excluded, and both buttons — *"Run it on the optimizer"* / *"Not what I meant"*. Nothing has run |
+| `chat-dataset-view.png` | The panel beside the Iteration 4 dataset view, with the *synthetic · seeded · on-device · not customer data* badge still present |
+| `chat-results-view.png` | The panel opening beside the **live** results view. The results area is the pre-run empty state, because the browser check does not sit through the 2–4 minute benchmark — `chat-replay.png` is the one that shows real results beside the panel |
 
----
+**Why the card shots needed a harness fix (Phase 6).** Playwright's element screenshot is composited
+as seen, and the panel's sticky header overlaid the top of these tall cards — so the committed
+`chat-whatif-card.png` was **missing the card's own `WHAT-IF RESULT` + `BETA` header band**, and the
+no-op shot was missing the **"Do not read this as resilience"** line. Committed evidence that omits the
+labels the card exists to carry is worse than no screenshot, so `web-check` now grows the viewport and
+centres the card before shooting. Both files were re-captured and re-checked by eye.
 
 ## 5. Verification
 

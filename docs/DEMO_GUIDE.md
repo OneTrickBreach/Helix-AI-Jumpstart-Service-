@@ -153,7 +153,7 @@ From a laptop, set up access first — see [Remote Access](#remote-access-runnin
 
 The UI animates through each pipeline stage (ingest → forecast → baseline → classical → ppo → rag →
 done) in about 2 seconds, then displays the full results. Every number shown was captured from a
-real live run on this GB10 (recaptured 2026-07-30, so it matches the currently shipped code
+real live run on this GB10 (recaptured 2026-07-31, so it matches the currently shipped code
 including the CVaR tail-risk metric).
 
 ### What appears on screen (top to bottom)
@@ -202,7 +202,9 @@ This is the recommended demo scenario because:
 - It has a dramatic supply constraint (zero-supply shock on a component)
 - The optimizer must make hard trade-offs (cannot recover lost sales)
 - The advisory rationale cites the shortage playbook and supplier agreement
-- Classical wins clearly (7.2% cost reduction)
+- Classical wins clearly: **7.2% lower objective than the naive baseline** (and 5.5% lower total
+  cost). Both percentages are against the naive reorder-point + shortest-route baseline on this
+  seeded synthetic scenario — not against a customer's actual costs.
 
 ### Step 3: Set parameters (use defaults)
 
@@ -728,7 +730,7 @@ This is a known NVML probe issue on the GB10 after container recreation. The GPU
 acknowledged:
 
 > "The GPU probe shows unavailable because of a known NVML initialization issue after container
-> recreation — but the LLM generated the advisory in ~15 seconds at 47 tokens/sec, which proves
+> recreation — but the LLM generated the advisory in ~15 seconds at ~48 tokens/sec, which proves
 > the GPU is working."
 
 ### Results are needed instantly without waiting
