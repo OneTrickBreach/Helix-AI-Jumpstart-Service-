@@ -179,6 +179,13 @@ built in Iteration 3 — but the sweep exists to catch exactly this. The card no
 **starts only after you have reviewed this**. It answers the other half of "the scenarios aren't
 intuitive": this iteration *describes* the data, Iteration 5 lets you *interrogate* it.
 
+> **Update (2026-08-05):** Iteration 5 was **started and completed without that review**, because your
+> PTO ran a week and waiting was the worse trade. That was a deliberate, reversible call by Ishan, and
+> it is why Iteration 5 ships behind a visible `BETA` label — see
+> [`AI_Jumpstart_MVP_Iteration5_handoff.md`](AI_Jumpstart_MVP_Iteration5_handoff.md). Nothing in
+> Iteration 5's Phases 0–3 depends on this view's *appearance*, only on its API, so if you want the
+> dataset view changed the exposure is contained to the chat UI phase.
+
 **Iteration 6 — production track.** Real customer-data onboarding (ETL, schema mapping, validation,
 access control), hardening, multi-tenant isolation, licensing, shippable appliance image.
 

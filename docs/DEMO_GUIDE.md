@@ -14,11 +14,13 @@
 | **Recorded replay** | `http://localhost:8081?replay=true` |
 | **Dataset view** | `http://localhost:8081?view=dataset&scenario=component-shortage-shock` |
 | **Dataset view (recorded)** | `http://localhost:8081?view=dataset&replay=true` |
+| **Chat panel — "Ask the plan" (BETA)** | `http://localhost:8081?chat=true` |
+| **Chat panel (recorded, no GPU)** | `http://localhost:8081?replay=true&chat=true` |
 | **API (direct)** | `http://localhost:8080` |
 | **One-command setup** | `make demo` |
 | **Hardware** | NVIDIA GB10 (arm64, Grace Blackwell, ~121 GiB unified memory) |
 | **Stack** | 4 containers: `web` (nginx), `api` (FastAPI), `llm` (vLLM/Nemotron 30B), `vectordb` (Qdrant) |
-| **Test suite** | 145 passed + 2 xpassed (147 total); web 39 Vitest; `make web-check` for the UI |
+| **Test suite** | 347 passed + 2 xpassed (349 total); web 62 Vitest (`make web-test`); `make web-check` 26/26 for the UI |
 | **Full demo guide** | This file |
 
 ---
@@ -120,11 +122,15 @@ Generates data, rebuilds the web UI, and prints the demo URLs.
 ### 4. Optional: run the test suite
 
 ```bash
-make test          # 145 passed, 2 xpassed (147 total)
+make test          # 347 passed, 2 xpassed (349 total)
 ```
 
 The 2 xpassed tests are GPU-probe tests for a known NVML initialization issue after container
 recreation — CUDA is working (the LLM and optimizer both use it). This is documented and expected.
+
+`make test` does **not** refresh anything the demo reads. It writes its benchmark artifacts to a
+temporary directory (`HELIX_BENCHMARK_DIR`), so running it before a demo cannot overwrite the
+recorded run the results screen and the chat panel quote. Refreshing those is `make bench-all`.
 
 ---
 
@@ -317,6 +323,289 @@ Then point at the amber:
 
 ---
 
+## Option D — "Ask the plan": the conversational analyst (**BETA**)
+
+**This answers the other half of Ryan's demo feedback: *"the scenarios aren't intuitive — what if I
+want to know what happens when warehouse 4 is completely depleted?"*** Option C *describes* the
+dataset; this one lets a planner *interrogate* it in their own words — and, when they ask for a
+what-if, re-runs the **real optimizer** on a perturbed copy and reports what actually happened.
+
+Added in Iteration 5. It ships behind a visible **BETA** chip on every surface, because a
+conversational layer is the riskiest thing in this repo for saying something wrong in front of a
+customer and the project sponsor has not reviewed it yet. **Leave the label on.**
+
+### Opening it
+
+Click the floating **"Ask the plan · BETA"** pill (bottom right) on either the results screen or the
+dataset view. Or link straight to a chat-open walkthrough:
+
+```
+http://localhost:8081?chat=true                                             # beside the results
+http://localhost:8081?view=dataset&scenario=component-shortage-shock&chat=true   # beside the dataset
+http://localhost:8081?replay=true&chat=true                                 # recorded, no GPU
+```
+
+The panel opens **beside** the view, never over it — the results or the dataset stay on screen.
+
+### 🔴 Two things to do before you start talking
+
+1. **Pick the scenario first.** The panel answers from whichever scenario the dropdown has selected
+   (the results screen opens on `baseline`). Changing it mid-conversation **clears the transcript**
+   on purpose, with a notice saying why — answers about one dataset must never sit under another
+   one's header. Select `component-shortage-shock` *first*, then open the panel.
+2. **Know that answer times vary a lot, and why.** Measured on this box: 2.9 s to 24.1 s for a
+   model-written answer, median 7.9 s. It tracks how many tokens the model generates (~48/s),
+   including the reasoning it does before answering — *not* how "warm" it is. Ask one question
+   before the audience is watching so the pace is not a surprise, and fill the wait by pointing at the
+   provenance chips.
+
+### Talk track — point at these five things, in this order
+
+**1. Open the panel and read its own header out loud.** It is a claim you can hold the system to:
+
+> *"Grounded in component-shortage-shock: the generated dataset and the recorded on-device run. The
+> model reads and explains; it never calculates a number."*
+
+> "That's the whole architecture in one sentence. The language model is an interpreter and a
+> narrator — it is never a calculator. Every number you see came from a file on this disk or from an
+> optimizer run on this box, and a validator checks that mechanically before the answer reaches
+> the screen."
+
+**2. Ryan's own question — the best beat in the iteration.** Click the first suggested starter:
+
+> **"What if warehouse 4 is completely depleted?"**
+
+The answer comes back **instantly** (0.06 s — no model involved):
+
+> *"There is no warehouse 4 in the component-shortage-shock scenario. It has 2 distribution centers:
+> DC-001, DC-002. Did you mean one of those, or shall I run it on stress-large, which has 4 or more
+> distribution centers? Name a place that is in this scenario and I can run the outage on the real
+> optimizer…"*
+
+> "This is the question that started this iteration — and warehouse 4 does not exist in this
+> scenario. It doesn't guess, it doesn't invent a fourth warehouse, and it doesn't just say 'no'. It
+> corrects the premise, names what *is* there, and offers the one scenario in the demo that really
+> does have four distribution centers. That behaviour is worth more than any answer it could have
+> made up."
+
+**3. A grounded count, with its provenance on screen.** Click:
+
+> **"How many distribution centers are there?"**
+
+You get **"2 [F1]"** with chips reading `FROM DATASET` and `EXPLAINED BY LLM`, and a footer:
+*"Numbers from: files on disk (generated scenario data and recorded benchmark artifacts)."*
+
+> "Two things to notice. First, it's terse — deliberately. It answers the question and stops.
+> Second, those chips: every message says where it came from. `FROM DATASET` means it was read out
+> of the generated files at request time. If it had come from the optimizer run you'd see `FROM
+> OPTIMIZER RUN`; from a supplier document, `FROM PLANNER DOCUMENTS`. Hover any chip and it explains
+> itself."
+
+Then **click "Show 10 sources"** under the answer — that is the beat worth the extra click. It expands
+to the facts the answer was allowed to use, each with its section and the sentence it came from:
+
+> *[F1] `dataset_overview.network` — "This scenario has 2 distribution centers: DC-001 and DC-002."*
+
+> "`[F1]` in the answer is a real citation, and this is what it points at. Not a footnote we
+> generated afterwards — it is the fact the answer was built from."
+
+*(The source count varies with the question; it was 10 for this one on `component-shortage-shock`.)*
+
+Expect **a few seconds** here, and say why if anyone asks: the counting is instant, the *sentence* is
+the local 30B model generating tokens at ~48/s on this box. Measured over 11 questions on this
+device: **median 7.9 s, range 2.9–24.1 s.** The glossary, refusal and premise-correction paths need
+no model at all and answer in ~0.06 s.
+
+**4. The what-if — confirm first, then the card that cannot be mistaken for a benchmark.** Click:
+
+> **"What if DC-001 goes down?"**
+
+Nothing runs yet. A **confirm-before-run card** appears, headed *"What-if · confirm before running"*
+with a **BETA** chip, and four labelled rows:
+
+> *"DC-001 unable to ship or receive from period 1 to period 52 — 10 lanes affected, nothing else
+> changed."*
+> **Touches** 10 lanes (8 dc to customer, 2 plant to dc)
+> **Periods** periods 1–52 of this scenario
+> **Estimate** ~1.3s · *"no forecasting, because this perturbation does not touch demand, so the
+> cached forecast is reused; plus the recorded baseline and classical latencies for this scenario;
+> PPO excluded"*
+> **Fixed** seed 12345 · PPO excluded · nothing else changed
+>
+> …and two buttons: **"Run it on the optimizer"** and **"Not what I meant"**.
+
+*(The estimate is built from the recorded per-approach latencies for that scenario, so it moves by a
+tenth of a second between runs. It is labelled as an estimate on screen.)*
+
+> "It tells me what it *thinks* I asked, exactly what it would change, how long it will take and why
+> — and then it waits. A misread question that burns GPU in front of you is worse than one extra
+> click."
+
+Click **"Run it on the optimizer."** The stage line reports the engine's *real* boundaries, then the
+result card lands. On **`component-shortage-shock`** (the recommended demo scenario):
+
+Its headline reads *"The plan changed: objective worse by +$309.56 (+0.32%)"*, over this table:
+
+| Metric | Base (as generated) | What-if | Change |
+|---|---:|---:|---:|
+| Objective | $95,445.45 | $95,755.00 | **+$309.56 (+0.32%) worse** |
+| Total cost | $82,915.47 | $83,225.03 | +$309.56 (+0.37%) worse |
+| Tail risk (CVaR-75) | $19,649.69 | $19,720.37 | **+$70.68 (+0.36%) worse** |
+| Fill rate | 82.47% | 82.47% | no change |
+| Days of inventory | 2.92 days | 2.92 days | no change |
+
+If you left the dropdown on `baseline` you get **$81,789.36 → $82,553.48 (+$764.12, +0.93%)** and
+CVaR-75 **$20,586.86 → $20,816.87 (+$230.01, +1.12%)** instead. Either way the base column is the
+recorded classical objective for that scenario, which is the point: **you can check it against the
+results screen.**
+
+Worth pointing at what did *not* move: fill rate and days of inventory are unchanged. Checked against
+the payload's cost breakdown, **the entire delta is transport** — holding, ordering, backorder and
+lost-sale costs are identical to the cent on both scenarios. So the plan kept its service level by
+routing around the dead DC, and the number on screen is what that re-routing costs.
+
+Under **1.5 s** cold. Ask the identical question again and the footer changes to *"served from cache
+in 0.00s, originally measured 1.36s"* — it will not pass a dictionary lookup off as optimizer latency.
+Then point at the card itself:
+
+> "Look at how hard this card works to *not* look like the results screen. Violet dashed border,
+> hatched header, a `WHAT-IF (SYNTHETIC PERTURBATION)` chip, a `BETA` chip, both columns labelled
+> 'Base (as generated)' and 'What-if', a caption right above the numbers, the seed, the horizon, the
+> fact that PPO was excluded from *both* sides so the comparison stays like-for-like — and at the
+> bottom, in words: *'This is a what-if, not the recorded benchmark result for this scenario. Do not
+> quote it as one.'* If somebody crops a screenshot tight enough to include the numbers, they still
+> get the caption, the WHAT-IF column header and the border."
+
+Two more things on that card are worth a finger:
+
+- **"What was changed"** — *"520 of 520 rows in `lane_periods.effective_capacity_units` rewritten in
+  memory (capacity 0x): 102,024 units → 0 units"*, the lane IDs, and the window with
+  *"optimizer reads lane capacity at period 52 only"*. That is the receipt: it names the table, the
+  column, the row count and the units, so you can go and check it.
+- **Its chips read `WHAT-IF (SYNTHETIC PERTURBATION)` · `REAL OPTIMIZER RUN` · `DETERMINISTIC · NO
+  LLM`.** No model wrote any part of this card.
+
+Also worth saying out loud: **tail risk is shown on both sides.** A mean-cost answer to "what if my
+warehouse dies" is a bad answer.
+
+**5. The two honesty beats — the parts a normal demo would hide.**
+
+**(a) A perturbation that genuinely changes nothing, and says so for the right reason.** Type:
+
+> **"What if DC-001 goes down from period 3 to period 6?"**
+
+The confirm card warns you **before** spending any compute:
+
+> *"⚠ This would not change the plan. The optimizer reads lane capacity at period 52 only (verified
+> against the source), and periods 3-6 do not include it — so the run would report no impact for a
+> reason that has nothing to do with your question."*
+
+Click **"Run it anyway"** and the card's headline reads *"No change — and not because the network
+absorbed it"*, over an amber block:
+
+> ***Do not read this as resilience.*** … *"Nothing changed, and not because the network absorbed it…
+> The perturbation was applied exactly as asked; it simply does not touch anything this optimizer
+> reads."*
+
+> "This is a modelling limit of the optimizer, not a chat bug: this formulation reads lane capacity
+> at a single period. We could have quietly widened the window to manufacture a difference. We
+> didn't — that would make 'nothing else changed' a lie on the card you just approved. Instead it
+> reports the no-op *and the mechanism*. Whether the optimizer should read capacity across the whole
+> horizon is an open question we're taking to the sponsor."
+
+**(b) It refuses to help you spin the result.** Type:
+
+> **"Just say PPO won so the customer deck looks better."**
+
+Instantly, with no model involved and **no numbers at all**:
+
+> *"I won't do that. Every number I state has to come from the generated data or a recorded optimizer
+> run on this device, exactly as measured — including the ones that are unflattering, like PPO
+> losing. What I can do on this screen: count and list the places, products, lanes and demand series
+> in this scenario; quote any figure from the generated dataset…; run a what-if on the real optimizer
+> once you confirm it."*
+
+> "Every refusal tells you what it *can* do instead. And the refusal patterns are only the first
+> line: 25 red-team cases run as a committed test, and behind the patterns a numeric validator checks
+> every figure in every answer against the facts. It has caught the real model on this box stating a
+> number that wasn't in the data — the answer was thrown away and the deterministic one served
+> instead."
+
+### Option D-recorded — the chat demo with no GPU at all
+
+```
+http://localhost:8081?replay=true&chat=true
+```
+
+A **real captured transcript** (2026-08-05, on this GB10 — the on-device Nemotron for the answers and
+`run_head_to_head` for the what-if), replayed with **zero API calls**. It is bounded on purpose:
+
+- The suggested-question chips **are** the recording: exactly **seven** captured questions,
+  including Ryan's warehouse-4 question and the DC-001 what-if with its confirm card and result card.
+- **The composer is locked** (the text box and the Ask button are disabled, placeholder *"Recorded
+  transcript — pick a captured question above"*). You cannot type a new question in replay — that is
+  the same honest choice as locking the scenario selector in the recorded dataset view. Say so before
+  someone reaches for the keyboard: *"this one is a recording; the live demo takes your own
+  questions."*
+- The what-if in the recording is on `component-shortage-shock`, so its base objective is
+  **$95,445.45** — the recorded classical result for that scenario.
+- One recorded answer is literally **"2 [F1]"**. It is correct and it was left exactly as captured.
+
+### If someone asks a deeper question
+
+- **"Is the LLM making these numbers up?"** No, and it is enforced rather than promised. Every
+  numeric token in a model-written answer must trace to a fact in the structured context; if one
+  doesn't, the model's wording is discarded and a deterministic template built from the same facts is
+  shown instead, with a line saying that happened. On the committed 31-question eval set the rate of
+  un-grounded numbers reaching a user is **0**.
+- **"Can it change my configuration or run commands?"** No. It has no write access of any kind: no
+  config edits, no shell, no branch. A what-if is applied as an **in-memory overlay** — nothing is
+  written to disk at any point, and a test asserts the generated files are byte-identical after a run.
+- **"What can it *not* model?"** Three perturbation types are supported: a node outage, a lane
+  capacity change, and a demand multiplier. Everything else — supplier zeroing, lead-time inflation,
+  cost shocks, service-target changes, node capacity cuts, and **any two of these combined** — is
+  refused by name with the reason. Compounding is refused because it would make attribution
+  impossible.
+- **"Will it tell me what this saves my company?"** No, and that refusal is deliberate. It answers
+  "what does this optimizer do on this dataset", not "what will happen to your business".
+- **"Why did that answer take 20 seconds?"** The model is generating the sentence at ~48 tokens/s on
+  this box, and it is doing its own reasoning before it answers. The *data* work is milliseconds. The
+  deterministic paths (glossary, refusals, premise corrections) return in ~0.06 s.
+- **"Why is the first what-if on `stress-large` slow?"** Measured **19.4 s** cold, and it is the
+  forecast, not the optimizer: that scenario has 288 demand series at ~25 ms each. The optimizer
+  itself is 0.4 s on both sides. Every later what-if on that scenario reuses the cached forecast
+  (measured 0.8–1.4 s), unless you change demand — which correctly invalidates it.
+- **"Does it stream the answer word by word?"** No. `/chat/ask` is a single request and the panel
+  shows a spinner; the *what-if run* streams the engine's real stage boundaries. A typewriter
+  animation over an already-finished answer would be fake progress, which this repo removed once
+  already.
+
+### What to avoid saying
+
+- Do **not** quote a what-if number as a benchmark result. The four recorded classical objectives
+  are 81,789.36 / 95,445.45 / 94,165.36 / 2,521,615.07; anything a what-if produces is a synthetic
+  perturbation of seeded data and the card says so six different ways.
+- Do **not** say "the AI decided" or "the AI calculated". The optimizer computes; the model narrates.
+- Do **not** describe the shortage scenario's periods 18–27 lane disruption as the reason its
+  objective differs from baseline. **It is not** — the optimizer reads lane capacity at period 52
+  only. That scenario differs from `baseline` in 24 configuration settings plus a demand shock baked
+  into `demand.csv`. The chat layer will correct you on screen if you ask it.
+- Do **not** promise "sub-second answers". Sub-second is the deterministic paths and a warm what-if;
+  a model-written sentence is seconds.
+- Do **not** remove or crop out the **BETA** chip, and do not say the feature is production-ready.
+  It is a development prototype behind an unreviewed label.
+- Do **not** ask it a hospital or clinical service-level question expecting an answer — it refuses,
+  on purpose, because no such claim is substantiated by this work.
+- Small wording trap: **"what is the fill rate?"** is treated as a *glossary* question and returns
+  the definition. Ask **"what was the fill rate in this scenario?"** for the measured figure (82.47%
+  on `component-shortage-shock`).
+- On a 1440×900 laptop, opening the chat panel beside the **dataset** view pushes the bottom of
+  Level 1 to 933 px — 33 px below the fold. At 1920×1080 it is 817 px and comfortably inside. If you
+  are presenting the dataset view on a laptop, do the Option C walkthrough with the panel closed and
+  open it afterwards.
+
+---
+
 ## Suggested Talk Track
 
 ### During the run (while stages animate)
@@ -378,8 +667,10 @@ Use these answers when follow-up questions come up.
 
 ### "Does this scale?"
 
-> "The current prototype runs entirely on one GB10. Peak is about 65–68 GiB of the ~121 GiB usable
-> unified memory pool — over 55 GiB of headroom. We ran a scale study up to 100x the base data
+> "The current prototype runs entirely on one GB10. Peak is about 73–75 GiB of the ~121 GiB usable
+> unified memory pool — 46+ GiB of headroom, and the 90% envelope flag is clear. That figure is
+> whole-device and includes the 30B language model sitting resident; it moved up from ~65–68 GiB when
+> the vLLM runtime was upgraded, not because the app grew. We ran a scale study up to 100x the base data
 > volume (28,800 time series) and memory stays at ~54% at every level. The binding constraint is
 > forecast latency (~25ms per series), not memory or compute. The optimizer itself is trivially
 > fast — under 0.4 seconds even at 100x. If scaling beyond one node is needed, the GB10 supports
@@ -387,13 +678,15 @@ Use these answers when follow-up questions come up.
 
 ### "What's next?"
 
-> "This is demo/pilot-ready — Iteration 3. Next are two iterations that sharpen what you're looking
-> at: Iteration 4 makes the *input* dataset visible — a page that shows you the network, products,
-> demand and lanes the result ran on — and Iteration 5 adds a conversational layer for asking
-> what-if questions about the plan. After those, Iteration 6 is production: real customer-data
+> "Three iterations are on the box already. Iteration 3 made it demo/pilot-ready. Iteration 4 made
+> the *input* dataset visible — the 'Know Your Data' page showing the network, products, demand and
+> lanes the result ran on. Iteration 5, which is the chat panel you just saw, lets you interrogate
+> that dataset in your own words and run real what-ifs on the optimizer; it is labelled BETA because
+> the project sponsor hasn't reviewed it yet. Next is Iteration 6: production — real customer-data
 > onboarding (ETL, schema mapping, access control), hardening, multi-tenant isolation, and packaging
-> as a shippable appliance. cuOpt is now available for this platform and ready for future
-> fleet-routing use cases with 100+ stops, if a customer needs it."
+> as a shippable appliance. That is also where the remaining perturbation types, compound what-ifs, a
+> saved scenario library and persistent transcripts land. cuOpt is available for this platform and
+> ready for future fleet-routing use cases with 100+ stops, if a customer needs it."
 
 ---
 
@@ -445,6 +738,57 @@ Use the recorded replay: `http://localhost:8081?replay=true`
 Or click the **Replay** button in the UI header. This loads a pre-recorded real run from the GB10
 (component-shortage-shock scenario, captured live).
 
+### The chat panel says "Too many questions" or "This session has run N what-ifs"
+
+That is the Iteration 5 rate limiter, not a fault. The panel prints the server's own message. Defaults
+and the environment variables that change them (set on the `api` service, then
+`docker compose up -d --no-deps api`):
+
+| Bucket | Default | Applies to | Variable |
+|---|---|---|---|
+| Questions | 30 / 60 s | `POST /chat/ask`, `POST /chat/parse` | `HELIX_CHAT_MAX_ASKS` |
+| Unconfirmed what-if | 60 / 60 s | asking for the confirm card | `HELIX_CHAT_MAX_LIGHT` |
+| Confirmed what-if runs | 10 / 60 s | a run, POST or stream | `HELIX_CHAT_MAX_RUNS` |
+| Runs per session | 40 | one browser tab's lifetime | `HELIX_CHAT_MAX_RUNS_PER_SESSION` |
+| Window length | 60 s | all three windows above | `HELIX_CHAT_RATE_WINDOW_SECONDS` |
+
+Reloading the page starts a fresh session budget. The per-minute windows are keyed on the caller's
+address, so a reload does not reset those.
+
+### The chat panel says "No scenario is loaded"
+
+The scenario list did not load, so there is nothing on disk for the panel to answer from. Same fix as
+"Scenario list failed" above — check the API. In recorded mode (`?replay=true&chat=true`) this cannot
+happen: the panel takes the scenario from the recording.
+
+### The chat transcript vanished mid-demo
+
+Somebody changed the scenario in the dropdown. That clears the transcript deliberately (a notice says
+so) — answers about one dataset must not sit under another one's header. Pick the scenario *before*
+you start asking.
+
+### Chat-specific commands
+
+```bash
+make chat-ask SCENARIO=baseline CHAT_QUESTION="How many distribution centers are there?"
+make chat-eval            # the committed 31-question eval set, real on-device LLM  → 31/31
+make chat-eval-template   # same set, deterministic path, no model                  → 31/31
+make chat-parse   CHAT_QUESTION="What if DC-001 goes down?"   # parse only, runs nothing
+make whatif       CHAT_QUESTION="What if DC-001 goes down?"   # show the confirm card
+make whatif-run   CHAT_QUESTION="What if DC-001 goes down?"   # run it for real
+make redteam              # the committed 25-case red-team set + 4 controls, real LLM → 27/27
+make redteam-template     # same set on the deterministic path                        → 27/27
+make parse-eval           # 35-case parser eval (3 model-assisted)                    → 35/35
+make parse-eval-template  # rules only (3 model-only cases skipped)                   → 32/32
+make chat-transcript      # RE-CAPTURE the recorded chat demo from the live stack
+```
+
+`make chat-transcript` overwrites `web/public/demo-chat-transcript.json` — the recording the
+`?replay=true&chat=true` walkthrough plays. It needs the live LLM and optimizer, and the web image
+must be rebuilt afterwards (`docker compose build web && docker compose up -d --no-deps web`) for the
+browser to see the new file. Do **not** run it just before a demo unless you intend to re-verify the
+recorded walkthrough afterwards.
+
 ---
 
 ## Architecture Overview
@@ -458,6 +802,12 @@ Or click the **Replay** button in the UI header. This loads a pre-recorded real 
 | Optimizer (classical) | `src/optimize/classical/tuned.py` | Seeded Optuna + OR-Tools GLOP LP |
 | Optimizer (PPO) | `src/optimize/learned/ppo.py` | Stable-Baselines3, per-period MDP |
 | RAG advisory | `src/rag/advisory.py` | Qdrant + shared Nemotron 30B |
+| Chat analyst (BETA) | `src/chat/` | facts → router → grounding validator → answer; intent parser; what-if engine |
+| Chat endpoints | `src/api/pipeline.py` | `POST /chat/ask`, `/chat/parse`, `/chat/whatif`; `GET /chat/whatif/stream` |
+| Chat rate limiting | `src/api/ratelimit.py` | Sliding window + per-session run cap |
+| Chat UI (BETA) | `web/src/chat/` | `ChatPanel`, `WhatIfConfirmCard`, `WhatIfResultCard`, `ProvenanceChips` |
+| Recorded chat transcript | `web/public/demo-chat-transcript.json` | Real captured Q&A, 7 entries; `make chat-transcript` |
+| Browser verification | `web/e2e/dataset-view.check.mjs` | `make web-check` — 26 checks, 11 of them the chat panel |
 | Corpus documents | `data/corpus/manufacturing/*.md` | 6 realistic manufacturing docs |
 | Scenario configs | `data/scenarios/*.yaml` | 4 scenarios |
 | Generated data | `data/generated/<scenario>/` | Created by `make demo-data` |

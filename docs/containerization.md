@@ -1,19 +1,24 @@
 # Containerization — GB10 (arm64, CUDA 13)
 
-> **Status:** Four-service PoC stack, **verified live on the GB10 (2026-07-27, Iteration 3 complete)**.
+> **Status:** Four-service PoC stack, **re-verified live on the GB10 (2026-08-05, Iteration 5 Phase 6)**.
 > All images are arm64; the API and shared LLM declare GPU reservations. cuOpt/OR-Tools VRP
 > capability is integrated in the `api` service (`/cuopt/*`), not a separate container. `make up` →
-> `make test` (**69 passed + 2 xpassed**, 71 total) → `make bench-all` (4 scenarios) → `make demo`
-> all pass on-device.
+> `make test` (**347 passed + 2 xpassed**, 349 total) → `make bench-all` (4 scenarios, 12 objectives
+> bit-identical) → `make demo` all pass on-device. Web: `make web-test` **62 Vitest**,
+> `make web-check` **26/26**.
+>
+> **The `llm` base image is pinned by digest** (`vllm/vllm-openai:v0.26.0`, build `ffd46bfab212`) as of
+> Iteration 5 Phase 0 — it silently changed under us once, during Iteration 4 Phase 0, and moved the
+> device envelope. A tag can be re-pushed; a digest cannot.
 
-_Last updated: **2026-07-27** (Iteration 3 finalization)_
+_Last updated: **2026-08-05** (Iteration 5 Phase 6)_
 
 ## Stack
 
 | Service | Host port | GPU reserved | Role and current status |
 |---|---:|---:|---|
 | `web` | 8081 | No | React/Vite static UI through nginx; same-origin API proxy |
-| `api` | 8080 | Yes | Secure FastAPI orchestration, embeddings, forecast, optimizers, suite, cuOpt/OR-Tools capability (`/cuopt/*`) |
+| `api` | 8080 | Yes | Secure FastAPI orchestration, embeddings, forecast, optimizers, suite, dataset overview (`/dataset/*`), conversational analyst (`/chat/*`, rate limited), cuOpt/OR-Tools capability (`/cuopt/*`) |
 | `llm` | 8000 | Yes | One shared `NVIDIA-Nemotron-3-Nano-30B-A3B-FP8` vLLM service |
 | `vectordb` | 6333/6334 | No | Qdrant REST/gRPC and persisted local index |
 
@@ -102,9 +107,13 @@ into its own service then.
 - GPU visibility previously verified from the arm64 CUDA 13 container
 
 Current run evidence and the stress-large single-node decision live in `benchmark/suite-summary.md`
-(regenerate with `make bench-all`; the file itself is gitignored). As of the 2026-07-27 Iteration 3
-finalization: all four scenarios peak 65–68 GiB of the ~121 GiB usable pool (55+ GiB headroom), the
-90% envelope flag is clear, and **stress-large stays single-node** (no 2-node path needed). The
+(regenerate with `make bench-all`; the file itself is gitignored). As of the 2026-08-05 Iteration 5
+Phase 6 run: all four scenarios peak **73.2–74.1 GiB** of the ~121 GiB usable pool (46.9–47.8 GiB
+headroom), the 90% envelope flag is clear, and **stress-large stays single-node** (no 2-node path
+needed). The figure was 65–68 GiB at the 2026-07-27 Iteration 3 finalization and rose when `make up`
+re-pulled the then-unpinned vLLM base image, **not** because the application grew; it is a whole-host
+measurement that has been observed swinging 69–76 GiB for unchanged code, so read it as "flag clear,
+headroom ample" rather than as a precise regression signal. The
 scale study (Phase 5) pushed to 100x (28,800 series) — memory stays at ~54% at all levels; the
 ceiling is forecast latency, not memory. PPO lost all four scenarios (Phase 4: fair MDP, demoted).
 See `docs/DEVELOPMENT_JOURNAL.md` for the full table.

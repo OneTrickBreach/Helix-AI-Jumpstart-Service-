@@ -2,7 +2,7 @@
 
 > **What this is:** An end-to-end supply-chain-optimization (SCO) prototype designed to run **entirely on a single GB10-class device** (Dell Pro Max with GB10 / NVIDIA DGX Spark sibling), from seeded synthetic data to an optimized plan. Built at **Helix, Connection Inc.** The pitch in one line: *a workload that used to need a rack now runs at the desk.*
 
-> **How to use this file (humans + AI agents):** Read it all once. For the current build, jump to **[§9 Current Status](#9-current-status--iteration-2-prototype)**, **[§11 Confirmed Decisions](#11-confirmed-kickoff-decisions)**, and [`docs/handoff.md`](docs/handoff.md).
+> **How to use this file (humans + AI agents):** Read it all once. For the current build, jump to **[§9 Current Status](#9-current-status--iteration-5-beta-complete-on-the-branch)**, **[§11 Confirmed Decisions](#11-confirmed-kickoff-decisions)**, and [`docs/handoff.md`](docs/handoff.md).
 
 ---
 
@@ -25,11 +25,11 @@ A suggested `.gitignore` is in **[§10](#10-repository-structure)**.
 6. [Data Elements & Pipeline](#6-data-elements--pipeline)
 7. [Use-Case / Opportunity Map](#7-use-case--opportunity-map)
 8. [Prototype Scope (depth over breadth)](#8-prototype-scope-depth-over-breadth)
-9. [Current Status — Iteration 3 complete](#9-current-status--iteration-3-complete-demopilot-ready)
+9. [Current Status — Iteration 5 (Beta) complete on the branch](#9-current-status--iteration-5-beta-complete-on-the-branch)
 10. [Repository Structure](#10-repository-structure)
 11. [Confirmed Kickoff Decisions](#11-confirmed-kickoff-decisions)
 12. [Honest Caveats & Guardrails (carry-forward)](#12-honest-caveats--guardrails-carry-forward)
-13. [Getting Started / Next Steps](#13-getting-started--next-steps)
+13. [Getting Started / Running the Prototype](#13-getting-started--running-the-prototype)
 14. [Glossary](#14-glossary)
 15. [Source Materials / Provenance](#15-source-materials--provenance)
 
@@ -207,17 +207,24 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 
 ---
 
-## 9. Current Status — Iteration 3 complete (demo/pilot-ready)
+## 9. Current Status — Iteration 5 (Beta) complete on the branch
 
-**Iteration 3 (Phases 0–6) is complete and verified on-device (2026-07-27).** The prototype is
-demo/pilot-ready: reproducible results, real-corpus RAG, a polished web UI with a "Why This Plan"
-summary, a recorded demo fallback, a fair RL evaluation, a scale study, and an honest cuOpt
-re-check. Phase 7 (production track) is deferred to **Iteration 6** (see §13 for the roadmap).
+**Iteration 3** (demo/pilot-ready) merged 2026-07-27. **Iteration 4** (dataset transparency layer)
+merged to `main` 2026-08-03. **Iteration 5 (Beta)** — the conversational scenario/what-if analyst —
+is **complete and verified on-device (2026-08-05)** on `feat/iteration5-beta-conversational-analyst`,
+awaiting the merge to `main`. Iteration 6 is the production track (see §13).
+
+🔴 **Ryan has not yet reviewed Iteration 4 or 5** (PTO). Iteration 5 therefore ships behind a visible
+**`BETA`** chip on every chat surface and in every screenshot. That label is a guardrail, not styling:
+it comes off when the sponsor has seen it, not when the code is finished.
 
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
-- `make demo` generates data, rebuilds the web UI, and prints the demo URLs.
-- `make test` — **69 passed, 2 xpassed** (71 total).
+- `make demo` generates data, rebuilds the web UI, and prints the demo URLs (results, dataset, chat).
+- `make test` — **347 passed, 2 xpassed** (349 total). Web: **62 Vitest** (`make web-test`),
+  **26/26** browser checks (`make web-check`).
 - `make bench-all` runs all four scenarios through baseline, classical, PPO, and advisory RAG/LLM.
+- `make chat-eval` / `make redteam` / `make parse-eval` — the committed chat, red-team and parser
+  evaluation sets (**31/31**, **27/27**, **35/35** against the real on-device model).
 
 **Real results (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded — fully reproducible):**
 
@@ -232,11 +239,19 @@ re-check. Phase 7 (production track) is deferred to **Iteration 6** (see §13 fo
 - **PPO was given a fair shot** (Phase 4: per-period MDP rebuild, CVaR tail-risk eval) and **lost all
   four on both objective and CVaR-75 tail risk**. Demoted to "evaluated, not shipped." Kept visible
   in the benchmark for transparency.
+- **Reconfirmed bit-identical** on every iteration since — most recently `make bench-all` at
+  2026-08-05T14:46Z, all 12 objectives to the digit.
 - **RAG advisory** grounded on 6 real manufacturing documents (supplier agreements, SOPs, playbooks)
-  with retrieval-time injection scanning and Qdrant stale-point cleanup. LLM rationale surfaces as
-  `llm_finalized` for all four scenarios.
-- **On-device envelope:** peak memory ~65–68 GiB of ~121 GiB usable (55+ GiB headroom). Single-node
-  holds at all tested scales up to 100x (28,800 series). LLM ~47 tokens/s.
+  with retrieval-time injection scanning and Qdrant stale-point cleanup. LLM rationale normally
+  surfaces as `llm_finalized` for all four scenarios; the prose occasionally falls back to the
+  deterministic template (`benchmark_template_after_short_llm_output`) — the metrics are unaffected
+  either way, because the LLM never computes them.
+- **On-device envelope:** peak memory **73.2–74.1 GiB** of ~121 GiB usable (46.9–47.8 GiB headroom,
+  90% flag clear) on the 2026-08-05 suite run; it has been observed anywhere in 69–76 GiB for
+  unchanged code, so read it as "flag clear, headroom ample", not as a precise signal.
+  Up from Iteration 3's 65–68 GiB because the vLLM runtime was upgraded and then pinned by
+  digest — not because the app grew. Single-node holds at all tested scales up to 100x (28,800
+  series). LLM ~48 tokens/s.
 - **cuOpt 26.06.00 now available** for arm64/CUDA-13 (verified 2026-07-27). VRP benchmark shows
   crossover at ~100 locations — OR-Tools CPU wins at prototype scale (≤152 lanes). OR-Tools stays
   as the lane-routing engine; cuOpt available for future 100+ stop fleet routing.
@@ -260,6 +275,31 @@ http://localhost:8081?view=dataset&replay=true                         # recorde
 Backed by `GET /dataset/overview?scenario=<name>` and `GET /dataset/table?scenario=<name>&table=<name>`
 (CSV download), both on the authenticated router. There is **no LLM text on this view** — all prose is
 deterministic template text derived from the real values.
+
+**"Ask the plan" (BETA) — Iteration 5.** A chat panel that opens *beside* the results or the dataset
+view (never over it) and answers questions about the loaded scenario in plain language — with a
+provenance chip on every message saying where the answer came from. Ask for a what-if and it re-runs
+the **real optimizer** on an in-memory perturbed copy of the data, after you confirm a card that
+states exactly what it would change.
+
+```
+http://localhost:8081?chat=true                          # beside the results
+http://localhost:8081?view=dataset&chat=true             # beside the dataset view
+http://localhost:8081?replay=true&chat=true              # recorded transcript, no GPU
+```
+
+> ### The architectural rule: the LLM is an interpreter and a narrator. It is never a calculator.
+> If a number appears in an answer, it came from a file on disk or from `run_head_to_head`. A numeric
+> grounding validator enforces that mechanically — every numeric token in a model-written answer must
+> trace to a fact, or the model's wording is discarded and a deterministic template is served instead.
+> On the live on-device model it has caught a real fabrication (Nemotron stating an invented "50,000"
+> in answer to a leading question).
+
+Backed by `POST /chat/ask`, `POST /chat/parse`, `POST /chat/whatif` (confirmation-gated) and
+`GET /chat/whatif/stream`, all on the authenticated router and all rate limited. Three perturbation
+types are supported — `node_outage`, `lane_disruption`, `demand_multiplier` — and everything else is
+refused **by name, with the reason**. Nothing is ever written to disk by a what-if. See
+[`docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md).
 
 See [`docs/handoff.md`](docs/handoff.md), [`docs/containerization.md`](docs/containerization.md),
 [`docs/iteration-docs/`](docs/iteration-docs/) (the per-iteration handoff deliverables), and the
@@ -289,10 +329,16 @@ docs/
     AI_Jumpstart_MVP_Iteration1_v2_standalone.md     # Iteration 1 — shareable externally (public sources)
     AI_Jumpstart_MVP_Iteration2_handoff.md           # Iteration 2 — on-device prototype handoff (real results)
     AI_Jumpstart_MVP_Iteration3_handoff.md           # Iteration 3 — demo/pilot-ready handoff
+    AI_Jumpstart_MVP_Iteration4_handoff.md           # Iteration 4 — dataset transparency layer
+    AI_Jumpstart_MVP_Iteration5_handoff.md           # Iteration 5 (Beta) — conversational analyst
+    Iteration5_Ryan_Review_Packet.md                 # draft review packet for Ryan (NOT sent)
+    screenshots/iteration4/, screenshots/iteration5/ # committed UI evidence
   Iteration2_Plan_of_Action.md                       # Iteration 2 build blueprint (phases 0–6)
   Iteration2_Point3_Scaffolding_Response_to_Ryan.md  # Iteration 2 model/tool rationale
   Iteration3_Plan_of_Action.md                       # Iteration 3 build blueprint (phases 0–7)
-  DEMO_GUIDE.md                                      # step-by-step demo walkthrough
+  Iteration4_Plan_of_Action.md                       # Iteration 4 build blueprint
+  Iteration5_Plan_of_Action.md                       # Iteration 5 build blueprint (phases 0–6)
+  DEMO_GUIDE.md                                      # step-by-step demo walkthrough (Options A–D)
   containerization.md                                # current arm64/four-service stack notes
   handoff.md                                         # quick-start commands and on-device caveats
   environment.md                                     # live GB10 device specs
@@ -309,7 +355,10 @@ refs/
 src/
   api/                                                # FastAPI API incl. integrated cuOpt/OR-Tools capability (/cuopt/*)
   bench/                                              # profiler and Phase 6 all-scenario suite
+  chat/                                               # Iteration 5 (BETA): facts, router, grounding validator,
+                                                      #   intent parser, perturbation schema, what-if engine, evals
   cli/                                                # thin API-first scenario-comparison CLI
+  dataset/                                            # Iteration 4: deterministic dataset overview + narrative
   forecast/                                           # demand forecast
   ingest/                                             # raw/generated data -> structured state
   optimize/
@@ -377,6 +426,16 @@ An agent continuing this work MUST preserve these — they are the difference be
 - **Hospitals: no service-level win is substantiated** — validate per site before any clinical claim.
 - **Data sovereignty:** customer data stays on-device; do not design anything that ships it off-box.
 - **Evidence basis:** the paper is shareable, but it's single-benchmark/single-seed evidence — use it for internal grounding, prefer v2's public benchmarks for external pitches.
+- **Improvement percentages are vs. the naive baseline**, not vs. a customer's actual costs. This caveat is stated on the results screen (Iteration 4 Phase 6 found it missing and added it) — do not regress it.
+
+**Added by Iteration 5 (the conversational surface):**
+- **No un-grounded numbers.** Every numeric token in a model-written answer must trace to the structured context; a violation discards the model's wording and serves a deterministic template. Never relax this into a prompt instruction.
+- **A what-if number must never be mistakable for a benchmark number** — in the UI or in a screenshot. Six labelling cues exist on the card and three survive any crop tight enough to include the figures.
+- **Refuse rather than approximate.** Out-of-whitelist requests get "I can't model that yet, here is what I can" — never a hand-waved qualitative answer dressed as analysis.
+- **The `BETA` chip stays** on every chat surface and screenshot until Ryan has reviewed it.
+- 🔴 **Lane capacity reaches the optimizer at exactly one period** (`max(demand.period)` — 52, or 104 on `stress-large`). A capacity perturbation whose window excludes it is a *measured* no-op, reported as one with the mechanism. Do not silently widen a window to manufacture a difference, and do not describe a narrow-window disruption as the reason a scenario's objective differs.
+- **The chat rate limiter is a runaway-load guard, not anti-abuse.** It is in-process, single-node, and trusts the proxy headers our own nginx sets. Real per-tenant quotas belong to Iteration 6.
+- **The refusal patterns are patterns.** A paraphrase nobody wrote down reaches the grounded path, where the numeric validator is the next line of defence. Widen them from a real corpus, not by guessing.
 
 ---
 
@@ -386,13 +445,14 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ```bash
 make up                        # build + start all four arm64 services
-make test                      # 69 passed + 2 xpassed (71 total)
-make demo                      # generate data, rebuild web, print URLs
+make test                      # 347 passed + 2 xpassed (349 total)
+make demo                      # generate data, rebuild web, print every demo URL
 ```
 
-Then open **`http://localhost:8081`** for the live planner UI, or **`http://localhost:8081?replay=true`**
-for a pre-recorded real run. See [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for the full demo
-walkthrough including talk tracks.
+Then open **`http://localhost:8081`** for the live planner UI, **`http://localhost:8081?replay=true`**
+for a pre-recorded real run, or **`http://localhost:8081?chat=true`** for the Iteration 5 chat panel.
+See [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for the full demo walkthrough including talk tracks
+(Options A–D).
 
 **Other useful commands:**
 ```bash
@@ -401,7 +461,25 @@ make run SCENARIO=baseline     # single scenario end-to-end
 make scale-study               # run the 6-level scale study
 make rag SCENARIO=...          # RAG advisory for a single scenario
 make cli SCENARIO=...          # thin CLI over the same API
+make web-test                  # 62 Vitest tests from the committed lockfile
+make web-check                 # 26 headless-Chromium checks (needs the stack up)
 ```
+
+**Iteration 5 (BETA) chat commands:**
+```bash
+make chat-ask CHAT_QUESTION="How many distribution centers are there?"   # one grounded question
+make chat-eval / chat-eval-template      # the 31-question eval set, with and without the model
+make chat-parse / whatif / whatif-run    # parse a what-if · show its confirm card · run it
+make redteam / redteam-template          # the 25-case red-team set + 4 controls (27/27)
+make parse-eval / parse-eval-template    # the 35-case parser eval (35/35 · 32/32)
+make chat-transcript                     # re-capture the recorded chat demo (overwrites the asset)
+```
+
+Rate limits are environment-configurable on the `api` service: `HELIX_CHAT_MAX_ASKS` (30/min),
+`HELIX_CHAT_MAX_LIGHT` (60/min), `HELIX_CHAT_MAX_RUNS` (10/min),
+`HELIX_CHAT_MAX_RUNS_PER_SESSION` (40), `HELIX_CHAT_RATE_WINDOW_SECONDS` (60). They are a
+runaway-load guard for a single-user demo, not an anti-abuse control — see §12 and the Iteration 5
+handoff.
 
 **Roadmap (current numbering).** Ryan's demo feedback (2026-07-29) inserted two iterations ahead of
 the production track, so what earlier docs called "Iteration 4 = production" is now **Iteration 6**:
@@ -411,12 +489,12 @@ the production track, so what earlier docs called "Iteration 4 = production" is 
 | 1 | Use cases / value prop; data elements & pipeline | ✅ Done |
 | 2 | SCO scaffolding + synthetic dataset (working on-device prototype) | ✅ Done (`main`, 2026-07-10) |
 | 3 | Productization, demo polish, honest RL fair-shot | ✅ Done (`main`, 2026-07-27) |
-| **4** | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | 🎯 In progress |
-| 5 | Conversational scenario/what-if analyst — grounded natural-language Q&A over the plan | 📝 Planned |
-| 6 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging | ⏳ Not started |
+| 4 | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | ✅ Done (`main`, 2026-08-03) — **not yet reviewed by Ryan** |
+| **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Complete on `feat/iteration5-beta-conversational-analyst` (2026-08-05); merge to `main` pending |
+| 6 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, a saved scenario library and persistent transcripts. | ⏳ Not started |
 
-**If continuing development:** read [`docs/Iteration4_Plan_of_Action.md`](docs/Iteration4_Plan_of_Action.md)
-for the current build, and [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4
+**If continuing development:** read [`docs/Iteration5_Plan_of_Action.md`](docs/Iteration5_Plan_of_Action.md)
+for the current build and [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4
 for the honest gap between this demo/pilot-ready prototype and a shippable product. The production
 track (Iteration 6) is where real customer-data onboarding, hardening, multi-tenant isolation,
 licensing, and packaging land.
@@ -442,6 +520,9 @@ complete handoff.
 - **NGC** — NVIDIA GPU Cloud catalog (containers/models).
 - **NCCL / RoCE / DAC** — collective comms / RDMA-over-Ethernet / direct-attach-copper cable; the 2-node clustering path.
 - **CVaR** — Conditional Value-at-Risk; risk-aware eval to catch the PPO shock-tail (a Point-3 concern).
+- **Perturbation / what-if** — a validated, whitelisted change to a *copy* of a scenario (node outage, lane capacity, demand multiplier), re-run through the real pipeline. Never written to disk; never a forecast of a real network.
+- **Grounding validator** — the Iteration 5 check that every numeric token in a model-written answer traces to a fact in the structured context. Violation ⇒ the model's wording is discarded and a template is served.
+- **Provenance chip** — the label on every chat message saying where the answer came from (`FROM DATASET`, `FROM OPTIMIZER RUN`, `FROM PLANNER DOCUMENTS`, `GLOSSARY DEFINITION`, `EXPLAINED BY LLM`, `DETERMINISTIC · NO LLM`, `WHAT-IF (SYNTHETIC PERTURBATION)`, `DECLINED`).
 - **Service level / fill rate** — fraction of demand met on time; the priority metric for Hospitals.
 
 ---
@@ -457,4 +538,6 @@ complete handoff.
 
 ---
 
-*Last updated: Iteration 3 complete (2026-07-27). Keep this README current as the single source of truth — update §9 and §11 as decisions are made and code lands.*
+*Last updated: Iteration 5 (Beta) complete on `feat/iteration5-beta-conversational-analyst`
+(2026-08-05); Iteration 4 merged to `main` 2026-08-03. Keep this README current as the single source
+of truth — update §9 and §11 as decisions are made and code lands.*

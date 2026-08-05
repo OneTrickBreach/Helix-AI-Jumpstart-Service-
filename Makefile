@@ -5,7 +5,10 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build web web-check test test-data logs ps clean data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data
+.PHONY: up start down build web web-check web-test test test-data test-file test-host logs ps clean \
+        data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data \
+        chat-ask chat-eval chat-eval-template chat-parse whatif whatif-run redteam redteam-template \
+        chat-transcript parse-eval parse-eval-template gpu-check llm-check embed-check qdrant-check cuopt-check
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -196,7 +199,16 @@ demo: demo-data
 	@echo "  Dataset view:  http://localhost:8081?view=dataset&scenario=$(DEMO_SCENARIO)"
 	@echo "  ...recorded:   http://localhost:8081?view=dataset&replay=true"
 	@echo ""
+	@echo "  Ask the plan (BETA, chat panel beside the results):"
+	@echo "                 http://localhost:8081?chat=true"
+	@echo "  ...beside the dataset view:"
+	@echo "                 http://localhost:8081?view=dataset&scenario=$(DEMO_SCENARIO)&chat=true"
+	@echo "  ...recorded transcript (no GPU, composer locked):"
+	@echo "                 http://localhost:8081?replay=true&chat=true"
+	@echo ""
 	@echo "  Recommended:   pick '$(DEMO_SCENARIO)' from the dropdown"
+	@echo "                 BEFORE asking anything — switching scenario starts a"
+	@echo "                 new transcript. Leave the BETA label on."
 	@echo "  Parameters:    horizon=8, PPO timesteps=128, top-k=5"
 	@echo ""
 	@echo "  Remote access: localhost only resolves ON the GB10 — see the"

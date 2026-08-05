@@ -18,78 +18,252 @@
 
 ## Project snapshot (current state)
 - **Branch:** `feat/iteration5-beta-conversational-analyst` (from `main` @ `7c8d0e2`, which is
-  Iteration 4 merged). **Iteration 5 Phase 5 complete (2026-08-05).** Phase 4 pushed as `d6fc99e`.
-- **Phase:** Iteration 5 (Beta) — conversational scenario analyst. Phases 0 (baseline), 1 (grounded
-  read-only Q&A), 2 (intent parser + perturbation schema), 3 (what-if execution), 4 (chat UI) and 5
-  (safety, grounding validation, red team) done; **Phase 6 (demo, docs, handoff, merge) next**.
-  Iteration 4 is complete and merged; **Ryan has not reviewed it** (PTO), so Iteration 5 ships behind a
-  visible `BETA` label.
-- **Safety surface (Phase 5):** a committed 25-case red-team set with controls (`make redteam` /
-  `redteam-template`, **27/27 both modes**), ten named misrepresentation patterns plus three
-  unsupported-claim patterns (every one exercised, enforced by the runner), the numeric validator's
-  **rejection rate reported as a metric** (it caught the real model stating an invented "50,000"), and
-  rate limiting with a per-session what-if cap (30 questions/min, 10 runs/min, 40 runs/session).
+  Iteration 4 merged). **Iteration 5 (Beta) COMPLETE — all phases 0–6 done, 2026-08-05.**
+  🔴 **The merge to `main` is PREPARED, NOT PERFORMED** — it waits on Ishan's explicit go, same as
+  Iteration 4 did. **The Ryan packet is drafted, not sent.**
+- **Phase:** none in flight. Phases 0 (baseline + vLLM pin), 1 (grounded read-only Q&A), 2 (intent
+  parser + perturbation schema), 3 (what-if execution), 4 (chat UI), 5 (safety/red team) and 6 (demo,
+  docs, handoff, merge prep) are all done and verified on-device. **Ryan has reviewed neither
+  Iteration 4 nor Iteration 5** (PTO), which is why the chat surface carries a visible `BETA` label.
+- **Deliverables:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md` (handoff),
+  `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md` (**draft, not sent**), `DEMO_GUIDE.md`
+  **Option D** (the chat talk track), README §9/§12/§13, `docs/handoff.md`, `docs/containerization.md`.
 - **The chat surface is live in the browser:** an "Ask the plan" panel **beside** the results and
   dataset views (`?chat=true`), with provenance chips on every message, a confirm-before-run card, a
   what-if result card that cannot be mistaken for a benchmark result, and a GPU-free recorded
-  transcript at `?replay=true&chat=true`. Bundle 601.45 → **630.85 kB** (+29.4 kB, +4.9%), no new
-  dependencies. Screenshots: `docs/iteration-docs/screenshots/iteration5/`.
+  transcript at `?replay=true&chat=true` (7 captured questions, composer locked). Bundle 601.45 →
+  **631.00 kB**, no new dependencies. Screenshots: `docs/iteration-docs/screenshots/iteration5/`.
 - **What-if is live end-to-end:** a validated perturbation runs through the real pipeline on an
   in-memory overlay (nothing on disk is ever written), returning real before/after objectives, costs,
-  fill rate and CVaR-75. Cold 0.45–1.4 s on the small scenarios, 18.9 s on `stress-large` (its
-  288-series forecast), **0.0 s cached**.
-- **🔴 Read before Phase 3:** lane capacity reaches the optimizer at **exactly one period** —
-  `state.horizon()` = `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation
-  outside that period is a measured no-op. See the 2026-08-04 entry.
-- **Tests:** `make test` **347 passed + 2 xpassed** (202 added by Iteration 5 so far). Web: **62
-  Vitest** (`make web-test`), `make web-check` **26/26** (11 chat checks added in Phase 4).
-- **Audited 2026-08-04** (see the entry below): a full adversarial review of Phases 0–3 found and
-  fixed eight defects, two of them things a viewer would have been actively misled by.
-- **New API surface:** `POST /chat/ask`, `POST /chat/parse`, `POST /chat/whatif` (confirmation-gated)
-  and `GET /chat/whatif/stream` — all protected. Evals: `make chat-eval` 31/31,
-  `make chat-eval-template` 31/31, `make parse-eval` 35/35, `make parse-eval-template` 32/32 (+3
-  model-only cases skipped).
-- **vLLM base image is now PINNED by digest** (`v0.26.0`, build `ffd46bfab212`) — follow-up carried
+  fill rate and CVaR-75. **0.5–1.4 s** on the small scenarios, **19.4 s** cold on `stress-large` (its
+  288-series forecast; the optimizer is 0.4 s), **0.0 s** served from cache.
+- **Safety surface:** a committed 25-case red-team set with four controls (`make redteam` /
+  `redteam-template`, **27/27 both modes**), ten named misrepresentation patterns plus three
+  unsupported-claim patterns (every one exercised, enforced by the runner), the numeric validator's
+  **rejection rate reported as a metric** (it caught the real model stating an invented "50,000"), and
+  rate limiting with a per-session what-if cap (30 questions/min, 10 runs/min, 40 runs/session; all
+  env-configurable via `HELIX_CHAT_MAX_ASKS` / `_MAX_LIGHT` / `_MAX_RUNS` / `_MAX_RUNS_PER_SESSION` /
+  `HELIX_CHAT_RATE_WINDOW_SECONDS`).
+- **🔴 Standing measured fact:** lane capacity reaches the optimizer at **exactly one period** —
+  `state.horizon()` = `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation whose
+  window excludes it is a measured no-op, reported as one *with the mechanism*. It is question 6 in
+  Ryan's packet. See the 2026-08-04 entries.
+- **🔴 Chat answer latency, measured 2026-08-05:** a model-written answer is **median 7.9 s, range
+  2.9–24.1 s** over 11 questions — it tracks completion tokens at ~42–48 tok/s, not warmth. The
+  Phase 4 entry's "~2–4 s" understated it; the docs now carry the measured range. Deterministic paths
+  (glossary, refusals, premise corrections) are **~0.06 s**.
+- **Tests:** `make test` **347 passed + 2 xpassed** (349 total; **202 added by Iteration 5**). Web:
+  **62 Vitest** (`make web-test`), `make web-check` **26/26** (11 of them the chat panel) plus two
+  INFO fold measurements. `make test` writes to `HELIX_BENCHMARK_DIR` and therefore **cannot** refresh
+  the demo's recorded artifacts — that is `make bench-all`.
+- **Audited 2026-08-04:** a full adversarial review of Phases 0–3 found and fixed eight defects, two
+  of them things a viewer would have been actively misled by.
+- **API surface:** `POST /chat/ask`, `POST /chat/parse`, `POST /chat/whatif` (confirmation-gated) and
+  `GET /chat/whatif/stream` (truthful SSE incl. a `cache/hit` stage; rate-limit refusal delivered
+  **in-band** because `EventSource` cannot read a status code) — all on the protected router, all rate
+  limited. Iteration 4's `GET /dataset/overview` and `GET /dataset/table` unchanged. Error posture
+  re-verified: 404 unknown scenario · 409 ungenerated data · 422 unknown entity · 401 unauthenticated.
+  Evals: `make chat-eval` 31/31 · `chat-eval-template` 31/31 · `parse-eval` 35/35 (3 model-assisted) ·
+  `parse-eval-template` 32/32 (+3 model-only skipped) · `redteam` / `redteam-template` 27/27.
+- **vLLM base image is PINNED by digest** (`v0.26.0`, build `ffd46bfab212`) — the follow-up carried
   since Iteration 4 Phase 0 is closed, with no runtime change.
+- **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
+  **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
+  Classical objectives: baseline 81,789.359460; shortage-shock 95,445.445064; demand-surge
+  94,165.363245; stress-large 2,521,615.068565. Reconfirmed **bit-identical 2026-08-05T14:46:50Z** —
+  12/12 objectives unchanged across the whole of Iterations 4 and 5.
+- **On-device envelope:** peak **73.2–74.1 GiB** of ~121 GiB (46.9–47.8 GiB headroom; 90% flag clear),
+  LLM ~48 tokens/s. Up from Iteration 3's 65–68 GiB because `make up` re-pulled the then-unpinned vLLM
+  base; observed swinging 69–76 GiB for unchanged code, so read it as "flag clear, headroom ample".
+  Scale study: the ceiling is forecast latency (~25 ms/series), not memory.
 - **Roadmap (renumbered 2026-07-30 after Ryan's demo feedback):** 4 = dataset transparency layer
-  (in progress) · 5 = conversational scenario/what-if analyst (planned) · **6 = production / GA**
-  (real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging).
+  (✅ merged to `main` 2026-08-03) · 5 = conversational scenario/what-if analyst (✅ complete on the
+  branch, merge pending) · **6 = production / GA** (real customer-data onboarding, hardening,
+  multi-tenant isolation, licensing, packaging — and the five deferred perturbation types, compound
+  perturbations, a saved scenario library, persistent transcripts, real per-tenant quotas).
   What older docs called "Iteration 4 = production" is now Iteration 6.
 - **Vertical:** Manufacturing (confirmed by Ryan, 2026-06-30).
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **Tests:** `make test` **145 passed + 2 xpassed (147 total)** — 76 added by Iteration 4.
-  Web: **39 Vitest tests**, `npm audit` 0 vulnerabilities, plus `make web-check` (headless
-  Chromium render verification, 15/15 checks incl. fold height, overlay, keyboard, CSV,
-  and replay parity with the API blocked).
-- **New API surface (Phase 1):** `GET /dataset/overview?scenario=<name>` and
-  `GET /dataset/table?scenario=<name>&table=<name>`, both on the protected router.
-- **Live benchmark headline (seed 12345, horizon 8, ppo-timesteps 128, Optuna seeded):**
-  **tuned classical wins ALL FOUR** scenarios; **PPO lost all four** (per-period MDP, demoted).
-  Classical objectives: baseline 81,789; shortage-shock 95,445; demand-surge 94,165; stress-large 2,521,615.
-  Reconfirmed **bit-identical again 2026-08-01** in the Phase 6 regression — 12/12 objectives
-  unchanged across the whole iteration.
-- **On-device envelope:** peak **74.7–76.0 GiB** of ~121 GiB (45.0–46.3 GiB headroom; 90% flag clear).
-  Up from Iteration 3's 65–68 GiB because `make up` re-pulled the unpinned `vllm/vllm-openai:latest`
-  base — see the 2026-07-30 entry. Scale study: ceiling is forecast latency (~25ms/series), not
-  memory. Single-node holds at all tested scales (up to 100x).
-- **GPU/NVML:** clean in **both** `api` and `llm` as of 2026-07-30 — the long-standing stale-NVML
-  follow-up carried since Iteration 3 Phase 0 is closed.
-- **Web dataset view:** `?view=dataset&scenario=<name>` on port 8081 — network map with scenario
-  overlay, demand chart, BOM tree, lanes table, Level-3 expanders with CSV download. Level 1 fits
-  above the fold at 1920x1080 and 1440x900. Bundle 600.48 kB (+50.2 kB for the whole view, no new
-  dependencies). Screenshots: `docs/iteration-docs/screenshots/iteration4/`.
-- **Demo:** `?replay=true` is a complete GPU-free walkthrough **including the dataset view**
-  (`?view=dataset&replay=true`), served from real captured snapshots. `demo-replay.json` recaptured
-  2026-07-31 and now carries the CVaR fields.
-- **Handoff:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md`.
-- **Next:** merge to `main` + send Ryan the review packet (both awaiting Ishan), then **Iteration 5**
-  (conversational what-if) only after Ryan's feedback.
+- **GPU/NVML:** clean in **both** `api` and `llm` since 2026-07-30.
+- **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
+  chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
+  six URLs.
+- **Next (both awaiting Ishan):** merge Iteration 5 to `main`, and send Ryan the packet — with
+  Iterations 4 **and** 5 in front of him. Then Iteration 6 (production track) only after his feedback.
+  Also carried: **nobody has rehearsed the demo talk track out loud** (a DoD item no machine check can
+  meet).
 
 ---
 
 ## Entries (newest first)
+
+## 2026-08-05 — Iteration 5 (Beta), Phase 6: demo, docs, handoff & merge PREPARED
+**Status:** Phase 6 complete. **The merge to `main` is prepared and held for Ishan's explicit go; the
+Ryan packet is drafted and not sent.** git ref: `PHASE6` (hash backfilled in the follow-up commit).
+Branch `feat/iteration5-beta-conversational-analyst` (Phase 5 pushed as `bd06aae`).
+
+**Scope (PoA §5 Phase 6):** make the iteration presentable and honest on paper — a demo-guide option
+and talk track built around Ryan's own question, the `make demo` banner, README/handoff/containerization
+truth-up, the Iteration 5 handoff in house style, the env knobs and new make targets documented, and
+the Ryan packet. Everything re-verified on-device first; **no runtime code changed** (the only code
+touched is the Makefile).
+
+### 1. What shipped
+
+- **`DEMO_GUIDE.md` — a new Option D**, "Ask the plan": how to open it, **two things to do before
+  talking** (pick the scenario first, because switching clears the transcript; and know that answer
+  times vary and why), a **five-step talk track in pointing order** — header claim → Ryan's
+  warehouse-4 question → a grounded count with its sources → confirm-before-run then the what-if card
+  → the two honesty beats (the no-op and the refusal) — plus the recorded (`?replay=true&chat=true`)
+  walkthrough, eight deeper Q&A answers, and a nine-item **"what to avoid saying"** list.
+  Every quoted string and every number in it was pulled from a live payload or the real DOM.
+- **Stale content fixed in the same file:** the Quick Reference test counts (was 145 passed / 39
+  Vitest → **347 + 2 / 62 / 26 checks**), the "Does this scale?" memory figure (65–68 → 73–75 GiB with
+  the reason it moved), and the **"What's next?"** track, which still described Iterations 4 and 5 in
+  the future tense. Added chat troubleshooting (rate-limit messages with the env knobs, "no scenario
+  loaded", the vanished transcript), a chat command block, and the chat rows in Architecture Overview.
+- **`make demo` banner** now prints the three chat URLs alongside the results and dataset ones, plus
+  *"pick the scenario BEFORE asking anything"* and *"Leave the BETA label on."* Verified by running it.
+- **README:** §9 re-headed **"Iteration 5 (Beta) complete on the branch"** with the BETA-label
+  rationale, the Iteration 5 surface and the architectural rule; §10 structure updated (`src/chat/`,
+  `src/dataset/`, the new docs); §12 gained **eight Iteration-5 guardrails** (no un-grounded numbers ·
+  a what-if must never be mistakable for a benchmark · refuse rather than approximate · the BETA chip ·
+  the single-period capacity read · the rate limiter is not anti-abuse · the refusal patterns are
+  patterns); §13 commands, env knobs and the roadmap table (4 merged, 5 complete-pending-merge, 6 not
+  started); §14 three new glossary terms.
+- **`docs/handoff.md`**, which was still an Iteration 3 document (69 passed): now carries the six demo
+  URLs, the chat commands, the four endpoints, the rate-limit table, the measured latencies, **what it
+  refuses**, and a new **"known limits carried forward"** section.
+- **`docs/containerization.md`**: status, test counts, the digest pin, the `api` row's new routes, and
+  the envelope figure with its honest reading.
+- **`docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`** in house style: TL;DR (Ryan's
+  question, answered, with the real before/after) · what shipped per phase · the four endpoints with
+  measured payloads and latencies · the SSE and rate-limit asymmetries · commands · screenshots ·
+  verification · **honest limits** · **"what it refuses — and why that is the feature"** · the
+  regression and guardrail sweep · the seven questions.
+- **`docs/iteration-docs/Iteration5_Ryan_Review_Packet.md`** — **DRAFT, NOT SENT**, marked as such at
+  the top with its own prerequisites: a paste-ready message, an eight-row "what to click, in order",
+  the seven questions each with *what was decided and why*, and a "the honest bits, up front" section.
+- **Cross-doc consistency:** the Iteration 4 handoff's *"Iteration 5 starts only after you have
+  reviewed this"* now carries a dated note saying that is exactly what did **not** happen and why; the
+  Iteration 5 PoA is marked **EXECUTED** and its §4 records that five questions became seven; the
+  journal snapshot at the top of this file was rewritten (it had **two contradictory test counts**,
+  347 and 145, in the same block).
+
+### 2. Brutal-truth review — what I went looking for and what I found
+
+I assumed the docs were wrong and went looking, mostly by **running the thing rather than re-reading
+my own prose**. Five real defects, three of which would have put a false statement in a presenter's
+mouth.
+
+- **🔴 The talk track told the presenter to hover a citation. The UI has no hover.** Citations sit
+  behind a **"Show 10 sources"** disclosure button. Someone following the guide would have hovered
+  `[F1]` in front of a customer and had nothing happen. Found by walking the whole Option D sequence in
+  a real browser, not by proof-reading. Fixed — and the beat is *better* now, because expanding it
+  shows `[F1] dataset_overview.network — "This scenario has 2 distribution centers: DC-001 and
+  DC-002."`, which is the actual proof the answer was grounded.
+- **🔴 My own guide quoted `baseline` numbers under an instruction to select
+  `component-shortage-shock`.** Step 1 says pick the shock scenario; step 4's table said
+  $81,789.36 → $82,553.48, which is what `baseline` returns. A presenter would have read out a number
+  that was not on their screen. Fixed: the shock figures lead (**$95,445.45 → $95,755.00, +$309.56,
+  +0.32%**; CVaR-75 **$19,649.69 → $19,720.37, +$70.68, +0.36%**), with the baseline pair kept as the
+  labelled alternative.
+- **🔴 The measured chat latency is far worse than the Phase 4 entry claims.** That entry says
+  *"~2–4 s with the real model"*. Measured over 11 questions today: **2.9, 4.6, 4.9, 5.0, 7.7, 7.9,
+  11.8, 19.2, 20.4, 21.3, 24.1 s** — median **7.9 s**. The mechanism is in the payload:
+  `completion_tokens` 187–570+ at 42–48 tok/s, i.e. the model's own (largely invisible) reasoning
+  before it answers. Promising "2–4 s" in a demo guide would have set an expectation the box does not
+  meet. Every doc now carries the measured range, and the guide tells the presenter what to say about
+  it. The deterministic paths really are instant (**0.055–0.057 s**).
+- **🔴 I invented a mechanism and nearly shipped it.** My first draft said *"warm the model — the first
+  answer after an idle period is the slowest"*. My own first measurement (2.9 s) was the **fastest of
+  the eleven**. There is no measured warm-up effect; latency tracks token count. Replaced with the
+  measured explanation. This is the exact class of plausible-sounding filler this project exists to
+  refuse.
+- **Card wording that did not match the card.** The guide described *"2 plant-to-DC + 8
+  DC-to-customer"*, *"period 1 to period 52"* and a bare *"2.92"*; the screen says **"10 lanes (8 dc to
+  customer, 2 plant to dc)"**, **"periods 1–52 of this scenario"** and **"2.92 days"**. All corrected
+  against the real DOM text, along with the two headline sentences (*"The plan changed: objective worse
+  by +$309.56 (+0.32%)"* and *"No change — and not because the network absorbed it"*) and the cache
+  footer (*"served from cache in 0.00s, originally measured 1.36s"*).
+- **Iteration 5 added twelve `make` targets and never updated `.PHONY`.** Fixed (and `start`,
+  `test-file`, `test-host`, `web-test` and the five `*-check` targets were missing too). Verified with
+  `make -n redteam` / `make -n chat-transcript`.
+- **A pre-existing broken README anchor** (`#13-getting-started--next-steps` vs. the actual heading).
+  Fixed while in the file.
+- **A better talk-track beat found by reading a payload I did not need to read.** The DC-001 outage
+  moves the objective but leaves fill rate and days of inventory **exactly** unchanged. The cost
+  breakdown says why: holding, ordering, backorder and lost-sale costs are identical to the cent on
+  both scenarios, and **the entire delta is transport** (+$309.56 on the shock, +$764.12 on baseline).
+  So the plan kept its service level by re-routing, and the number on screen is what re-routing costs.
+  That is a real, grounded story the guide now tells.
+
+**What I looked for and did NOT find**, recorded because an audit that only lists hits is not evidence
+of coverage: no `~94%`, hospital/clinical or guaranteed-outcome language in any new text except inside
+descriptions of the refusals themselves (swept with grep across all six changed docs); **every**
+relative markdown link in the changed docs resolves (checked programmatically); no API key in the
+shipped bundle (**0 hits** on four patterns); no console or page errors anywhere in the browser
+walkthrough; and the throwaway Playwright script I used for the dry-run was deleted, not committed.
+
+### 3. Verified on-device before anything was written down
+
+| Check | Result |
+|---|---|
+| `make test` | **347 passed + 2 xpassed** in 90 s |
+| `make web-test` | **62 Vitest**, 5 files |
+| `make web-check` | **26/26 ALL CHECKS PASSED**, 0 console errors, + the 2 INFO fold lines (**817 px** desktop, **933 px** laptop with chat open) |
+| `make bench-all` (14:46:50Z) | **all 12 objectives bit-identical**; device peak **73.2–74.1 GiB**, 90% flag clear, LLM 47.7–48.6 tok/s |
+| `make chat-eval` (real LLM) | **31/31**, 0 un-grounded surfaced, 0/22 model answers rejected |
+| `make chat-eval-template` | **31/31**, 287 numbers checked, 0 un-grounded |
+| `make parse-eval` / `-template` | **35/35** (L01–L03 model-assisted) / **32/32** (+3 skipped) |
+| `make redteam` / `-template` | **27/27** both modes; `refusal_patterns_never_fired: []` |
+| `make demo` | banner prints all six URLs, verified by eye |
+| Option D talk track | walked end to end in Chromium on `component-shortage-shock`: every quoted string reproduced, 0 errors |
+| Endpoints | `/chat/ask` 1.0–5.6 KB · `/chat/parse` 2.5 KB / 0.01 s · `/chat/whatif` card 1.4 KB / result 4.6 KB · 404 / 409 / 422 / 401 all correct |
+| SSE | real stages `base_forecast → base_optimize → perturb → whatif_forecast → whatif_optimize → done`, and a lone `cache/hit` on a repeat |
+| Rate limits through nginx | `x-ratelimit-remaining: 9`, `x-ratelimit-session-runs-remaining: 39` |
+| What-if latency | baseline DC-001 **1.30 s** cold / **0.0 s** cached · no-op window 0.48 s · demand ×2 1.32 s (forecast correctly refit) · `stress-large` DC-004 **19.4 s** cold, DC-003 1.4 s warm |
+| Bundle | **631.00 kB** served (measured), 0 key hits |
+| Dataset endpoint | 0.040 / 0.049 / 0.043 / 0.135 s for 37 / 43 / 42 / 120 KB |
+
+**One live observation recorded rather than smoothed over:** on the 14:46 suite run the advisory prose
+for `component-shortage-shock` came back `benchmark_template_after_short_llm_output` instead of
+`llm_finalized` — 1 of 4. Re-running `make rag SCENARIO=component-shortage-shock` returned
+`llm_finalized` with 5 citations and the same objectives. **No metric is affected** (the LLM never
+computes one), and README now says the fallback can happen instead of claiming all four are always
+`llm_finalized`. It is a useful reminder in the same week as the latency finding: model *prose* is the
+non-deterministic part of this stack.
+
+**DoD assessment: met, with two items that cannot be met here and are not counted as met.**
+A cold reader can run the whole demo from the guide — I proved the Option D path in a browser, and
+every claim in the handoff traces to a run above or to a committed artifact produced by one. No doc
+contradicts another (the sweep above found and fixed four cross-doc contradictions, including two
+inside this journal's own snapshot). **Not met:** the human talk-track rehearsal (Ishan), and the
+merge/send, which are held by protocol.
+
+### 4. The merge, prepared but NOT performed
+
+`feat/iteration5-beta-conversational-analyst` → `main`. `main` is at `7c8d0e2` (Iteration 4) and has
+not moved since the branch was cut (`git rev-list --left-right --count main...HEAD` = `0  12` before
+this phase's commits), so this is a **fast-forward with no conflicts**. What it would contain:
+**14 commits** — Phases 0–6, 57 files, ~14.5k added lines: the `src/chat/` package (facts, retrieve, router, glossary,
+grounding, answer, intent, perturbation, whatif, redteam, capture_transcript, four CLIs, three eval
+runners), `src/api/ratelimit.py` and the four chat endpoints, `web/src/chat/` (six components) and two
+libs, the extended `web/e2e` harness, the vLLM digest pin, **202 new tests**, the recorded chat
+transcript asset, six screenshots, and this phase's docs. **Not run. Waiting for the go.**
+
+**Open follow-ups.**
+- **Merge to `main` and send Ryan the packet** — both Ishan's, both ready.
+- **Talk-track rehearsal by a human** — still never done.
+- **Ryan's seven questions**, unchanged by this phase and listed in the packet; #6 (single-period lane
+  capacity) is the one that would move recorded numbers.
+- Carried unchanged: the what-if caches are process-local and not thread-safe; the rate limiter trusts
+  our own nginx's headers; the refusal patterns are patterns; `stress-large`'s scenario card itemises
+  five bullets while the hero groups them.
+
+---
 
 ## 2026-08-05 — Iteration 5 (Beta), Phase 5: safety, grounding validation & red team
 **Status:** Phase 5 complete, verified on-device including against the real model.
