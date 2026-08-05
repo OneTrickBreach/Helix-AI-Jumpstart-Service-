@@ -93,7 +93,7 @@
 
 ## 2026-08-05 — Iteration 5 (Beta), Phase 5: safety, grounding validation & red team
 **Status:** Phase 5 complete, verified on-device including against the real model.
-**git ref: `PHASE5_HASH`; hash backfilled in the follow-up commit.** Branch
+**git ref: `4c44a4a`; hash backfilled in the follow-up commit.** Branch
 `feat/iteration5-beta-conversational-analyst` (Phase 4 pushed as `d6fc99e`).
 
 **Scope (per the PoA §5):** prove the system cannot invent a number or be talked out of its
