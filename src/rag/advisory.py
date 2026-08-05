@@ -48,7 +48,13 @@ class CorpusDocument:
 INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ignore_previous_instructions", re.compile(r"\b(ignore|disregard)\b.{0,40}\b(previous|prior|above)\b.{0,40}\binstructions?\b", re.I | re.S)),
     ("reveal_system_prompt", re.compile(r"\b(system|developer)\s+(prompt|message|instructions?)\b", re.I)),
-    ("secret_exfiltration", re.compile(r"(\b(api[_ -]?key|token|password|secret)\b.{0,80}\b(print|show|send|exfiltrate|upload|reveal)\b|\b(print|show|send|exfiltrate|upload|reveal)\b.{0,80}\b(api[_ -]?key|token|password|secret)\b)", re.I | re.S)),
+    # The verb list was widened in Iteration 5 Phase 5: "give me the API key" was
+    # not matched, because only exfiltration verbs (print/show/send/…) were listed
+    # and a plain request verb was not. Safe to widen here — the pattern still
+    # requires a secret word within 80 characters, and the shipped corpus contains
+    # none of api_key/token/password/secret/credential (checked), so no legitimate
+    # document becomes flagged and excluded from retrieval by this change.
+    ("secret_exfiltration", re.compile(r"(\b(api[_ -]?key|token|password|secret|credential)s?\b.{0,80}\b(print|show|send|exfiltrate|upload|reveal|give|hand|tell|provide|share|leak|dump|echo|repeat|output)\b|\b(print|show|send|exfiltrate|upload|reveal|give|hand|tell|provide|share|leak|dump|echo|repeat|output)\b.{0,80}\b(api[_ -]?key|token|password|secret|credential)s?\b)", re.I | re.S)),
     ("tool_execution", re.compile(r"\b(run|execute|call)\b.{0,40}\b(shell|bash|curl|wget|python|tool)\b", re.I | re.S)),
     ("role_hijack", re.compile(r"\byou\s+are\s+now\b|\bact\s+as\s+(an?\s+)?(system|developer|admin)\b", re.I)),
 )

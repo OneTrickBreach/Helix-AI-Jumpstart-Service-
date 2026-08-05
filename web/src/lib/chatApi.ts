@@ -17,6 +17,20 @@ const API_PREFIX = "/api";
 /** Matches the API's `question: str = Field(max_length=600)`. */
 export const MAX_QUESTION_CHARS = 600;
 
+/**
+ * One id per page load, so the server's per-session what-if cap (Phase 5) applies
+ * to this tab rather than to the whole machine.
+ *
+ * A reload deliberately starts a new session and therefore a new run budget: the
+ * cap exists to stop a runaway component grinding through a demo, and the server's
+ * sliding window — which is keyed on the caller's address and cannot be reset by
+ * anything sent from here — is what actually protects the box.
+ */
+export const SESSION_ID: string =
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `s-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+
 /** Ask one grounded question. Runs no optimizer and mutates nothing. */
 export async function askChat(
   scenario: string,
@@ -25,7 +39,7 @@ export async function askChat(
 ): Promise<ChatAnswer> {
   const response = await fetch(`${API_PREFIX}/chat/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Session-Id": SESSION_ID },
     body: JSON.stringify({ scenario, question, use_llm: useLlm }),
   });
   if (!response.ok) {
@@ -71,6 +85,8 @@ export function whatIfStreamUrl(
     include_ppo: String(options.includePpo ?? false),
     confirmed: "true",
     fresh: String(options.fresh ?? false),
+    // EventSource cannot set headers, so the session id rides in the query string.
+    session_id: SESSION_ID,
   });
   if (perturbation.node_id) query.set("node_id", perturbation.node_id);
   if (perturbation.lane_id) query.set("lane_id", perturbation.lane_id);

@@ -152,7 +152,45 @@ def run_eval(use_llm: bool = True, questions_path: Path | str = QUESTIONS_PATH) 
         "answers_with_ungrounded_numbers": ungrounded,
         "answer_sources": sorted({item["answer_source"] for item in results}),
         "template_fallbacks_used": fallbacks,
+        "validator": validator_metrics(results),
         "results": results,
+    }
+
+
+def validator_metrics(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """The grounding validator's own numbers, as a reported metric (Phase 5).
+
+    A validator that never fires has not been shown to work, so its rejection rate
+    is recorded on every run rather than inferred from the absence of complaints.
+    ``rejection_rate`` is deliberately ``null`` on the template path: no model answer
+    was offered, so there was nothing to reject and reporting 0.0 would read as
+    "the model behaved" when the model was never called.
+    """
+    considered = [
+        item
+        for item in results
+        if item["answer_source"] == "llm_grounded" or item["answer_source"].startswith("template_after")
+    ]
+    rejected = [item for item in results if item["answer_source"].startswith("template_after")]
+    reasons: dict[str, int] = {}
+    for item in rejected:
+        reasons[item["answer_source"]] = reasons.get(item["answer_source"], 0) + 1
+    rules: dict[str, int] = {}
+    for item in results:
+        for name, count in ((item["grounding"] or {}).get("authorization_rules") or {}).items():
+            rules[name] = rules.get(name, 0) + int(count)
+    return {
+        "model_answers_offered": len(considered),
+        "model_answers_rejected": len(rejected),
+        "rejection_rate": round(len(rejected) / len(considered), 4) if considered else None,
+        "rejection_reasons": reasons,
+        "authorization_rules": rules,
+        "numbers_checked": sum(
+            int((item["grounding"] or {}).get("numbers_checked", 0) or 0) for item in results
+        ),
+        "numbers_ungrounded_surfaced": sum(
+            int((item["grounding"] or {}).get("numbers_ungrounded", 0) or 0) for item in results
+        ),
     }
 
 
@@ -174,6 +212,18 @@ def print_summary(summary: dict[str, Any]) -> None:
     print("\nby category:", json.dumps(summary["by_category"], sort_keys=True))
     print("answer sources:", ", ".join(summary["answer_sources"]))
     print("answers containing an un-grounded number:", summary["answers_with_ungrounded_numbers"] or "none")
+    validator = summary.get("validator") or {}
+    rate = validator.get("rejection_rate")
+    print(
+        "grounding validator: "
+        f"{validator.get('model_answers_rejected')}/{validator.get('model_answers_offered')} model answers rejected"
+        f" (rate {'n/a — model not used' if rate is None else f'{rate:.2%}'}),"
+        f" {validator.get('numbers_checked')} numbers checked,"
+        f" {validator.get('numbers_ungrounded_surfaced')} un-grounded surfaced"
+    )
+    print("authorization rules:", json.dumps(validator.get("authorization_rules", {}), sort_keys=True))
+    if validator.get("rejection_reasons"):
+        print("rejection reasons:", json.dumps(validator["rejection_reasons"], sort_keys=True))
 
 
 def main() -> int:

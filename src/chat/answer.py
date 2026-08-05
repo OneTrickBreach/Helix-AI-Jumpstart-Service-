@@ -75,6 +75,10 @@ class ChatAnswer:
     llm_profile: dict[str, Any] | None = None
     notes: list[str] = field(default_factory=list)
     injection_flags: list[dict[str, Any]] = field(default_factory=list)
+    # Named refusal patterns that fired, when this answer is a refusal. Empty on
+    # every other route. Phase 5 reports these so "the patterns were widened" is a
+    # checkable claim rather than a comment.
+    refusal_patterns: list[str] = field(default_factory=list)
     beta: bool = True
     label: str = BETA_LABEL
     numeric_values_source: str = "files on disk (generated scenario data and recorded benchmark artifacts)"
@@ -97,6 +101,7 @@ class ChatAnswer:
             "llm_profile": self.llm_profile,
             "notes": self.notes,
             "injection_flags": self.injection_flags,
+            "refusal_patterns": self.refusal_patterns,
             "beta": self.beta,
             "label": self.label,
             "numeric_values_source": self.numeric_values_source,
@@ -349,6 +354,7 @@ def answer_question(
     if decision.route in {"declined", "entity_not_found"}:
         return ChatAnswer(
             **base,
+            refusal_patterns=list(decision.matched_patterns),
             answer=decision.message,
             answer_source="deterministic_refusal"
             if decision.route == "declined"
@@ -456,7 +462,10 @@ def answer_question(
             llm_profile=profile,
         )
 
-    report: GroundingReport = validate_numbers(candidate, facts, question)
+    # `allow_prose_numbers=False`: the model may not restate a figure that only
+    # exists inside a retrieved paragraph. See `authorized_values` — measured to
+    # authorize nothing on this eval set, so this closes a surface at no cost.
+    report: GroundingReport = validate_numbers(candidate, facts, question, allow_prose_numbers=False)
     if dropped_for_budget:
         report.authorized_rules.setdefault("facts_dropped_for_prompt_budget", dropped_for_budget)
     if not report.ok:

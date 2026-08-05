@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import Response, StreamingResponse
 
+from src.api.ratelimit import enforce
 from src.api.security import require_api_key
 from src.bench.profiler import benchmark_dir
 from src.chat.answer import answer_question
@@ -255,14 +256,23 @@ def dataset_table(
 
 
 @router.post("/chat/ask", response_model=GenericResponse)
-def chat_ask(req: ChatAskRequest):
+def chat_ask(
+    req: ChatAskRequest,
+    request: Request,
+    response: Response,
+    x_session_id: str | None = Header(default=None),
+):
     """Iteration 5 (BETA) — grounded read-only Q&A over one scenario.
 
     Runs no optimizer and mutates nothing: it answers from the generated data and
     the recorded benchmark artifacts. ``use_llm=false`` returns the deterministic
     template answer for the same facts, which is what the replay/GPU-free path
     and the test suite use.
+
+    Rate limited (Phase 5): a question is cheap but not free — it holds the local
+    model for a couple of seconds.
     """
+    response.headers.update(enforce(request, "ask", x_session_id))
     try:
         result = answer_question(
             req.question,
@@ -277,7 +287,12 @@ def chat_ask(req: ChatAskRequest):
 
 
 @router.post("/chat/parse", response_model=GenericResponse)
-def chat_parse(req: ChatParseRequest):
+def chat_parse(
+    req: ChatParseRequest,
+    request: Request,
+    response: Response,
+    x_session_id: str | None = Header(default=None),
+):
     """Iteration 5 (BETA) — read a what-if sentence into a validated perturbation.
 
     **This endpoint does not execute anything.** It returns a parse plus a
@@ -286,6 +301,7 @@ def chat_parse(req: ChatParseRequest):
     execution path at this checkpoint, which is why every payload carries
     ``executable: false``.
     """
+    response.headers.update(enforce(request, "ask", x_session_id))
     try:
         result = parse_intent(
             req.question,
@@ -315,14 +331,26 @@ def _perturbation_from_request(req: ChatWhatIfRequest) -> Perturbation:
 
 
 @router.post("/chat/whatif", response_model=GenericResponse)
-def chat_whatif(req: ChatWhatIfRequest):
+def chat_whatif(
+    req: ChatWhatIfRequest,
+    request: Request,
+    response: Response,
+    x_session_id: str | None = Header(default=None),
+):
     """Iteration 5 (BETA) — run one validated perturbation through the real pipeline.
 
     ``confirmed=false`` returns the confirm-before-run card and runs nothing.
     ``confirmed=true`` re-validates the perturbation server-side, applies it as an
     in-memory overlay, and returns real before/after numbers from the same code
     path on both sides. The generated data is never written to.
+
+    Rate limited (Phase 5), and only a *confirmed* request counts against the run
+    budget: asking for the card costs nothing but a file read, and a planner
+    reconsidering a wording should not burn their allowance.
     """
+    response.headers.update(
+        enforce(request, "run" if req.confirmed else "light", x_session_id, counts_as_run=req.confirmed)
+    )
     perturbation = _perturbation_from_request(req)
     try:
         if not req.confirmed:
@@ -355,6 +383,7 @@ def chat_whatif(req: ChatWhatIfRequest):
 
 @router.get("/chat/whatif/stream")
 def chat_whatif_stream(
+    request: Request,
     scenario: str = Query(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$"),
     kind: Literal["node_outage", "lane_disruption", "demand_multiplier"] = Query(),
     from_period: int = Query(ge=1, le=520),
@@ -369,12 +398,26 @@ def chat_whatif_stream(
     include_ppo: bool = Query(default=False),
     confirmed: bool = Query(default=False),
     fresh: bool = Query(default=False),
+    # EventSource cannot set headers, so the browser passes its session id here.
+    # Same validation as the header form; an unusable value simply means the
+    # per-session run cap does not apply, never that the window does not.
+    session_id: str | None = Query(default=None, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
 ):
     """Stream a what-if with TRUTHFUL stage events, same pattern as the benchmark stream.
 
     A worker thread runs the real engine and pushes (stage, status) at the actual
     boundaries; this generator drains them. No stage is announced before it starts
     and none is marked complete before it finishes.
+
+    Rate limited before the worker starts, so a refused request never reaches the
+    optimizer — but the refusal is delivered **in-band, as an SSE `error` event**,
+    unlike `POST /chat/whatif` which returns a normal HTTP 429. The reason is the
+    client: `EventSource` cannot read a status code or a response body, so a 429 here
+    would reach the browser as an indistinguishable connection failure and the panel
+    would have to guess at the cause. Sending the reason down the channel the client
+    is already listening on is the only way it can say something true. The cost is
+    that this response carries no `X-RateLimit-*` headers, because the limit is not
+    checked until the body starts streaming.
     """
     req = ChatWhatIfRequest(
         scenario=scenario,
@@ -404,6 +447,13 @@ def chat_whatif_stream(
 
         def worker() -> None:
             try:
+                try:
+                    enforce(request, "run" if confirmed else "light", session_id, counts_as_run=confirmed)
+                except HTTPException as exc:
+                    event_queue.put(
+                        ("error", {"status": "rate_limited", "detail": str(exc.detail)})
+                    )
+                    return
                 if not req.confirmed:
                     event_queue.put(
                         (

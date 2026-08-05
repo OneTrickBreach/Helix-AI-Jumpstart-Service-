@@ -100,7 +100,9 @@ def numbers_match(candidate: float, authorized: float) -> bool:
     return abs(candidate - authorized) / scale <= RELATIVE_TOLERANCE
 
 
-def authorized_values(facts: list[Fact], question: str = "") -> list[tuple[float, str, str]]:
+def authorized_values(
+    facts: list[Fact], question: str = "", allow_prose_numbers: bool = True
+) -> list[tuple[float, str, str]]:
     """(value, rule, fact_id) triples that an answer may state.
 
     Three rules, in descending strictness:
@@ -123,6 +125,17 @@ def authorized_values(facts: list[Fact], question: str = "") -> list[tuple[float
     to answer "yes, the objective is 50,000". Measured on the phase 1 eval set,
     that rule authorized nothing at all, so failing closed costs nothing: a number
     the facts do not contain now falls back to the template.
+
+    🔴 **Phase 5 closed the loosest rule to model output.** ``prose_number`` is the
+    weakest authorization here: a figure inside a retrieved paragraph is on disk but
+    is not a measurement, and once authorized it can be restated by the model in a
+    sentence that reads like one. Measured before changing anything: across the
+    31-question eval set with the real model, ``prose_number`` authorized **nothing
+    at all** (35 `fact_value`, 16 `fact_text`, 3 `percent_of_fact`, 0
+    `prose_number`), while the deterministic template — which only ever quotes a
+    fact verbatim — used it 4 times. So ``allow_prose_numbers=False`` on the model
+    path costs nothing measured and removes the surface; the template keeps it,
+    because there the number and its sentence are the fact's own.
     """
     allowed: list[tuple[float, str, str]] = []
     for fact in facts:
@@ -130,14 +143,19 @@ def authorized_values(facts: list[Fact], question: str = "") -> list[tuple[float
             allowed.append((value, "fact_value", fact.fact_id))
             if 0.0 < abs(value) <= 1.0:
                 allowed.append((value * 100.0, "percent_of_fact", fact.fact_id))
-        rule = "prose_number" if fact.kind in {"corpus", "advisory"} else "fact_text"
+        is_prose = fact.kind in {"corpus", "advisory"}
+        if is_prose and not allow_prose_numbers:
+            continue
+        rule = "prose_number" if is_prose else "fact_text"
         for _, value in extract_numbers(fact.text):
             allowed.append((value, rule, fact.fact_id))
     return allowed
 
 
-def validate_numbers(answer: str, facts: list[Fact], question: str = "") -> GroundingReport:
-    allowed = authorized_values(facts, question)
+def validate_numbers(
+    answer: str, facts: list[Fact], question: str = "", allow_prose_numbers: bool = True
+) -> GroundingReport:
+    allowed = authorized_values(facts, question, allow_prose_numbers)
     report = GroundingReport(ok=True)
     for token, value in extract_numbers(answer):
         match = next(

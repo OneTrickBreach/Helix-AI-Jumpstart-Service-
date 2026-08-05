@@ -134,6 +134,14 @@ whatif: check-api-running
 whatif-run: check-api-running
 	@docker compose exec api python3 -m src.chat.run_whatif --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)" --confirm
 
+## Run the committed red-team set (must all fail safely) against the real model
+redteam: check-api-running
+	docker compose exec api python3 -m src.chat.redteam
+
+## Run the red-team set on the deterministic path (no model, fast)
+redteam-template: check-api-running
+	docker compose exec api python3 -m src.chat.redteam --no-llm
+
 ## Capture a REAL chat transcript (live LLM + live optimizer) for the replay demo
 chat-transcript: check-api-running
 	docker compose exec api python3 -m src.chat.capture_transcript \
