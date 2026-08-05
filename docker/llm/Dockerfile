@@ -8,7 +8,20 @@
 # in a volume mount to avoid re-downloading on container rebuild.
 # =============================================================================
 
-FROM vllm/vllm-openai:latest
+# PINNED (2026-08-03, Iteration 5 Phase 0). This was `vllm/vllm-openai:latest`,
+# and it silently changed under us during Iteration 4 Phase 0: `make up` re-pulled
+# it, swapped the LLM runtime to vLLM 0.26.0 mid-project, and moved the device
+# memory envelope from ~65-68 GiB to ~75-76 GiB. Iteration 5 leans on the LLM
+# harder than any previous iteration, so an unannounced runtime change is a
+# bigger risk here.
+#
+# The digest below IS the runtime that is already running and verified on this
+# box: the pulled v0.26.0 image carries build commit ffd46bfab212 —  identical to
+# the base of the currently-running `helix-ai-jumpstart:llm-phase0`. So this pin
+# records the verified state rather than changing it.
+#   tag equivalent: vllm/vllm-openai:v0.26.0
+# Pinned by digest, not tag, because a tag can be re-pushed.
+FROM vllm/vllm-openai@sha256:ffb2d59b1c059a5bd8d781320c9f5189de8293693b7d95da54befddaa54abf52
 
 # The model to serve — NVIDIA Nemotron 3 Nano 30B (MoE), FP8 quantized
 ENV MODEL_NAME="nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-FP8"

@@ -393,3 +393,223 @@ export type DatasetOverview = {
   scenario_diff: DatasetScenarioDiff;
   pipeline_link: DatasetPipelineLink;
 };
+
+// ---------------------------------------------------------------------------
+// Conversational analyst — "Ask the plan" (Iteration 5, BETA)
+// ---------------------------------------------------------------------------
+// These mirror the payloads of POST /chat/ask, POST /chat/whatif and
+// GET /chat/whatif/stream exactly. Nothing here is computed in the browser: the
+// panel renders what the API says, including the fields that keep a what-if from
+// being mistaken for a benchmark result (`is_what_if`, `label`, `warnings`,
+// `impact.reaches_optimizer`, `numeric_values_source`).
+
+export type ChatRoute = "grounded" | "glossary" | "declined" | "entity_not_found" | "what_if";
+
+export type ChatCitation = {
+  citation_id: string;
+  fact_id: string;
+  source: string;
+  label: string;
+  text_excerpt: string;
+};
+
+export type ChatGrounding = {
+  ok: boolean;
+  numbers_checked: number;
+  numbers_ungrounded: number;
+  ungrounded_tokens: string[];
+  authorization_rules?: Record<string, number>;
+  note?: string;
+};
+
+export type PerturbationKind = "node_outage" | "lane_disruption" | "demand_multiplier";
+
+export type Perturbation = {
+  kind: PerturbationKind;
+  scenario: string;
+  from_period: number;
+  to_period: number;
+  node_id?: string;
+  lane_id?: string;
+  capacity_multiplier?: number;
+  demand_multiplier?: number;
+  scope?: string;
+  scope_id?: string;
+  seed: number;
+};
+
+export type WhatIfImpact = {
+  reaches_optimizer: boolean;
+  why: string;
+  lanes_affected: string[];
+  lanes_affected_count: number;
+  lane_types_affected: Record<string, number>;
+  series_affected: number;
+  series_by_demand_type: Record<string, number>;
+  demand_rows_affected: number;
+  capacity_read_period: number | null;
+  removes_all_capacity_for: string[];
+  estimated_seconds: number;
+};
+
+/** The card a planner confirms before any compute is spent (decision 6). */
+export type ConfirmationCard = {
+  reading: string;
+  perturbation: Perturbation;
+  impact: WhatIfImpact;
+  fingerprint: string;
+  estimated_seconds: number;
+  estimate_basis: string;
+  warnings: string[];
+  requires_confirmation: boolean;
+  runnable: boolean;
+  how_to_run: string;
+  ppo_included: boolean;
+  beta: boolean;
+};
+
+export type UnresolvedEntity = {
+  reference: string;
+  node_type: string | null;
+  ordinal?: number | null;
+  existing_ids: string[];
+};
+
+export type ParseResult = {
+  outcome: "parsed" | "clarify" | "refused" | "not_found";
+  scenario: string;
+  question: string;
+  parser: string;
+  reason: string;
+  message: string;
+  perturbation: Perturbation | null;
+  impact: WhatIfImpact | null;
+  confirmation: ConfirmationCard | null;
+  missing: string[];
+  options: string[];
+  unresolved: UnresolvedEntity[];
+  injection_flags: Record<string, unknown>[];
+  beta: boolean;
+  label: string;
+  /** Always false: a parse never executes anything. */
+  executable: boolean;
+};
+
+export type ChatAnswer = {
+  scenario: string;
+  question: string;
+  route: ChatRoute;
+  reason: string;
+  answer: string;
+  answer_source: string;
+  citations: ChatCitation[];
+  facts_used: { fact_id: string; source: string; kind: string; score: number; matched: string[] }[];
+  grounding: ChatGrounding;
+  llm_profile?: Record<string, unknown> | null;
+  notes: string[];
+  injection_flags: Record<string, unknown>[];
+  beta: boolean;
+  label: string;
+  numeric_values_source: string;
+  what_if_capable: boolean;
+  what_if: {
+    available: boolean;
+    requires_confirmation: boolean;
+    how_to_run: string;
+    parse: ParseResult;
+  } | null;
+};
+
+export type MetricDelta = {
+  before: number | null;
+  after: number | null;
+  absolute: number | null;
+  percent: number | null;
+};
+
+export type WhatIfMetrics = {
+  winner: string;
+  ppo_outcome: string;
+  objective: number;
+  total_cost: number;
+  fill_rate: number;
+  days_of_inventory: number;
+  cvar_75: number;
+  by_approach: Record<
+    string,
+    {
+      objective: number;
+      total_cost: number;
+      fill_rate: number;
+      days_of_inventory: number;
+      cvar_75: number;
+      latency_seconds: number;
+    }
+  >;
+  cost_breakdown?: CostBreakdown;
+  policy?: Record<string, number>;
+};
+
+export type WhatIfDiff = {
+  table: string;
+  column: string;
+  capacity_multiplier_applied?: number;
+  demand_multiplier_applied?: number;
+  lane_ids?: string[];
+  scope?: string;
+  scope_id?: string | null;
+  rows_changed: number;
+  rows_in_window: number;
+  units_before: number;
+  units_after: number;
+};
+
+export type WhatIfResult = {
+  executed?: boolean;
+  /** True on every what-if payload. The UI must never render one as a benchmark. */
+  is_what_if: boolean;
+  scenario: string;
+  perturbation: Perturbation;
+  reading: string;
+  fingerprint: string;
+  seed: number;
+  horizon: number;
+  ppo_included: boolean;
+  base: WhatIfMetrics;
+  what_if: WhatIfMetrics;
+  deltas: Record<string, MetricDelta>;
+  impact: WhatIfImpact;
+  diff: WhatIfDiff;
+  moved_the_plan: boolean;
+  explanation: string;
+  warnings: string[];
+  timing: Record<string, number | boolean | null>;
+  cached: boolean;
+  beta: boolean;
+  label: string;
+  numeric_values_source: string;
+  period_semantics: string;
+};
+
+/**
+ * A real captured Q&A transcript, replayed when `?replay=true` and the backend is
+ * unavailable. Real payloads from this device — not mock data — stored in the same
+ * shape the live calls return, so replay and live render through identical code.
+ */
+export type RecordedTranscript = {
+  scenario: string;
+  captured_at_utc: string;
+  captured_from: string;
+  note: string;
+  entries: (
+    | { kind: "ask"; question: string; answer: ChatAnswer }
+    | {
+        kind: "whatif";
+        question: string;
+        /** The `/chat/ask` answer for the same question, so replay shows what live shows. */
+        answer: ChatAnswer;
+        confirmation: ConfirmationCard;
+        result: WhatIfResult;
+      }
+  )[];
+};

@@ -48,7 +48,13 @@ class CorpusDocument:
 INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("ignore_previous_instructions", re.compile(r"\b(ignore|disregard)\b.{0,40}\b(previous|prior|above)\b.{0,40}\binstructions?\b", re.I | re.S)),
     ("reveal_system_prompt", re.compile(r"\b(system|developer)\s+(prompt|message|instructions?)\b", re.I)),
-    ("secret_exfiltration", re.compile(r"(\b(api[_ -]?key|token|password|secret)\b.{0,80}\b(print|show|send|exfiltrate|upload|reveal)\b|\b(print|show|send|exfiltrate|upload|reveal)\b.{0,80}\b(api[_ -]?key|token|password|secret)\b)", re.I | re.S)),
+    # The verb list was widened in Iteration 5 Phase 5: "give me the API key" was
+    # not matched, because only exfiltration verbs (print/show/send/…) were listed
+    # and a plain request verb was not. Safe to widen here — the pattern still
+    # requires a secret word within 80 characters, and the shipped corpus contains
+    # none of api_key/token/password/secret/credential (checked), so no legitimate
+    # document becomes flagged and excluded from retrieval by this change.
+    ("secret_exfiltration", re.compile(r"(\b(api[_ -]?key|token|password|secret|credential)s?\b.{0,80}\b(print|show|send|exfiltrate|upload|reveal|give|hand|tell|provide|share|leak|dump|echo|repeat|output)\b|\b(print|show|send|exfiltrate|upload|reveal|give|hand|tell|provide|share|leak|dump|echo|repeat|output)\b.{0,80}\b(api[_ -]?key|token|password|secret|credential)s?\b)", re.I | re.S)),
     ("tool_execution", re.compile(r"\b(run|execute|call)\b.{0,40}\b(shell|bash|curl|wget|python|tool)\b", re.I | re.S)),
     ("role_hijack", re.compile(r"\byou\s+are\s+now\b|\bact\s+as\s+(an?\s+)?(system|developer|admin)\b", re.I)),
 )
@@ -342,8 +348,14 @@ def retrieve_chunks(collection: str, query: str, top_k: int = 5) -> list[dict[st
     return citations
 
 
-def call_shared_llm(prompt: list[dict[str, str]], scenario: str) -> dict[str, Any]:
-    with profile_run("rag_rationale_llm", scenario) as profile:
+def call_shared_llm(
+    prompt: list[dict[str, str]],
+    scenario: str,
+    max_tokens: int = 1200,
+    temperature: float = 0.1,
+    profile_name: str = "rag_rationale_llm",
+) -> dict[str, Any]:
+    with profile_run(profile_name, scenario) as profile:
         with httpx.Client(base_url=LLM_BASE_URL, timeout=180.0) as client:
             response = client.post(
                 "/v1/chat/completions",
@@ -355,14 +367,19 @@ def call_shared_llm(prompt: list[dict[str, str]], scenario: str) -> dict[str, An
                     # no room and the answer was truncated mid-sentence (forcing
                     # the template fallback every run). 1200 lets the planner
                     # paragraph complete after the scratchpad.
-                    "max_tokens": 1200,
-                    "temperature": 0.1,
+                    "max_tokens": max_tokens,
+                    "temperature": temperature,
                 },
             )
             response.raise_for_status()
             data = response.json()
     choices = data.get("choices", [])
     text = choices[0].get("message", {}).get("content", "") if choices else ""
+    # finish_reason is the authoritative "was this cut off" signal — "length"
+    # means the token budget ran out mid-generation. Callers previously had to
+    # infer truncation from the text itself, which misreads a legitimately short
+    # answer as a truncated one.
+    finish_reason = choices[0].get("finish_reason") if choices else None
     usage = data.get("usage", {}) or {}
     completion_tokens = int(usage.get("completion_tokens") or estimate_tokens(text))
     tokens_per_second = completion_tokens / max(profile["wall_clock_seconds"], 1e-9)
@@ -375,7 +392,7 @@ def call_shared_llm(prompt: list[dict[str, str]], scenario: str) -> dict[str, An
             "tokens_per_second": round(tokens_per_second, 6),
         }
     )
-    return {"text": text, "usage": usage, "profile": profile}
+    return {"text": text, "usage": usage, "profile": profile, "finish_reason": finish_reason}
 
 
 def build_prompt(
@@ -470,26 +487,37 @@ def collection_name(scenario: str) -> str:
     return f"{COLLECTION_PREFIX}_{safe}"
 
 
-def finalize_advisory_text(text: str) -> str:
-    """Normalize the LLM response into surfaced advisory text only.
+def strip_reasoning_scratchpad(text: str) -> str:
+    """Drop a Nemotron ``<think>...</think>`` scratchpad from surfaced text.
 
-    Nemotron is a reasoning model: it emits a ``<think>...</think>`` scratchpad
-    (and this vLLM build leaves it inline in ``content`` rather than a separate
-    ``reasoning_content`` field) before the planner-facing answer. Drop
-    everything up to and including the final ``</think>`` so the scratchpad can
-    never leak into surfaced advisory text.
+    Nemotron is a reasoning model, and this vLLM build leaves the scratchpad
+    inline in ``content`` rather than in a separate ``reasoning_content`` field.
+    Everything up to and including the final ``</think>`` goes.
 
-    It also occasionally echoes task instructions before drafting the actual
-    answer. When it does, it tends to emit a second advisory marker before the
-    real planner-facing paragraph. Keep that final marked paragraph and remove
-    obvious self-instruction tails.
+    A stray opening tag with no close means the answer never arrived; the tag is
+    removed but the (incomplete) text is left otherwise intact so the caller's
+    completeness guard still trips and falls back.
+
+    Shared by the advisory layer and the Iteration 5 chat layer: this was a real
+    defect diagnosed on-device in Iteration 3 Phase 2 and it should be fixed in
+    exactly one place.
     """
     cleaned = text.strip()
     if "</think>" in cleaned:
         cleaned = cleaned.rsplit("</think>", 1)[1].strip()
-    # A stray opening tag with no close means the answer never arrived; leave
-    # the text as-is so the short/incomplete guard downstream triggers fallback.
-    cleaned = cleaned.replace("<think>", "").strip()
+    return cleaned.replace("<think>", "").strip()
+
+
+def finalize_advisory_text(text: str) -> str:
+    """Normalize the LLM response into surfaced advisory text only.
+
+    Strips the reasoning scratchpad, then handles the advisory-specific case
+    where the model echoes task instructions before drafting the actual answer:
+    when it does, it tends to emit a second advisory marker before the real
+    planner-facing paragraph. Keep that final marked paragraph and remove obvious
+    self-instruction tails.
+    """
+    cleaned = strip_reasoning_scratchpad(text)
     markers = [match.start() for match in re.finditer(re.escape(f"{ADVISORY_LABEL}:"), cleaned, re.I)]
     if len(markers) > 1:
         cleaned = cleaned[markers[-1] :].strip()

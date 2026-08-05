@@ -5,7 +5,10 @@
 # Docker Compose v2 plugin syntax (space, not hyphen).
 # =============================================================================
 
-.PHONY: up down build web web-check test test-data logs ps clean data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data
+.PHONY: up start down build web web-check web-test test test-data test-file test-host logs ps clean \
+        data run bench bench-all scale-study rag cli cli-list check-api-running demo demo-data \
+        chat-ask chat-eval chat-eval-template chat-parse whatif whatif-run redteam redteam-template \
+        chat-transcript parse-eval parse-eval-template gpu-check llm-check embed-check qdrant-check cuopt-check
 
 SEED ?= 12345
 SCENARIO ?= baseline
@@ -105,6 +108,71 @@ rag: check-api-running data
 	docker compose exec api python3 -m src.rag.advisory --scenario $(SCENARIO)
 
 # ---------------------------------------------------------------------------
+# Iteration 5 (BETA) — conversational analyst
+# ---------------------------------------------------------------------------
+
+CHAT_QUESTION ?= How many distribution centers are there?
+
+## Ask one grounded question (usage: make chat-ask SCENARIO=baseline CHAT_QUESTION="...")
+chat-ask: check-api-running
+	@docker compose exec api python3 -m src.chat.ask --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
+
+## Run the committed evaluation set against the real on-device LLM
+chat-eval: check-api-running
+	docker compose exec api python3 -m src.chat.eval
+
+## Run the same evaluation set on the deterministic path (no model, fast)
+chat-eval-template: check-api-running
+	docker compose exec api python3 -m src.chat.eval --no-llm
+
+## Read one what-if sentence into a validated perturbation (does NOT run it)
+chat-parse: check-api-running
+	@docker compose exec api python3 -m src.chat.parse --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
+
+## Show the confirm card for a what-if (usage: make whatif CHAT_QUESTION="...")
+whatif: check-api-running
+	@docker compose exec api python3 -m src.chat.run_whatif --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"
+
+## Actually run a what-if through the real pipeline and print before/after
+whatif-run: check-api-running
+	@docker compose exec api python3 -m src.chat.run_whatif --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)" --confirm
+
+## Run the committed red-team set (must all fail safely) against the real model
+redteam: check-api-running
+	docker compose exec api python3 -m src.chat.redteam
+
+## Run the red-team set on the deterministic path (no model, fast)
+redteam-template: check-api-running
+	docker compose exec api python3 -m src.chat.redteam --no-llm
+
+## Capture a REAL chat transcript (live LLM + live optimizer) for the replay demo
+chat-transcript: check-api-running
+	docker compose exec api python3 -m src.chat.capture_transcript \
+		--scenario $(DEMO_SCENARIO) --out benchmark/demo-chat-transcript.json
+	cp benchmark/demo-chat-transcript.json web/public/demo-chat-transcript.json
+	@echo "✓ web/public/demo-chat-transcript.json updated — rebuild web to serve it"
+
+## Run the committed parser evaluation set (deterministic rules + LLM fallback)
+parse-eval: check-api-running
+	docker compose exec api python3 -m src.chat.parse_eval
+
+## Run the parser evaluation set with the deterministic rules only
+parse-eval-template: check-api-running
+	docker compose exec api python3 -m src.chat.parse_eval --no-llm
+
+# ---------------------------------------------------------------------------
+# Web unit tests — from the committed lockfile, with the repo root mounted so
+# the glossary parity test can read src/chat/glossary.json. The host
+# web/node_modules is stale and would use the wrong vitest.
+# ---------------------------------------------------------------------------
+WEB_TEST_IMAGE ?= node:22-bookworm-slim
+
+## Run the web Vitest suite in a scratch container from the committed lockfile
+web-test:
+	docker run --rm -v "$$(pwd)":/repo -w /repo/web $(WEB_TEST_IMAGE) \
+		sh -c "npm ci --silent && npx vitest run"
+
+# ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 
@@ -131,7 +199,16 @@ demo: demo-data
 	@echo "  Dataset view:  http://localhost:8081?view=dataset&scenario=$(DEMO_SCENARIO)"
 	@echo "  ...recorded:   http://localhost:8081?view=dataset&replay=true"
 	@echo ""
+	@echo "  Ask the plan (BETA, chat panel beside the results):"
+	@echo "                 http://localhost:8081?chat=true"
+	@echo "  ...beside the dataset view:"
+	@echo "                 http://localhost:8081?view=dataset&scenario=$(DEMO_SCENARIO)&chat=true"
+	@echo "  ...recorded transcript (no GPU, composer locked):"
+	@echo "                 http://localhost:8081?replay=true&chat=true"
+	@echo ""
 	@echo "  Recommended:   pick '$(DEMO_SCENARIO)' from the dropdown"
+	@echo "                 BEFORE asking anything — switching scenario starts a"
+	@echo "                 new transcript. Leave the BETA label on."
 	@echo "  Parameters:    horizon=8, PPO timesteps=128, top-k=5"
 	@echo ""
 	@echo "  Remote access: localhost only resolves ON the GB10 — see the"

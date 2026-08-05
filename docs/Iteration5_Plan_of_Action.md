@@ -2,8 +2,10 @@
 
 **Prepared for:** Ryan Spurr | Helix, Connection Inc.
 **From:** Ishan (AI Intern)
-**Status:** ✅ **EXECUTION-READY.** Phases are runnable one per session. Supersedes the directional
-draft of 2026-07-30.
+**Status:** ✅ **EXECUTED.** All phases (0–6) complete and verified on-device as of **2026-08-05**;
+the merge to `main` is prepared and held for Ishan's go. Deliverable:
+[`iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md).
+Phases were runnable one per session. Supersedes the directional draft of 2026-07-30.
 **Branch:** `feat/iteration5-beta-conversational-analyst`, cut from `main` **after Iteration 4 is
 merged** (see Phase 0).
 **Predecessor:** Iteration 4 — dataset transparency layer. Built, verified, merged; handoff at
@@ -201,6 +203,14 @@ Unchanged from Iterations 3 and 4, and it has repeatedly caught real defects —
 ---
 
 ## 4. Assumptions to put in front of Ryan when he is back
+
+> **Update (2026-08-05, Phase 6):** the list below grew from five to **seven** during the build. Phase 3
+> added #6 — whether the optimizer should read lane capacity across the plan horizon rather than at a
+> single period (a modelling decision, not a chat one) — and Phase 5 added #7, whether a
+> hospital-service-level question should be refused outright as it now is. The drafted packet, with
+> what was decided and why for each, is
+> [`iteration-docs/Iteration5_Ryan_Review_Packet.md`](iteration-docs/Iteration5_Ryan_Review_Packet.md)
+> (**drafted, not sent**).
 
 Show him these five, in this order, with the working feature in front of him:
 

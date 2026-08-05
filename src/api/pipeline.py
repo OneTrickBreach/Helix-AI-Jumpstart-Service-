@@ -10,11 +10,17 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from starlette.responses import Response, StreamingResponse
 
+from src.api.ratelimit import enforce
 from src.api.security import require_api_key
+from src.bench.profiler import benchmark_dir
+from src.chat.answer import answer_question
+from src.chat.intent import parse_intent
+from src.chat.perturbation import Perturbation, PerturbationError
+from src.chat.whatif import confirmation_for, run_what_if
 from src.dataset.overview import (
     DatasetNotGeneratedError,
     UnknownScenarioError,
@@ -65,6 +71,50 @@ class ScenarioComparisonRequest(RAGRationaleRequest):
     pass
 
 
+class ChatParseRequest(BaseModel):
+    scenario: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
+    question: str = Field(min_length=1, max_length=600)
+    use_llm: bool = True
+
+
+class PerturbationModel(BaseModel):
+    """The perturbation to run. Re-validated server-side; the client is never trusted."""
+
+    kind: Literal["node_outage", "lane_disruption", "demand_multiplier"]
+    from_period: int = Field(ge=1, le=520)
+    to_period: int = Field(ge=1, le=520)
+    node_id: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9._-]+$")
+    lane_id: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9._-]+$")
+    capacity_multiplier: float | None = Field(default=None, ge=0.0, le=10.0)
+    demand_multiplier: float | None = Field(default=None, ge=0.0, le=10.0)
+    scope: Literal["all", "customer", "sku"] | None = None
+    scope_id: str | None = Field(default=None, max_length=32, pattern=r"^[A-Za-z0-9._-]+$")
+
+
+class ChatWhatIfRequest(BaseModel):
+    scenario: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
+    perturbation: PerturbationModel
+    # Decision 6: nothing runs without explicit confirmation. An unconfirmed
+    # request gets the card back, not a queued job.
+    confirmed: bool = False
+    horizon: int = Field(default=8, ge=1, le=52)
+    include_ppo: bool = False
+    ppo_timesteps: int = Field(default=128, ge=16, le=4096)
+    # Force a recomputation instead of serving an identical earlier result. Useful
+    # for a "re-run" control and for tests that must not depend on a cold cache.
+    # Phase 5 owns rate limiting, which is what stops this being a cheap way to
+    # keep the box busy.
+    fresh: bool = False
+
+
+class ChatAskRequest(BaseModel):
+    scenario: str = Field(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
+    # Long enough for a real planner question, short enough that the chat surface
+    # cannot be used to smuggle a large payload into the prompt path.
+    question: str = Field(min_length=1, max_length=600)
+    use_llm: bool = True
+
+
 class GenericResponse(BaseModel):
     scenario: str | None = None
     status: Literal["ok"]
@@ -108,6 +158,26 @@ def _scenario_configs() -> list[dict[str, Any]]:
             }
         )
     return scenarios
+
+
+def _recorded_latencies(scenario: str) -> dict[str, float]:
+    """Per-approach latencies from the recorded run, for the confirm card's estimate.
+
+    Returns an empty mapping when no run is on record; the estimator then falls
+    back to conservative defaults rather than inventing a figure.
+    """
+    path = benchmark_dir() / f"{scenario}-head-to-head-comparison.json"
+    if not path.is_file():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return {
+        str(row["approach"]): float(row["latency_seconds"])
+        for row in payload.get("comparison", [])
+        if "approach" in row and "latency_seconds" in row
+    }
 
 
 def _run_scenario_comparison(
@@ -182,6 +252,251 @@ def dataset_table(
         headers={
             "Content-Disposition": f'attachment; filename="{scenario}-{filename}"',
         },
+    )
+
+
+@router.post("/chat/ask", response_model=GenericResponse)
+def chat_ask(
+    req: ChatAskRequest,
+    request: Request,
+    response: Response,
+    x_session_id: str | None = Header(default=None),
+):
+    """Iteration 5 (BETA) — grounded read-only Q&A over one scenario.
+
+    Runs no optimizer and mutates nothing: it answers from the generated data and
+    the recorded benchmark artifacts. ``use_llm=false`` returns the deterministic
+    template answer for the same facts, which is what the replay/GPU-free path
+    and the test suite use.
+
+    Rate limited (Phase 5): a question is cheap but not free — it holds the local
+    model for a couple of seconds.
+    """
+    response.headers.update(enforce(request, "ask", x_session_id))
+    try:
+        result = answer_question(
+            req.question,
+            req.scenario,
+            llm=None if req.use_llm else False,
+        )
+        return GenericResponse(scenario=req.scenario, status="ok", data=result.as_dict())
+    except UnknownScenarioError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except DatasetNotGeneratedError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+@router.post("/chat/parse", response_model=GenericResponse)
+def chat_parse(
+    req: ChatParseRequest,
+    request: Request,
+    response: Response,
+    x_session_id: str | None = Header(default=None),
+):
+    """Iteration 5 (BETA) — read a what-if sentence into a validated perturbation.
+
+    **This endpoint does not execute anything.** It returns a parse plus a
+    confirm-before-run card, a clarifying question, or a refusal. Running a
+    perturbation through the real pipeline is Phase 3; there is deliberately no
+    execution path at this checkpoint, which is why every payload carries
+    ``executable: false``.
+    """
+    response.headers.update(enforce(request, "ask", x_session_id))
+    try:
+        result = parse_intent(
+            req.question,
+            req.scenario,
+            llm=None if req.use_llm else False,
+            recorded_latencies=_recorded_latencies(req.scenario),
+        )
+        return GenericResponse(scenario=req.scenario, status="ok", data=result.as_dict())
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=409, detail=f"Scenario data has not been generated yet: {exc}")
+
+
+def _perturbation_from_request(req: ChatWhatIfRequest) -> Perturbation:
+    payload = req.perturbation
+    return Perturbation(
+        kind=payload.kind,
+        scenario=req.scenario,
+        from_period=payload.from_period,
+        to_period=payload.to_period,
+        node_id=payload.node_id,
+        lane_id=payload.lane_id,
+        capacity_multiplier=payload.capacity_multiplier,
+        demand_multiplier=payload.demand_multiplier,
+        scope=payload.scope,
+        scope_id=payload.scope_id,
+    )
+
+
+@router.post("/chat/whatif", response_model=GenericResponse)
+def chat_whatif(
+    req: ChatWhatIfRequest,
+    request: Request,
+    response: Response,
+    x_session_id: str | None = Header(default=None),
+):
+    """Iteration 5 (BETA) — run one validated perturbation through the real pipeline.
+
+    ``confirmed=false`` returns the confirm-before-run card and runs nothing.
+    ``confirmed=true`` re-validates the perturbation server-side, applies it as an
+    in-memory overlay, and returns real before/after numbers from the same code
+    path on both sides. The generated data is never written to.
+
+    Rate limited (Phase 5), and only a *confirmed* request counts against the run
+    budget: asking for the card costs nothing but a file read, and a planner
+    reconsidering a wording should not burn their allowance.
+    """
+    response.headers.update(
+        enforce(request, "run" if req.confirmed else "light", x_session_id, counts_as_run=req.confirmed)
+    )
+    perturbation = _perturbation_from_request(req)
+    try:
+        if not req.confirmed:
+            return GenericResponse(
+                scenario=req.scenario,
+                status="ok",
+                data={
+                    "executed": False,
+                    "reason": "confirmation_required",
+                    "confirmation": confirmation_for(
+                        perturbation, recorded_latencies=_recorded_latencies(req.scenario)
+                    ),
+                },
+            )
+        result = run_what_if(
+            perturbation,
+            horizon=req.horizon,
+            include_ppo=req.include_ppo,
+            ppo_timesteps=req.ppo_timesteps,
+            use_cache=not req.fresh,
+        )
+        return GenericResponse(
+            scenario=req.scenario, status="ok", data={"executed": True, **result.as_dict()}
+        )
+    except PerturbationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=409, detail=f"Scenario data has not been generated yet: {exc}")
+
+
+@router.get("/chat/whatif/stream")
+def chat_whatif_stream(
+    request: Request,
+    scenario: str = Query(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$"),
+    kind: Literal["node_outage", "lane_disruption", "demand_multiplier"] = Query(),
+    from_period: int = Query(ge=1, le=520),
+    to_period: int = Query(ge=1, le=520),
+    node_id: str | None = Query(default=None, max_length=32, pattern=r"^[A-Za-z0-9._-]+$"),
+    lane_id: str | None = Query(default=None, max_length=32, pattern=r"^[A-Za-z0-9._-]+$"),
+    capacity_multiplier: float | None = Query(default=None, ge=0.0, le=10.0),
+    demand_multiplier: float | None = Query(default=None, ge=0.0, le=10.0),
+    scope: Literal["all", "customer", "sku"] | None = Query(default=None),
+    scope_id: str | None = Query(default=None, max_length=32, pattern=r"^[A-Za-z0-9._-]+$"),
+    horizon: int = Query(default=8, ge=1, le=52),
+    include_ppo: bool = Query(default=False),
+    confirmed: bool = Query(default=False),
+    fresh: bool = Query(default=False),
+    # EventSource cannot set headers, so the browser passes its session id here.
+    # Same validation as the header form; an unusable value simply means the
+    # per-session run cap does not apply, never that the window does not.
+    session_id: str | None = Query(default=None, max_length=64, pattern=r"^[A-Za-z0-9._-]+$"),
+):
+    """Stream a what-if with TRUTHFUL stage events, same pattern as the benchmark stream.
+
+    A worker thread runs the real engine and pushes (stage, status) at the actual
+    boundaries; this generator drains them. No stage is announced before it starts
+    and none is marked complete before it finishes.
+
+    Rate limited before the worker starts, so a refused request never reaches the
+    optimizer — but the refusal is delivered **in-band, as an SSE `error` event**,
+    unlike `POST /chat/whatif` which returns a normal HTTP 429. The reason is the
+    client: `EventSource` cannot read a status code or a response body, so a 429 here
+    would reach the browser as an indistinguishable connection failure and the panel
+    would have to guess at the cause. Sending the reason down the channel the client
+    is already listening on is the only way it can say something true. The cost is
+    that this response carries no `X-RateLimit-*` headers, because the limit is not
+    checked until the body starts streaming.
+    """
+    req = ChatWhatIfRequest(
+        scenario=scenario,
+        perturbation=PerturbationModel(
+            kind=kind,
+            from_period=from_period,
+            to_period=to_period,
+            node_id=node_id,
+            lane_id=lane_id,
+            capacity_multiplier=capacity_multiplier,
+            demand_multiplier=demand_multiplier,
+            scope=scope,
+            scope_id=scope_id,
+        ),
+        confirmed=confirmed,
+        horizon=horizon,
+        include_ppo=include_ppo,
+        fresh=fresh,
+    )
+    perturbation = _perturbation_from_request(req)
+
+    def events():
+        event_queue: queue.Queue[tuple[str, dict[str, Any]] | None] = queue.Queue()
+
+        def progress(stage: str, status: str) -> None:
+            event_queue.put(("stage", {"stage": stage, "status": status, "message": f"{stage} {status}"}))
+
+        def worker() -> None:
+            try:
+                try:
+                    enforce(request, "run" if confirmed else "light", session_id, counts_as_run=confirmed)
+                except HTTPException as exc:
+                    event_queue.put(
+                        ("error", {"status": "rate_limited", "detail": str(exc.detail)})
+                    )
+                    return
+                if not req.confirmed:
+                    event_queue.put(
+                        (
+                            "confirm",
+                            {
+                                "executed": False,
+                                "reason": "confirmation_required",
+                                "confirmation": confirmation_for(
+                                    perturbation, recorded_latencies=_recorded_latencies(scenario)
+                                ),
+                            },
+                        )
+                    )
+                    return
+                result = run_what_if(
+                    perturbation,
+                    horizon=req.horizon,
+                    include_ppo=req.include_ppo,
+                    progress_callback=progress,
+                    use_cache=not req.fresh,
+                )
+                event_queue.put(("done", {"executed": True, **result.as_dict()}))
+            except PerturbationError as exc:
+                event_queue.put(("error", {"status": "error", "detail": str(exc)}))
+            except Exception as exc:  # noqa: BLE001 - surfaced to the client as an SSE error
+                event_queue.put(("error", {"status": "error", "detail": f"What-if failed: {exc}"}))
+            finally:
+                event_queue.put(None)
+
+        worker_thread = threading.Thread(target=worker, daemon=True)
+        worker_thread.start()
+        while True:
+            item = event_queue.get()
+            if item is None:
+                break
+            event_name, data = item
+            yield _sse_event(event_name, data)
+        worker_thread.join()
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
