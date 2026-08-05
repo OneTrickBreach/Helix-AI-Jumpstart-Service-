@@ -3,10 +3,10 @@
 > **🔴 STATUS: DRAFT — NOT SENT.** Drafting is the agent's job; sending is Ishan's. Nothing in this
 > file has been shared with anyone. Same posture as the Iteration 4 packet.
 >
-> **Prerequisites before sending:** (1) the merge to `main` is Ishan's call and can happen before or
-> after — the branch is complete and green either way; (2) a human should run the demo-guide Option D
-> talk track out loud once, because no one has; (3) replace `<gb10-tailscale-ip>` with the real
-> tailnet address and confirm the ACL lets Ryan's identity reach port 8081.
+> **Prerequisites before sending:** (1) ~~the merge~~ — **done**, Iteration 5 is on `main` as
+> `bc42bb3` (2026-08-05); (2) a human should run the demo-guide Option D talk track out loud once,
+> because no one has; (3) replace `<gb10-tailscale-ip>` with the real tailnet address and confirm the
+> ACL lets Ryan's identity reach port 8081.
 
 ---
 

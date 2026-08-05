@@ -2,8 +2,8 @@
 
 **Prepared for:** Ryan Spurr | Helix, Connection Inc.
 **From:** Ishan (AI Intern)
-**Status:** ✅ **EXECUTED.** All phases (0–6) complete and verified on-device as of **2026-08-05**;
-the merge to `main` is prepared and held for Ishan's go. Deliverable:
+**Status:** ✅ **EXECUTED AND MERGED.** All phases (0–6) complete and verified on-device as of
+**2026-08-05**, merged to `main` as `bc42bb3` the same day. Deliverable:
 [`iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md).
 Phases were runnable one per session. Supersedes the directional draft of 2026-07-30.
 **Branch:** `feat/iteration5-beta-conversational-analyst`, cut from `main` **after Iteration 4 is

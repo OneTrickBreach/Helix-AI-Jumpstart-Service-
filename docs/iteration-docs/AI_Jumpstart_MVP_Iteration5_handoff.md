@@ -3,7 +3,7 @@
 **Prepared for:** Ryan Spurr | Helix, Connection Inc.
 **From:** Ishan (AI Intern)
 **Date:** 2026-08-05
-**Branch:** `feat/iteration5-beta-conversational-analyst` → merge to `main` **prepared, held for your go**
+**Branch:** `feat/iteration5-beta-conversational-analyst` → **merged to `main` 2026-08-05 (`bc42bb3`)**
 **Predecessor:** Iteration 4 (dataset transparency), merged to `main` 2026-08-03 — **not yet reviewed by you**
 
 ---
@@ -71,7 +71,7 @@ have not reviewed it. That label is a guardrail, not styling — it comes off wh
 | **3** | The what-if engine: the perturbation applied as an **in-memory overlay** (nothing on disk is ever written), both sides computed by the same code path, forecast and result caches, truthful SSE progress, `POST /chat/whatif` + `GET /chat/whatif/stream` |
 | **4** | The chat UI: a panel **beside** the results and dataset views, provenance chips on every message, the confirm card, the what-if result card that cannot pass for a benchmark result, and a **GPU-free recorded transcript** |
 | **5** | Safety: the grounding rejection **rate reported as a metric**, ten named misrepresentation patterns plus three unsupported-claim patterns, a committed 25-case red-team set **with four controls**, widened injection scanning, and rate limiting with a per-session run cap |
-| **6** | This document, the demo-guide talk track (Option D), the `make demo` banner, README/handoff updates, the review packet, and the prepared merge |
+| **6** | This document, the demo-guide talk track (Option D), the `make demo` banner, README/handoff/containerization updates, the drafted review packet, and the merge to `main` |
 
 ---
 
@@ -399,8 +399,9 @@ transcripts, and real per-tenant quotas in place of the demo rate limiter.
 
 ### Open items honestly carried
 
-- **The merge to `main` is prepared, not performed**, and waits on your go — the same posture as
-  Iteration 4, since it is a hard-to-reverse action on the default branch.
+- **The merge to `main` is done** (2026-08-05, `bc42bb3`), on Ishan's explicit go and after a
+  post-merge `make test` re-run green on `main` itself. It is a `--no-ff` merge commit, so the iteration
+  boundary stays visible in history.
 - **A human talk-track rehearsal has still never happened.** It is a definition-of-done item that
   cannot be met by machine checks, and I am not counting it as met.
 - **Iteration 4 remains unreviewed by you**, which is the reason this iteration is labelled BETA at

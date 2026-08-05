@@ -211,8 +211,8 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 
 **Iteration 3** (demo/pilot-ready) merged 2026-07-27. **Iteration 4** (dataset transparency layer)
 merged to `main` 2026-08-03. **Iteration 5 (Beta)** — the conversational scenario/what-if analyst —
-is **complete and verified on-device (2026-08-05)** on `feat/iteration5-beta-conversational-analyst`,
-awaiting the merge to `main`. Iteration 6 is the production track (see §13).
+is **complete, verified on-device and merged to `main`** (2026-08-05, `bc42bb3`). Iteration 6 is the
+production track (see §13).
 
 🔴 **Ryan has not yet reviewed Iteration 4 or 5** (PTO). Iteration 5 therefore ships behind a visible
 **`BETA`** chip on every chat surface and in every screenshot. That label is a guardrail, not styling:
@@ -490,7 +490,7 @@ the production track, so what earlier docs called "Iteration 4 = production" is 
 | 2 | SCO scaffolding + synthetic dataset (working on-device prototype) | ✅ Done (`main`, 2026-07-10) |
 | 3 | Productization, demo polish, honest RL fair-shot | ✅ Done (`main`, 2026-07-27) |
 | 4 | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | ✅ Done (`main`, 2026-08-03) — **not yet reviewed by Ryan** |
-| **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Complete on `feat/iteration5-beta-conversational-analyst` (2026-08-05); merge to `main` pending |
+| **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Done (`main`, 2026-08-05) — **BETA, not yet reviewed by Ryan** |
 | 6 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, a saved scenario library and persistent transcripts. | ⏳ Not started |
 
 **If continuing development:** read [`docs/Iteration5_Plan_of_Action.md`](docs/Iteration5_Plan_of_Action.md)

@@ -17,10 +17,11 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** `feat/iteration5-beta-conversational-analyst` (from `main` @ `7c8d0e2`, which is
-  Iteration 4 merged). **Iteration 5 (Beta) COMPLETE — all phases 0–6 done, 2026-08-05.**
-  🔴 **The merge to `main` is PREPARED, NOT PERFORMED** — it waits on Ishan's explicit go, same as
-  Iteration 4 did. **The Ryan packet is drafted, not sent.**
+- **Branch:** **`main` @ `bc42bb3`** — **Iteration 5 (Beta) is MERGED** (2026-08-05, `--no-ff`, pushed;
+  `main` was `7c8d0e2` = Iteration 4). All phases 0–6 complete and verified on-device, and `make test`
+  was re-run green **on `main`** after the merge. `feat/iteration5-beta-conversational-analyst` is kept,
+  not deleted. 🔴 **The Ryan packet is drafted, NOT sent** — outward-facing, Ishan's call:
+  `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md`.
 - **Phase:** none in flight. Phases 0 (baseline + vLLM pin), 1 (grounded read-only Q&A), 2 (intent
   parser + perturbation schema), 3 (what-if execution), 4 (chat UI), 5 (safety/red team) and 6 (demo,
   docs, handoff, merge prep) are all done and verified on-device. **Ryan has reviewed neither
@@ -90,10 +91,9 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next (both awaiting Ishan):** merge Iteration 5 to `main`, and send Ryan the packet — with
-  Iterations 4 **and** 5 in front of him. Then Iteration 6 (production track) only after his feedback.
-  Also carried: **nobody has rehearsed the demo talk track out loud** (a DoD item no machine check can
-  meet).
+- **Next (awaiting Ishan):** send Ryan the packet — with Iterations 4 **and** 5 in front of him — then
+  Iteration 6 (production track) only after his feedback. Also carried: **nobody has rehearsed the demo
+  talk track out loud** (a DoD item no machine check can meet).
 
 ---
 
@@ -290,18 +290,39 @@ passed — but I had described three committed *images* without opening them, an
 without sweeping for stale dates. "Verified" has to mean the artifact, not the sentence about the
 artifact.
 
-### 4. The merge, prepared but NOT performed
+### 4. The merge — prepared in this phase, then PERFORMED on Ishan's explicit go
 
 `feat/iteration5-beta-conversational-analyst` → `main`. `main` is at `7c8d0e2` (Iteration 4) and has
 not moved since the branch was cut (`git rev-list --left-right --count main...HEAD` = `0  12` before
-this phase's commits), so this is a **fast-forward with no conflicts**. What it would contain: **every
+this phase's commits), so a fast-forward was available and there were **no conflicts**; it was recorded
+as a `--no-ff` merge commit anyway, so the iteration boundary is visible in `main`'s history the way
+Iteration 4's is. What it contains: **every
 commit on the branch** — Phases 0–6, 57 files, ~14.5k added lines (run
 `git rev-list --left-right --count main...HEAD` for the live count rather than trusting a number that
 goes stale with the next commit): the `src/chat/` package (facts, retrieve, router, glossary,
 grounding, answer, intent, perturbation, whatif, redteam, capture_transcript, four CLIs, three eval
 runners), `src/api/ratelimit.py` and the four chat endpoints, `web/src/chat/` (six components) and two
 libs, the extended `web/e2e` harness, the vLLM digest pin, **202 new tests**, the recorded chat
-transcript asset, six screenshots, and this phase's docs. **Not run. Waiting for the go.**
+transcript asset, six screenshots, and this phase's docs.
+
+**MERGED 2026-08-05 on Ishan's explicit go: `main` `7c8d0e2` → `bc42bb3`**, pushed to `origin/main`.
+Verified before and after rather than assumed:
+- **pre-merge:** working tree clean, `main == origin/main`, branch `== origin/branch`, `0  16`
+  ahead/behind — nothing unpushed on either side and nothing to conflict;
+- **post-merge:** `git diff feat/iteration5-beta-conversational-analyst main` is **empty**, so the
+  merged tree is byte-identical to the branch that was tested;
+- **post-merge gate on `main` itself:** `make test` **347 passed + 2 xpassed** in 90 s,
+  `GET /dataset/overview` 200 in 0.045 s, and `POST /chat/ask` still returns the warehouse-4 premise
+  correction naming DC-001 and DC-002.
+- **One false start, recorded because it is the useful part:** `git merge -F -` **failed** with
+  `error: could not read file '-'` — this git will not take a merge message on stdin — so the first
+  attempt merged nothing and only left the checkout sitting on `main`. It was caught immediately
+  because the post-step check prints the resulting hash and `tree identical to the branch: NO`, rather
+  than trusting the command to have worked.
+
+**Still open and still not mine to do:** sending Ryan the packet (outward-facing; the draft is at
+`docs/iteration-docs/Iteration5_Ryan_Review_Packet.md` with its own prerequisites) and the human
+talk-track rehearsal.
 
 **Open follow-ups.**
 - **Merge to `main` and send Ryan the packet** — both Ishan's, both ready.
