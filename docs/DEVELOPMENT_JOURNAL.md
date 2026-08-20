@@ -18,8 +18,9 @@
 
 ## Project snapshot (current state)
 - **Branch:** **`feat/iteration6a-custom-scenario`**, cut from **`main` @ `cd3905f`** on
-  2026-08-20. It carries **the Iteration 6a plan, a verified Phase 0 baseline, and three
-  documentation fixes — no implementation.** `main` still holds
+  2026-08-20. It carries **the whole of Iteration 6a — plan, implementation, tests and docs, phases
+  0–5 complete. NOT MERGED**; that is Ishan's call with Ryan, as the Iteration 5 merge was.
+  `main` still holds
   Iteration 5 (Beta), MERGED 2026-08-05 as `bc42bb3` (`--no-ff`, pushed; `main` was `7c8d0e2` =
   Iteration 4), with `make test` re-run green on `main` after the merge.
   `feat/iteration5-beta-conversational-analyst` is kept, not deleted.
@@ -30,19 +31,21 @@
   see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
   sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
   (the single-period capacity read) is now load-bearing for 6a.
-- **Phase:** **Iteration 6a Phase 4 COMPLETE (2026-08-20); Phase 5 (regression, docs, handoff) not
-  started, awaiting an explicit go.** Phases 0–4 are done and verified on-device. 🔴 **The feature is
-  demoable in a browser**: a fifth dropdown entry opens a control panel over the settings that define a
-  scenario (8 grouped Simple controls, all 59 in Advanced), runs the real pipeline, shows a result
-  labelled as custom, and saves / reopens / deletes it. The 15 settings that cannot change the answer
-  are shown under an explicit *"recorded in the dataset, not read by the optimizer"* heading, and a
-  disruption window that misses the capacity read period is warned about before the run and after it.
-  🔴 **The fairness invariant holds: a custom scenario equal to `baseline` reproduces 81,789.359460 to
-  the digit.** Green on-device: `make test` **547 passed + 2 xpassed**, `make bench-all` **all 12
-  objectives bit-identical**, `make scenario-eval` **29/29**, `make web-test` **100**, `make web-check`
-  **32/32**. `NetworkMap.tsx` is untouched. Iteration 5's phases 0–6 are all done and verified
-  on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has not said to
-  remove it.
+- **Phase:** 🔴 **ITERATION 6a COMPLETE (2026-08-20) — all six phases, verified on-device.** A planner
+  opens the Scenario dropdown, picks **"Custom scenario…"**, moves 8 grouped controls (or all 59 in
+  Advanced), runs the real pipeline in **~1.2 s**, reads a result labelled as custom, and saves /
+  reopens / deletes it. 🔴 **The fairness invariant holds: a custom scenario equal to `baseline`
+  reproduces 81,789.359460 to the digit.** The 15 settings that cannot change the answer are shown
+  under an explicit *"recorded in the dataset, not read by the optimizer"* heading, and a disruption
+  window that misses the capacity read period is warned about before the run and explained after.
+  Green on-device: `make test` **555 passed + 2 xpassed** (208 added by 6a), `make bench-all` **all 12
+  objectives bit-identical**, `make scenario-eval` **29/29**, `make web-test` **108**, `make web-check`
+  **32/32**. `NetworkMap.tsx` is untouched. Deliverables: the
+  [6a handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md), the
+  [Ryan packet](iteration-docs/Iteration6a_Ryan_Review_Packet.md) (**draft, not sent**), `DEMO_GUIDE.md`
+  **Option E**. 🔴 **One DoD item is still open and only a person can close it: nobody has read the
+  Option E talk track out loud.** Iteration 5's phases 0–6 are all done and verified on-device. The chat
+  surface still carries its `BETA` chip; Ryan has now seen it but has not said to remove it.
 - 🔴 **The settings ledger is machine-checked, and it refined the plan's own numbers.** Derived twice
   from the live system (build-and-diff for "what does this setting write", column ablation for "does
   the optimizer read it"): **38 unconditional · 6 conditional · 14 recorded-not-read · 1 label-only**,
@@ -138,11 +141,12 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next:** execute **Iteration 6a Phase 5** (regression sweep, `DEMO_GUIDE.md` **Option E** with a
-  talk track, the Iteration 6a handoff, README / `docs/handoff.md`, and the Ryan packet carrying §4's
-  four questions) per [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an
-  explicit go**. 🔴 Its hardest DoD item is the one no machine check can meet: **a human reads the
-  Option E talk track out loud once.** One phase
+- **Next:** 🔴 **two things only a human can do.** (1) **Read the `DEMO_GUIDE.md` Option E talk track
+  out loud once** — the definition-of-done item this repo has never met, carried since Iteration 3.
+  (2) **Decide the merge to `main`**, and whether to send
+  [`Iteration6a_Ryan_Review_Packet.md`](iteration-docs/Iteration6a_Ryan_Review_Packet.md), whose
+  question 1 is Ryan's own unanswered question 6 — the single-period capacity read — now with new
+  evidence. After that **Iteration 6b (custom dataset)** is the next feature. One phase
   per session with a
   brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
   plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
@@ -152,6 +156,120 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (Phase 5) — Iteration 6a **Phase 5**: regression sweep, docs & handoff — ITERATION COMPLETE
+**Status:** **Phase 5 COMPLETE, and with it Iteration 6a.** Branch `feat/iteration6a-custom-scenario`,
+**not merged** — that is Ishan's call with Ryan, as the Iteration 5 merge was.
+**git ref: `fcd55dc`** (hash backfilled in this follow-up commit).
+Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 5.
+**All 12 recorded objectives re-verified bit-identical, from a clean rebuild of `api` and `web`.**
+
+### 1. The decision-12 regression test the sweep called for
+
+Ryan parked the chat bot on 2026-08-19, so 6a built nothing for it — but custom scenarios became
+**visible** to it for free, because it reads the same scenario list the dropdown does. Visible-for-free
+is precisely the case that needs a regression test rather than a feature.
+
+`tests/test_iteration6a_chat_regression.py` — **8 cases**, split by intent:
+
+| It must not break | It must not claim it |
+|---|---|
+| a custom scenario is in `known_scenarios()` | no `src/chat/*.py` reaches into the custom-scenario layer |
+| the facts bundle builds for one | asking it to "create and save a scenario" produces no claim of having done so |
+| a grounded question is answered, 0 ungrounded numbers, `beta: true` | — |
+| the 404 split still holds for an unsaved custom name | — |
+| a what-if runs on one and leaves its generated CSVs **byte-identical** | — |
+| the confirm gate still gates | — |
+
+The UI half is **8 Vitest cases** in `web/src/chat/chatPanel.decision12.test.ts`. It lives there rather
+than in pytest because `web/` is deliberately not copied into the api image, so a Python check on those
+files could only ever skip — and **a guardrail that silently skips is not a guardrail.**
+
+### 2. `DEMO_GUIDE.md` Option E
+
+A five-step talk track built around the two honesty beats rather than around the feature: the control
+that reads like the most intuitive on the panel and does nothing, and the disruption window the
+optimizer cannot see. Plus a *"what to avoid saying"* list and a troubleshooting table.
+
+🔴 **Two numbers in my own first draft were wrong**, caught by checking them against the live API rather
+than trusting code I had just written:
+
+- the quoted estimate **omitted the `generate` component** that is actually shown for an unsaved draft;
+- the optimize basis was quoted as *"recorded per-approach latencies from baseline's last run"* when a
+  new scenario actually reads *"no run on record for this scenario, so baseline's recorded latencies are
+  used instead"*.
+
+Both corrected verbatim. Every other claim was verified live, including that running the no-op window
+anyway returns **81,789.359460**, and that typing `baseline` as a name is refused with Save disabled.
+
+### 3. 🔴 Stale claims across the docs — which is most of what this phase actually was
+
+The brutal-truth pass here was not about new code. It was about what the repo *says*:
+
+| Stale claim | Where | Reality |
+|---|---|---|
+| `347 passed / 62 Vitest / 26 checks` | README, `handoff.md`, `containerization.md`, `DEMO_GUIDE.md` | **555 / 108 / 32** |
+| *"Iterations 4 and 5 not yet reviewed by Ryan"* | README roadmap table | **He reviewed both on 2026-08-19** |
+| *"the sponsor has not reviewed it yet"* as the reason for the `BETA` chip | `DEMO_GUIDE.md` | The instruction is right, the reason is not — he **parked it as-is** and never asked for the label off |
+| Roadmap had no 6a or 6b, and called production "Iteration 6" | README | 6a done, 6b deferred, production is **7** in effect |
+| *"Options A–D"* | README, `handoff.md` | **A–E** |
+
+**Dated deliverables were annotated, not rewritten** — the same convention used for the demand-shock
+correction in Phase 0. The Iteration 5 handoff gets a *superseded-in-part* note pointing at the new
+capacity evidence; the never-sent Iteration 5 packet is marked superseded with a pointer to the 6a one.
+
+### 4. 🔴 I removed a false claim from my own handoff before committing it
+
+The first draft of the handoff's limits section read *"A human has now read the Option E talk track out
+loud."* **Nobody has.** I cannot know that, and shipping it would have quietly closed the one
+definition-of-done item this repo has never met. It now says so explicitly, in the handoff, in the Ryan
+packet and in `docs/handoff.md`'s carried limits.
+
+Worth recording as a defect in its own right, because it names the failure mode of a documentation
+phase: **writing something that sounds like verification.**
+
+### 5. What shipped
+
+| Document | Content |
+|---|---|
+| `iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md` (new) | The handoff in house style: TL;DR, the architectural bet, the two honesty features, the endpoints with measured latency, verification, honest limits, four questions, what's next |
+| `iteration-docs/Iteration6a_Ryan_Review_Packet.md` (new) | **Draft, not sent.** The four questions, question 1 being his unanswered question 6 with new evidence |
+| `DEMO_GUIDE.md` | **Option E**, the quick reference, and an updated *"what's next"* talk track |
+| `README.md` | §9 rewritten for 6a, §12 gains the seven 6a guardrails, §10 and the roadmap updated |
+| `docs/handoff.md` | A 6a quick-start section and the carried limits |
+
+### 6. Verification — from a clean rebuild of `api` and `web`
+
+| Check | Result |
+|---|---|
+| `make test` | **555 passed + 2 xpassed** (126 s) — **208 added by Iteration 6a** (was 347 + 2) |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| `make web-test` | **108 passed** (was 62) |
+| `make web-check` | **32/32, ALL CHECKS PASSED** (was 26) |
+| `make scenario-eval` | **29/29**, refusal classes **17/17**, warning classes **5/5** |
+| Iteration 4 and 5 surfaces | dataset view, chat beside both views, **both replay paths API-blocked** — all pass |
+| GPU | `/health` `gpu_visible:true` and a fresh-exec `torch.cuda.is_available()` `True` after the rebuild |
+
+**Iteration 6a totals:** six phases, six checkpoints, **208 backend tests and 46 web tests added**, and
+**19 real defects found by the brutal-truth reviews** — among them a path traversal, a destructive test
+that would have deleted a saved demo scenario, a Save button a user could not click, a vector-store
+leak, a derivation that produced a false no-op, and a false claim in my own handoff.
+
+**Open issues / follow-ups:**
+- 🔴 **The talk track has still never been read out loud.** Machine-checked is not rehearsed. **This is
+  the one thing left that only a person can close**, and the internship ends ~2026-08-27.
+- **The branch is not merged.** `main` still holds Iteration 5. Merging is Ishan's call with Ryan.
+- 🔴 **Ryan's question 6 remains unanswered** and is question 1 of the new packet.
+- **`POST /scenario-comparison` is still not rate limited** and is now reachable from a click. Recorded
+  in the handoff's limits; deliberately not changed here, because Phase 5's remit was regression and
+  docs, and a 429 on a recorded scenario's run is not a change to make in the last phase unasked.
+- **`llm` NVML still stale** — recreate in a window before any customer demo.
+- **The dataset view's dropdown lists custom scenarios flat**, not grouped like the results one.
+- **An optional block cannot be switched off from Advanced** — the Simple checkbox is the way.
+- **Iteration 6b (custom dataset) is deferred, not dropped.** Carry-forward finding: the generator builds
+  entities from counts with positional IDs, so *reducing* a count deletes the **last** entity —
+  "delete `DC-002`, keep `DC-003`" needs a row-level overlay layer.
+
 
 ## 2026-08-20 (Phase 4) — Iteration 6a **Phase 4**: the UI — Simple and Advanced
 **Status:** **Phase 4 COMPLETE.** The feature is now demoable in a browser: build a scenario, run it,
