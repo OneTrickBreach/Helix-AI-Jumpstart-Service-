@@ -378,12 +378,19 @@ def _package_sources() -> dict[str, str]:
     }
 
 
-def test_the_scenario_package_has_no_write_path():
-    """Phase 1 DoD, asserted structurally the way Iteration 5 Phase 2 did.
+#: Phase 2 added persistence, and it is confined to one module on purpose. Every
+#: other module in the package stays incapable of touching the disk, so a bug in
+#: validation or synthesis still cannot leave a half-saved scenario in the dropdown.
+WRITE_PATH_MODULE = "store.py"
 
-    Persistence is Phase 2. Until then nothing in ``src/scenario/`` may create,
-    modify or delete a file — so a bug here cannot leave a half-saved scenario in
-    the dropdown, and ``data/scenarios/`` cannot grow an untracked file.
+
+def test_only_the_store_module_has_a_write_path():
+    """Phase 1's DoD, tightened rather than dropped when Phase 2 landed.
+
+    The original assertion was that *nothing* in ``src/scenario/`` could write.
+    Persistence now exists, so the invariant becomes: the write path lives in
+    ``store.py`` and nowhere else. Widening it again should take a deliberate edit
+    to this list, not go unnoticed.
     """
     forbidden = (
         ".write_text(", ".write_bytes(", ".mkdir(", ".touch(", ".unlink(",
@@ -393,13 +400,29 @@ def test_the_scenario_package_has_no_write_path():
     offences = {
         name: [token for token in forbidden if token in source]
         for name, source in _package_sources().items()
+        if name != WRITE_PATH_MODULE
         if any(token in source for token in forbidden)
     }
-    assert not offences, f"a write path appeared in src/scenario: {offences}"
+    assert not offences, f"a write path appeared outside {WRITE_PATH_MODULE}: {offences}"
 
 
-def test_the_scenario_package_opens_no_file_for_writing():
+def test_the_store_is_the_module_that_does_write():
+    """The complement of the test above: keep it honest in both directions.
+
+    If the write path ever moves out of ``store.py``, the test above would pass
+    vacuously. This one fails instead.
+    """
+    sources = _package_sources()
+    assert WRITE_PATH_MODULE in sources
+    store_source = sources[WRITE_PATH_MODULE]
+    assert ".write_text(" in store_source
+    assert "shutil." in store_source
+
+
+def test_no_module_but_the_store_opens_a_file_for_writing():
     for name, source in _package_sources().items():
+        if name == WRITE_PATH_MODULE:
+            continue
         for mode in ('"w"', "'w'", '"a"', "'a'", '"wb"', "'wb'", '"x"', "'x'"):
             assert f"open({mode}" not in source and f", {mode}" not in source, (
                 f"{name} opens a file for writing"
@@ -421,15 +444,34 @@ def test_the_scenario_package_has_no_execution_path():
     assert not offences, f"an execution path appeared in src/scenario: {offences}"
 
 
-def test_the_generators_disk_writing_entry_point_is_never_called():
-    """§1.5: ``load_scenario`` and ``generate`` both raise ``SystemExit`` on error.
+def test_the_generators_system_exit_raising_entry_points_are_called_only_where_guarded():
+    """§1.5: ``load_scenario`` and ``generate`` report every error via ``SystemExit``.
 
-    ``build_tables`` deliberately calls the individual builders instead, so no
-    ``SystemExit`` can cross the API boundary and nothing is written.
+    ``SystemExit`` does not inherit from ``Exception``, so it would sail through an
+    ordinary handler and take the request down in a way FastAPI cannot render.
+
+    Phase 1's rule was "never call them". Phase 2 has to call ``generate()`` — it is
+    the same code path ``make data`` uses — so the rule becomes "call it in exactly
+    one place, and catch ``SystemExit`` there". ``build_tables`` still uses the
+    individual builders, so the read-only side never risks it at all.
     """
-    for name, source in _package_sources().items():
+    sources = _package_sources()
+    for name, source in sources.items():
         assert "load_scenario(" not in source, f"{name} calls the SystemExit-raising loader"
-        assert "gen.generate(" not in source, f"{name} calls the generator's write path"
+        if name == WRITE_PATH_MODULE:
+            continue
+        for call in (".generate(", "gen.generate(", "generator.generate("):
+            assert call not in source, f"{name} calls the generator's write path"
+
+    store_source = sources[WRITE_PATH_MODULE]
+    assert "generator.generate(" in store_source, (
+        "the store should use the real generator, not a parallel implementation"
+    )
+    assert "except SystemExit" in store_source, (
+        "the one place that calls generate() must catch SystemExit"
+    )
+    # Exactly one call site, so the guard cannot be bypassed by a second one.
+    assert store_source.count("generator.generate(") == 1
 
 
 # ---------------------------------------------------------------------------

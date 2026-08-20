@@ -1,5 +1,9 @@
 # generated data: regenerate from seed instead of committing
 data/**/generated/
+# Iteration 6a: a saved custom scenario is box-local state, not source. Its data
+# and benchmark artifacts are already covered above and below; the config is not.
+data/scenarios/custom-*.yaml
+data/.custom-staging/
 benchmark/*.json
 benchmark/*.csv
 # generated benchmark reports (incl. suite-summary.md) — regenerate via `make bench-all`;

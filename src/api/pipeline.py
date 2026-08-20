@@ -36,6 +36,14 @@ from src.pipeline.run import run_baseline_pipeline
 from src.rag.advisory import generate_advisory_rationale
 from src.scenario.api import custom_settings_payload
 from src.scenario.preview import build_preview
+from src.scenario.store import (
+    StoreError,
+    clear_all as clear_custom_scenarios,
+    delete as delete_custom_scenario,
+    list_custom as list_custom_scenarios,
+    save as save_custom_scenario,
+)
+from src.scenario.synthesize import CANONICAL_SCENARIOS
 
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -134,6 +142,18 @@ class CustomScenarioPreviewRequest(BaseModel):
     horizon: int = Field(default=8, ge=1, le=52)
     include_ppo: bool = False
     include_rationale: bool = False
+
+
+class CustomScenarioSaveRequest(CustomScenarioPreviewRequest):
+    """Iteration 6a Phase 2 — save a custom scenario.
+
+    Same body as the preview, so what a planner previewed is exactly what gets
+    saved, plus ``overwrite``. Overwriting is explicit rather than implied: a
+    silent overwrite of a scenario someone else on the box built is not a
+    behaviour worth defaulting to (decision 14 — storage is box-global).
+    """
+
+    overwrite: bool = False
 
 
 class GenericResponse(BaseModel):
@@ -270,6 +290,97 @@ def custom_scenario_preview(req: CustomScenarioPreviewRequest, request: Request)
         include_rationale=req.include_rationale,
     )
     return GenericResponse(scenario=payload["scenario"], status="ok", data=payload)
+
+
+def _store_error(exc: StoreError) -> HTTPException:
+    """Turn a store refusal into the status code the posture already uses."""
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+@router.post("/scenarios/custom", response_model=GenericResponse)
+def custom_scenario_save(req: CustomScenarioSaveRequest, request: Request):
+    """Validate, write the config, generate the data, and report what was saved.
+
+    Decision 11 is validate-then-refuse-then-write: an infeasible configuration is
+    turned down in plain English *before* anything reaches the disk. The config
+    that gets written is the one ``build_preview`` resolved, so the preview and the
+    saved file cannot disagree.
+    """
+    enforce(request, bucket="save")
+    preview = build_preview(
+        req.name,
+        overrides=req.overrides or None,
+        simple=req.simple or None,
+        seed=req.seed,
+        description=req.description,
+        run_horizon=req.horizon,
+        include_ppo=req.include_ppo,
+        include_rationale=req.include_rationale,
+    )
+    if not preview["validation"]["ok"]:
+        # 422 with the whole preview: the caller gets every refusal at once, plus
+        # the resolved config it would have saved, which is what makes the message
+        # actionable rather than just negative.
+        raise HTTPException(status_code=422, detail=preview)
+    try:
+        saved = save_custom_scenario(
+            req.name,
+            preview["resolved_config"],
+            seed=req.seed,
+            overwrite=req.overwrite,
+        )
+    except StoreError as exc:
+        raise _store_error(exc) from exc
+    return GenericResponse(
+        scenario=saved["scenario"],
+        status="ok",
+        data={
+            "saved": saved,
+            "validation": preview["validation"],
+            "config_changes": preview["config_changes"],
+            "config_changes_count": preview["config_changes_count"],
+            "capacity_reachability": preview["capacity_reachability"],
+            "run_estimate": preview["run_estimate"],
+            "label": preview["label"],
+        },
+    )
+
+
+@router.get("/scenarios/custom", response_model=GenericResponse)
+def custom_scenario_list(request: Request):
+    """Every custom scenario saved on this box (decision 14: box-global)."""
+    enforce(request, bucket="light")
+    scenarios = list_custom_scenarios()
+    return GenericResponse(
+        status="ok",
+        data={
+            "scenarios": scenarios,
+            "count": len(scenarios),
+            "protected": list(CANONICAL_SCENARIOS),
+            "storage": "This box. Saved scenarios are visible to anyone who can reach it.",
+        },
+    )
+
+
+@router.delete("/scenarios/custom", response_model=GenericResponse)
+def custom_scenario_clear_all(request: Request):
+    """Delete every custom scenario. Selects on the ``custom-`` prefix only."""
+    enforce(request, bucket="save")
+    return GenericResponse(status="ok", data=clear_custom_scenarios())
+
+
+@router.delete("/scenarios/custom/{slug}", response_model=GenericResponse)
+def custom_scenario_delete(slug: str, request: Request):
+    """Delete one custom scenario: its config, its data and its artifacts."""
+    enforce(request, bucket="save")
+    try:
+        removed = delete_custom_scenario(slug)
+    except StoreError as exc:
+        raise _store_error(exc) from exc
+    return GenericResponse(scenario=removed["scenario"], status="ok", data=removed)
 
 
 @router.get("/dataset/overview", response_model=GenericResponse)

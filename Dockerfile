@@ -39,6 +39,10 @@ RUN pip3 install --no-cache-dir --break-system-packages -r requirements-api.txt
 COPY src/ ./src/
 COPY data/ ./data/
 COPY tests/ ./tests/
+# Read-only inputs for the structural tests: the suite asserts that bench-all and
+# demo-data still iterate a literal list of four scenarios, and that a saved custom
+# scenario's files are git-ignored. Both need the real files, not a copy in a docstring.
+COPY Makefile .gitignore ./
 
 # The embeddings model will be downloaded on first use and cached in this volume
 ENV HF_HOME=/models/huggingface
