@@ -13,8 +13,8 @@ On **2026-08-19** you reviewed the live demo — your first look at Iterations 4
 two things: **a custom scenario** and **a custom dataset**. You said the dataset one looked hard and
 asked to see the scenario one first.
 
-**The custom scenario is built, verified on-device, and demoable.** Open the Scenario dropdown on the
-results screen; there is a fifth entry, **"Custom scenario…"**. It opens a control panel over the
+**The custom scenario is built, verified on-device, and demoable.** Open the Scenario dropdown — on the
+results screen or on the dataset view you liked; there is a fifth entry, **"Custom scenario…"**. It opens a control panel over the
 settings that define a scenario, pre-filled from `baseline`. Move a control, name it, click **Save &
 run** — the real pipeline runs on it in about a second and a half. Save it and it comes back in the
 dropdown next time.

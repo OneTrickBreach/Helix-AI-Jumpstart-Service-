@@ -294,6 +294,11 @@ export default function App() {
         onScenarioChange={changeDatasetScenario}
         onBack={openResults}
         replay={isReplayMode()}
+        // Reachable from this screen too. It is the screen a planner is looking at
+        // when they decide they want different conditions — and the one Ryan
+        // singled out. Omitted in replay, where every API call is blocked.
+        onOpenCustom={isReplayMode() ? undefined : () => setCustomOpen(true)}
+        customOpen={customOpen}
       />,
     );
   }

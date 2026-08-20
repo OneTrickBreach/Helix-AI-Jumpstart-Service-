@@ -41,7 +41,8 @@ the chat panel.
 
 ## Iteration 6a — the custom scenario panel
 
-Open `http://localhost:8081`, pick **"Custom scenario…"** (the fifth entry in the Scenario dropdown).
+Open `http://localhost:8081`, pick **"Custom scenario…"** (the fifth entry in the Scenario dropdown,
+available on the results screen and the dataset view).
 Move the controls, name it, **Save & run**. A default custom run is **~1.2 s**; the save is
 **0.04–0.07 s**.
 

@@ -14,8 +14,8 @@
 You asked for two things on 2026-08-19: **a custom scenario** and **a custom dataset**. You said the
 dataset one looked hard and asked to see the scenario one first. This is that one.
 
-Open the **Scenario** dropdown on the results screen. There is now a fifth entry, **"Custom
-scenario…"**. It opens a control panel over the settings that actually define a scenario, pre-filled
+Open the **Scenario** dropdown — on the results screen **or on the dataset view**. There is now a
+fifth entry, **"Custom scenario…"**. It opens a control panel over the settings that actually define a scenario, pre-filled
 from `baseline`. Move a control, name it, click **Save & run**, and the real pipeline runs on it — on
 this device, in about a second and a half.
 
@@ -202,8 +202,9 @@ offer the control at all**, because that walkthrough blocks every API call by de
 - **The chat surface is untouched** (your call on 2026-08-19). Custom scenarios are *visible* to it
   because it reads the same scenario list; that path has a regression test, not a feature. It will
   answer questions about a custom scenario and will not claim to have built one.
-- **The dataset view's own dropdown lists custom scenarios flat**, not grouped like the results one.
-  Cosmetic; the `custom-` prefix still makes them obvious.
+- **`index.html` is served `no-store` and hashed assets `immutable`.** Before Phase 5 review, nginx
+  sent no `Cache-Control` for `index.html`, so a returning viewer kept loading the previous build and
+  could not see new features at all. A browser check now asserts both headers.
 - 🔴 **No human has read the Option E talk track out loud yet.** Every number in it was checked against
   a live payload or a committed artifact, and the five-step sequence was driven end to end in a real
   browser by an automated check — but that is not the same as a person saying it. It is the one

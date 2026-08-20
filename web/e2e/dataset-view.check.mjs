@@ -709,6 +709,89 @@ async function askStarter(page, question, timeout = 90000) {
   await context.close();
 }
 
+// --- Iteration 6a: the entry has to be on the dataset view too -----------------
+// The plan's Phase 4 objective is "the control panel Ryan asked for, ON THE SCREEN
+// HE LIKED" — and the screen he singled out is the dataset view, not the results
+// screen. It was initially wired only into the results dropdown, and a reviewer
+// looking at the dataset view could not find it at all.
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+
+  await page.goto(`${BASE}/?view=dataset&scenario=baseline`, { waitUntil: "networkidle" });
+  await page.waitForSelector("text=How the network is laid out", { timeout: 20000 }).catch(() => {});
+
+  const SELECT = "[data-testid='dataset-scenario-select']";
+  const offered = await page.locator(`${SELECT} option[value='__custom__']`).count();
+  const grouped = await page
+    .locator(`${SELECT} optgroup`)
+    .evaluateAll((groups) => groups.map((group) => group.label));
+
+  await page.selectOption(SELECT, "__custom__");
+  const panelOpened = await page
+    .waitForSelector('[data-testid="custom-panel"]', { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  // Beside, not over: the map Ryan likes has to stay on screen.
+  const mapStillVisible = await page.locator("text=How the network is laid out").isVisible();
+
+  const datasetOk =
+    offered === 1 &&
+    grouped.includes("Recorded benchmark scenarios") &&
+    panelOpened &&
+    mapStillVisible &&
+    errs.length === 0;
+  if (!datasetOk) failures++;
+  console.log(
+    `${datasetOk ? "PASS" : "FAIL"} custom panel opens from the DATASET view ` +
+    `entryOffered=${offered === 1} grouped=${grouped.length} panelOpened=${panelOpened} ` +
+    `mapStillVisible=${mapStillVisible} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  await context.close();
+}
+
+// --- Iteration 6a: a new build must actually reach a returning viewer ----------
+// index.html is not fingerprinted — it is the file that names the current asset
+// hashes — so if it is cacheable, someone who has visited before keeps loading the
+// previous build and simply does not see new features. That happened during Phase 5
+// review: the panel was live in the container and invisible in the browser.
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+
+  const indexResponse = await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+  const indexCache = (indexResponse?.headers()["cache-control"] ?? "").toLowerCase();
+
+  const assetHref = await page.evaluate(() => {
+    const script = Array.from(document.querySelectorAll("script[src]")).find((s) =>
+      s.getAttribute("src")?.includes("/assets/"),
+    );
+    return script?.getAttribute("src") ?? null;
+  });
+  let assetCache = "";
+  if (assetHref) {
+    const assetResponse = await page.request.get(new URL(assetHref, `${BASE}/`).toString());
+    assetCache = (assetResponse.headers()["cache-control"] ?? "").toLowerCase();
+  }
+
+  const cacheOk =
+    /no-store/.test(indexCache) &&
+    /immutable/.test(assetCache) &&
+    Boolean(assetHref);
+  if (!cacheOk) failures++;
+  console.log(
+    `${cacheOk ? "PASS" : "FAIL"} a new build reaches a returning viewer ` +
+    `indexCacheControl="${indexCache}" assetCacheControl="${assetCache}"`
+  );
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

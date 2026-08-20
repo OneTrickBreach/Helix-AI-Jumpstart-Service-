@@ -51,6 +51,10 @@ import {
 } from "./lib/datasetFormat";
 import type { DatasetOverview, ScenarioSummary } from "./lib/types";
 
+/** Kept in step with App.tsx: the sentinel for the "build your own" entry. */
+const BUILD_YOUR_OWN = "__custom__";
+const CUSTOM_PREFIX = "custom-";
+
 type Props = {
   scenario: string;
   scenarios: ScenarioSummary[];
@@ -58,6 +62,9 @@ type Props = {
   onBack: () => void;
   /** `?replay=true`: render from the recorded snapshot, no API call, no GPU. */
   replay?: boolean;
+  /** Open the custom-scenario panel. Omit to hide the entry entirely. */
+  onOpenCustom?: () => void;
+  customOpen?: boolean;
 };
 
 type LoadState =
@@ -72,6 +79,8 @@ export default function DatasetView({
   onScenarioChange,
   onBack,
   replay = false,
+  onOpenCustom,
+  customOpen = false,
 }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -117,6 +126,8 @@ export default function DatasetView({
         onBack={onBack}
         badgeText={provenance?.badge_text}
         replay={replay}
+        onOpenCustom={onOpenCustom}
+        customOpen={customOpen}
       />
 
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -145,6 +156,8 @@ function StickyHeader({
   onBack,
   badgeText,
   replay,
+  onOpenCustom,
+  customOpen,
 }: {
   scenario: string;
   scenarios: ScenarioSummary[];
@@ -152,7 +165,13 @@ function StickyHeader({
   onBack: () => void;
   badgeText?: string;
   replay?: boolean;
+  onOpenCustom?: () => void;
+  customOpen?: boolean;
 }) {
+  // Grouped so a custom scenario can never be read as one of the four recorded
+  // ones — the same split the results screen uses.
+  const recorded = scenarios.filter((item) => !item.scenario.startsWith(CUSTOM_PREFIX));
+  const custom = scenarios.filter((item) => item.scenario.startsWith(CUSTOM_PREFIX));
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
@@ -189,9 +208,17 @@ function StickyHeader({
           <label className="control-label">
             Scenario
             <select
-              value={scenario}
-              onChange={(event) => onScenarioChange(event.target.value)}
+              value={customOpen ? BUILD_YOUR_OWN : scenario}
+              onChange={(event) => {
+                const next = event.target.value;
+                if (next === BUILD_YOUR_OWN) {
+                  onOpenCustom?.();
+                  return;
+                }
+                onScenarioChange(next);
+              }}
               className="control"
+              data-testid="dataset-scenario-select"
               /* Only one scenario was recorded, so switching would silently show
                  data the snapshot does not contain. */
               disabled={replay}
@@ -201,11 +228,29 @@ function StickyHeader({
               {scenarios.every((item) => item.scenario !== scenario) && scenario ? (
                 <option value={scenario}>{scenario} (not found)</option>
               ) : null}
-              {scenarios.map((item) => (
-                <option key={item.scenario} value={item.scenario}>
-                  {item.scenario}
-                </option>
-              ))}
+              <optgroup label="Recorded benchmark scenarios">
+                {recorded.map((item) => (
+                  <option key={item.scenario} value={item.scenario}>
+                    {item.scenario}
+                  </option>
+                ))}
+              </optgroup>
+              {custom.length ? (
+                <optgroup label="Your custom scenarios">
+                  {custom.map((item) => (
+                    <option key={item.scenario} value={item.scenario}>
+                      {item.scenario}
+                    </option>
+                  ))}
+                </optgroup>
+              ) : null}
+              {/* The panel is reachable from this screen too, not only from the
+                  results view: this is the screen a planner is actually looking at
+                  when they decide they want different conditions. Absent in replay,
+                  where every API call is blocked by design. */}
+              {onOpenCustom && !replay ? (
+                <option value={BUILD_YOUR_OWN}>Custom scenario…</option>
+              ) : null}
             </select>
           </label>
         </div>

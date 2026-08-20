@@ -16,7 +16,7 @@
 | **Dataset view (recorded)** | `http://localhost:8081?view=dataset&replay=true` |
 | **Chat panel — "Ask the plan" (BETA)** | `http://localhost:8081?chat=true` |
 | **Chat panel (recorded, no GPU)** | `http://localhost:8081?replay=true&chat=true` |
-| **Build your own scenario** | `http://localhost:8081` → Scenario dropdown → **"Custom scenario…"** (live only) |
+| **Build your own scenario** | Scenario dropdown → **"Custom scenario…"**, on the results screen *or* the dataset view (live only) |
 | **API (direct)** | `http://localhost:8080` |
 | **One-command setup** | `make demo` |
 | **Hardware** | NVIDIA GB10 (arm64, Grace Blackwell, ~121 GiB unified memory) |
@@ -629,7 +629,8 @@ a custom number as one of the four.**
 
 ### Opening it
 
-On the results screen, open the **Scenario** dropdown. It now has three parts:
+Open the **Scenario** dropdown — **on either the results screen or the dataset view**. It now has
+three parts:
 
 ```
 Recorded benchmark scenarios     baseline, component-shortage-shock, demand-surge, stress-large
@@ -637,8 +638,9 @@ Your custom scenarios            (appears once you have saved one, all named cus
                                  Custom scenario…          <- the fifth entry
 ```
 
-Pick **"Custom scenario…"**. A panel opens *beside* the results — never over them, the same rule the
-chat panel follows.
+Pick **"Custom scenario…"**. A panel opens *beside* whichever view you are on — never over it, the same
+rule the chat panel follows. Opening it from the dataset view keeps the network map on screen, which is
+the natural place to decide you want different conditions.
 
 ⚠️ **The entry is deliberately absent in `?replay=true`.** The recorded walkthrough blocks every API
 call by design, and building a scenario needs the API. Use the live stack for this option.
@@ -774,7 +776,7 @@ saved custom scenario is an ordinary scenario as far as the rest of the system i
 
 | Symptom | Cause and fix |
 |---|---|
-| "Custom scenario…" is missing from the dropdown | You are in `?replay=true`. Use the live URL. |
+| "Custom scenario…" is missing from the dropdown | Either you are in `?replay=true` (use the live URL), or your browser is showing a cached build — **hard-reload** (Ctrl/Cmd+Shift+R). `index.html` is now served `no-store` so this should not recur. |
 | The panel says "Failed to fetch" | The API is down. `docker compose ps`, then `make up`. |
 | Save is greyed out | Either the name is empty, or there is a refusal listed above the button. The refusal says what to fix in a sentence. |
 | "A scenario named … already exists" | Delete it first, or pick another name. This also happens if a save failed halfway once — delete clears it. |

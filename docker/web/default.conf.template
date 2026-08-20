@@ -21,7 +21,27 @@ server {
         chunked_transfer_encoding off;
     }
 
+    # Vite fingerprints every asset (index-<hash>.js), so an asset URL is
+    # immutable and can be cached hard. index.html is NOT fingerprinted: it is
+    # the file that points at the current hashes, so it must never be cached.
+    #
+    # Without this, nginx sends index.html with only Last-Modified/ETag and no
+    # Cache-Control, and browsers apply heuristic caching — a viewer who has been
+    # here before keeps loading the previous build and simply does not see new
+    # features. That is a demo-breaking failure mode, not a developer annoyance.
+    # `expires` emits a Cache-Control of its own, so it is deliberately not used
+    # here: combining it with add_header sends two Cache-Control headers.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-store, must-revalidate" always;
+    }
+
     location / {
+        add_header Cache-Control "no-store, must-revalidate" always;
         try_files $uri $uri/ /index.html;
     }
 }

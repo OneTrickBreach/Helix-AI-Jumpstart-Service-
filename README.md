@@ -308,7 +308,7 @@ refused **by name, with the reason**. Nothing is ever written to disk by a what-
 [`docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md).
 
 **"Build your own scenario" — Iteration 6a.** A fifth entry in the scenario dropdown — **"Custom
-scenario…"** — opens a control panel over the settings that actually define a scenario, pre-filled from
+scenario…"**, on the results screen and the dataset view — opens a control panel over the settings that actually define a scenario, pre-filled from
 `baseline`: **8 grouped Simple controls** and **all 59 settings** in Advanced. Name it, run the real
 pipeline on it (**~1.2 s**), save it so it returns in the dropdown, delete it, or clear all.
 
