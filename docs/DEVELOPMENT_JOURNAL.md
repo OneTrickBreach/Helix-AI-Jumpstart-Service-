@@ -150,7 +150,8 @@
 
 ## 2026-08-20 (Phase 1) — Iteration 6a **Phase 1**: the settings ledger, schema & validation
 **Status:** **Phase 1 COMPLETE.** No persistence, no execution — both are asserted structurally, not
-just intended. Branch `feat/iteration6a-custom-scenario`; git ref backfilled in the follow-up commit.
+just intended. Branch `feat/iteration6a-custom-scenario`. **git ref: `cbe257b`** (hash backfilled in this
+follow-up commit).
 Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 1.
 **All 12 recorded objectives re-verified bit-identical.**
 
