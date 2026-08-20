@@ -590,8 +590,13 @@ A **real captured transcript** (2026-08-05, on this GB10 — the on-device Nemot
 - Do **not** say "the AI decided" or "the AI calculated". The optimizer computes; the model narrates.
 - Do **not** describe the shortage scenario's periods 18–27 lane disruption as the reason its
   objective differs from baseline. **It is not** — the optimizer reads lane capacity at period 52
-  only. That scenario differs from `baseline` in 24 configuration settings plus a demand shock baked
-  into `demand.csv`. The chat layer will correct you on screen if you ask it.
+  only. That scenario differs from `baseline` in its **24 configuration settings** (costs, capacity
+  tightness, lane costs and lead times, demand-generation parameters, service targets). The chat
+  layer will correct you on screen if you ask it.
+- Do **not** say `component-shortage-shock` has a demand shock. **It does not** — corrected
+  2026-08-20, when an on-device re-audit found `demand.shock: null` and **0** shocked rows in its
+  `demand.csv`. The demand shocks are in **`demand-surge`** (periods 20–27, ×1.75) and
+  **`stress-large`** (periods 42–55, ×1.55). Earlier drafts of this guide said otherwise.
 - Do **not** promise "sub-second answers". Sub-second is the deterministic paths and a warm what-if;
   a model-written sentence is seconds.
 - Do **not** remove or crop out the **BETA** chip, and do not say the feature is production-ready.

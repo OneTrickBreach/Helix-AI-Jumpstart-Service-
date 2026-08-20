@@ -17,8 +17,9 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** **`feat/iteration6a-custom-scenario` @ `2867d8f`**, cut from **`main` @ `cd3905f`** on
-  2026-08-20. It carries **the Iteration 6a plan only — no implementation.** `main` still holds
+- **Branch:** **`feat/iteration6a-custom-scenario`**, cut from **`main` @ `cd3905f`** on
+  2026-08-20. It carries **the Iteration 6a plan, a verified Phase 0 baseline, and three
+  documentation fixes — no implementation.** `main` still holds
   Iteration 5 (Beta), MERGED 2026-08-05 as `bc42bb3` (`--no-ff`, pushed; `main` was `7c8d0e2` =
   Iteration 4), with `make test` re-run green on `main` after the merge.
   `feat/iteration5-beta-conversational-analyst` is kept, not deleted.
@@ -29,9 +30,11 @@
   see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
   sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
   (the single-period capacity read) is now load-bearing for 6a.
-- **Phase:** **Iteration 6a Phase 0 not started.** Iteration 5's phases 0–6 are all done and verified
-  on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has not said to
-  remove it.
+- **Phase:** **Iteration 6a Phase 0 COMPLETE (2026-08-20); Phase 1 not started, awaiting an explicit
+  go.** Baseline re-verified green on-device this session: `make test` **347 passed + 2 xpassed**,
+  `make bench-all` **all 12 objectives bit-identical**, `make web-test` **62**, `make web-check`
+  **26/26**. Iteration 5's phases 0–6 are all done and verified on-device. The chat surface still
+  carries its `BETA` chip; Ryan has now seen it but has not said to remove it.
 - **Deliverables:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md` (handoff),
   `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md` (**draft, not sent**), `DEMO_GUIDE.md`
   **Option D** (the chat talk track), README §9/§12/§13, `docs/handoff.md`, `docs/containerization.md`.
@@ -93,6 +96,13 @@
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
+- 🔴 **GPU/NVML: recurred 2026-08-20, `api` fixed and RE-VERIFIED at Phase 0** — `/health`
+  `gpu_visible:true` (it shells out to `nvidia-smi` as a **new subprocess per request**, which is
+  exactly the case NVML detachment breaks), plus a **fresh** `docker compose exec` confirming
+  `torch.cuda.is_available()` `True` on `NVIDIA GB10` with a real CUDA matmul. Note the two
+  `xfail`-marked probes only read `/health`, so their `XPASS` is not an independent check — the fresh
+  exec is. **`llm` remains stale** (`Failed to initialize NVML`), serves fine, not recreated (needs an
+  explicit go). Detail below.
 - 🔴 **GPU/NVML: recurred 2026-08-20 and is PARTLY fixed.** After ~2 weeks up, **both** `api` and
   `llm` returned `Failed to initialize NVML: Unknown Error` and `/health` read `gpu_visible:false` —
   while compute kept working off already-loaded CUDA contexts, so it looked healthy and the 2026-08-19
@@ -108,8 +118,12 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next:** execute **Iteration 6a Phase 0** (orientation, green baseline, branch already cut) per
-  [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md), one phase per session with a
+- **Next:** execute **Iteration 6a Phase 1** (the settings ledger, schema and validation — no
+  persistence, no execution) per
+  [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an explicit go**. Phase 0
+  confirmed the plan's §1.4 ledger arithmetic against the real configs (**59 settings / 7 groups /
+  39 unconditional · 7 conditional · 13 inert**), so Phase 1 starts from verified numbers. One phase
+  per session with a
   brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
   plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
   the production track is now Iteration 7 in effect. Also carried: **nobody has rehearsed the demo talk
@@ -118,6 +132,172 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (later) — Iteration 6a **Phase 0**: green baseline verified, reference numbers captured, one shipped-doc defect fixed
+**Status:** **Phase 0 COMPLETE.** Orientation, green baseline and reference capture. **No implementation
+— no `src/`, `web/`, `data/generator/` or optimizer code was touched.** The only changes are three
+documentation fixes for a defect found during the checkpoint review. Branch
+`feat/iteration6a-custom-scenario`, cut previously from `main` @ `cd3905f`; this entry's commit hash is
+backfilled in the follow-up commit. Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 0.
+
+### 1. 🔴 GPU checked FIRST, and it is genuinely healthy this time
+
+The plan's own gotcha is that compute keeps working off already-loaded CUDA contexts while every *new*
+process has no GPU — so the box looks healthy when it is not. Verified accordingly, with the
+new-process case tested explicitly:
+
+| Check | Result |
+|---|---|
+| `GET /health` | `gpu_visible:true`, `gpu_name:"NVIDIA GB10"`, `driver_version:"580.159.03"`, `cuda_version:"13.0"`, `nvcc_available:true` |
+| `nvidia-smi` inside `api` | `NVIDIA GB10, 580.159.03` |
+| **Fresh** `docker compose exec api python3` | `torch 2.13.0+cu130`, `cuda_available True`, `device_count 1`, `NVIDIA GB10`, and a real 1000×1000 CUDA matmul returning finite values |
+| `api` container age at session start | **42 minutes** — the 2026-08-20 force-recreate held |
+
+🔴 **A correction to how the last entry said to read this.** `tests/test_service_health.py::test_gpu_visible`
+and `::test_driver_version` **only call `GET /health`** — they are not independent probes, so their
+`XPASS` proves the endpoint's answer and nothing more. It happens to be sufficient, because
+[`src/api/health.py:38`](../src/api/health.py#L38) shells out to `nvidia-smi` as a **new subprocess on
+every request**, which is exactly the case NVML detachment breaks. The fresh `torch` exec above is the
+independent confirmation. **Read the `xpassed` count** as the last entry says — but the reason it is
+trustworthy is the subprocess, not the test.
+
+**`llm`'s NVML is still stale**, unchanged and deliberately not fixed: `docker compose exec llm nvidia-smi`
+→ `Failed to initialize NVML: Unknown Error` (container up 2 weeks). It serves fine — all four RAG
+advisories below came back `llm_finalized`. **Not recreated: that needs an explicit go** (~10-min
+Nemotron reload plus the documented wedge risk).
+
+### 2. The four reference numbers — all 12 objectives bit-identical
+
+`make bench-all` (seed 12345, horizon 8, ppo-timesteps 128, top-k 5), exit 0. Compared against the
+values recorded in the committed artifacts *before* the run, then re-read after:
+
+| Scenario | Baseline | **Classical (winner)** | PPO | Match |
+|---|---:|---:|---:|:--:|
+| `baseline` | 88,022.760795 | **81,789.359460** | 102,804.716650 | ✅ |
+| `component-shortage-shock` | 102,834.785064 | **95,445.445064** | 113,584.863463 | ✅ |
+| `demand-surge` | 100,734.738785 | **94,165.363245** | 115,161.538279 | ✅ |
+| `stress-large` | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 | ✅ |
+
+Classical wins all four; `ppo_outcome: lost_to_classical` on all four. **These are the numbers that must
+stay bit-identical for the whole of Iteration 6a.**
+
+**All four RAG advisories returned `advisory_text_source: llm_finalized` with 5 citations and 0
+injection flags** — *better* than the 2026-08-05 suite run, where `component-shortage-shock` fell back
+to `benchmark_template_after_short_llm_output`. Model prose remains the non-deterministic part; no
+metric depends on it.
+
+### 3. Full green baseline
+
+| Check | Expected | Got |
+|---|---|---|
+| `make test` | 347 passed + 2 xpassed | **347 passed + 2 xpassed** (98.06 s), 0 failed |
+| `make bench-all` | 4 classical objectives unchanged | **all 12 objectives bit-identical** |
+| `make web-test` | 62 | **62 passed**, 5 files, 491 ms |
+| `make web-check` | 26/26 | **26 PASS · 0 FAIL · 2 INFO — ALL CHECKS PASSED** |
+
+**Iteration 4 and 5 surfaces confirmed intact** by `web-check`, including both GPU-free replay paths
+with `**/api/**` aborted: `?view=dataset&replay=true` (badge=2, selectorLocked, 2 disrupted lanes) and
+`?replay=true&chat=true` (recorded what-if, composer locked, **`apiCallsWhileChatting=0`**). Dataset
+Level 1 fold: 793/817/817/865 px against 1080, and the same against 900 on the laptop viewport. The
+known chat-open laptop measurement is still `933px/900` — INFO, not gated, exactly as documented.
+
+### 4. 🔴 §1.3 re-verified independently, on freshly regenerated data
+
+Not restated from the plan — re-audited from the CSVs `bench-all` had just written, with the read
+period computed as `max(demand.period)` per scenario:
+
+| Scenario | Capacity read period | Disrupted lane-periods | Window | **Disrupted at the read period** |
+|---|---:|---:|---:|---:|
+| `baseline` | 52 | 0 | — | — |
+| `component-shortage-shock` | 52 | 20 | 18–27 | **0** |
+| `demand-surge` | 52 | 0 | — | — |
+| `stress-large` | 104 | 64 | 38–53 | **0** |
+
+Confirmed: **both** shipped scenarios carrying a lane disruption have one the optimizer never reads.
+The single-period read is in [`src/optimize/common.py:53`](../src/optimize/common.py#L53) and
+[`:128`](../src/optimize/common.py#L128), both filtering `period == state.horizon()`.
+
+**And the read period really is a lever:** `simulation.horizon_periods` is 52 / 52 / 52 / 104 across the
+four — identical to the observed read period in every case. Any "this window will not affect the
+result" warning **must derive it**. Never hardcode 52.
+
+### 5. The §1.4 settings ledger reconciles exactly — Phase 1 de-risked
+
+Counted from the real configs rather than trusted. Using `stress-large`, the only scenario with every
+optional block expanded: **60** editable non-`network` leaf settings; minus `random_seed_override` (the
+seed, plan decision 7) = **59 editable settings across 7 groups** — capacity 7 · costs 12 · demand 11 ·
+lane_disruption 7 · lanes 18 · service_targets 3 · simulation 1. All **13** inert settings from §1.4
+are present under their exact keys, so **59 − 13 inert − 7 conditional = 39 unconditional**. The plan's
+ledger is arithmetically correct before Phase 1 begins.
+
+### 6. 🔴 Defect found by the checkpoint review — a false claim in three shipped documents
+
+The brutal-truth pass assumed something was wrong and found it in the docs, not the code.
+
+**Claim (Iteration 5 handoff §6, `DEMO_GUIDE.md`, and the 2026-08-04 journal entry):** that
+`component-shortage-shock` differs from `baseline` because of "24 configuration deltas **plus a demand
+shock baked into `demand.csv`**".
+
+**Measured: there is no demand shock in that scenario.**
+
+| Evidence | Result |
+|---|---|
+| `data/scenarios/component-shortage-shock.yaml` | `demand.shock: null` |
+| its generated `demand.csv` | **0** of 2,912 rows have `shock_multiplier != 1.0` |
+| `GET /dataset/overview` → `demand.shock_window` | `None` |
+| Where the demand shocks actually are | `demand-surge` (periods 20–27, ×1.75) · `stress-large` (periods 42–55, ×1.55) |
+
+The "24 configuration deltas" half **is** correct — `scenario_diff.config_changes` returns
+`{shown: 24, total: 24, truncated: false}` on its grouped basis (54 differing values at leaf level,
+since cost families collapse to one entry each).
+
+🔴 **A second error, in my own first draft of the correction, caught before commit.** I initially wrote
+that the 24 deltas were settings "every one of which the optimizer *does* read". **False**, and it is
+precisely the mistake this iteration exists to prevent. Classified properly, the 54 leaf deltas are:
+**31 that reach the optimizer** · **7** the windowed `lane_disruption` (which misses the read period,
+per §4) · **13 inert** · 2 metadata (`scenario`, `description`) · 1 artifact of the `lane_disruption:
+null` placeholder becoming a block. And the sharp fact: **all 13 of the inert settings differ between
+`baseline` and `component-shortage-shock`** — so the demo's own comparison scenario changes every
+single setting that cannot change the answer. That is the strongest available argument for plan
+decision 15's labelling, and it came out of Phase 0 rather than Phase 1.
+
+🔴 **The code was never wrong — only the prose.** Asked directly, the chat layer answers *"No. [F1] says
+there is no demand shock window in this scenario."*, citing `dataset.demand.shock_window`, whose text
+reads *"There is no demand shock window in this scenario; any disruption here is on the shipping lanes,
+not on demand."* So `DEMO_GUIDE.md`'s own promise — *"the chat layer will correct you on screen if you
+ask it"* — was true about the guide's own sentence.
+
+**Why it mattered enough to fix in Phase 0 rather than defer:** the `DEMO_GUIDE.md` instance sat in the
+**"what to avoid saying"** list, i.e. in the talk track a human reads out loud to the sponsor. It would
+have put a fabricated demand shock into a live demo, in the one section written to prevent exactly that.
+
+**Fixed in this commit:**
+- `docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md` §6 — bullet corrected, with an explicit
+  dated *"Corrected 2026-08-20"* note rather than a silent rewrite. **The `stress-large` finding was
+  added to the same limits section**, closing a follow-up the plan had carried to Phase 5 ("when that
+  document is next touched").
+- `docs/DEMO_GUIDE.md` — the avoid-saying bullet corrected, plus a new bullet naming the two scenarios
+  that *do* carry a demand shock.
+- `docs/DEVELOPMENT_JOURNAL.md` 2026-08-04 entry — **original wording left intact** with a dated
+  correction appended beneath it. History is annotated, not rewritten.
+
+### 7. Plan claims spot-checked while reading (all held)
+
+- `src/bench/suite.py:18` — literal 4-tuple, so a custom scenario cannot leak into the recorded suite ✅
+- `known_scenarios()` ([`overview.py:112`](../src/dataset/overview.py#L112)) unions YAML stems with data dirs — the dropdown will populate itself ✅
+- `tests/test_phase5_api.py:130` uses `.issubset`, so extra scenarios will not break it ✅
+- `git check-ignore`: `data/generated/custom-*/` and `benchmark/custom-*.json` **already** ignored;
+  `data/scenarios/custom-*.yaml` is **not** — one `.gitignore` rule for Phase 2, as the plan says ✅
+
+**Open issues / follow-ups:**
+- **Nothing is implemented, by design.** Phase 0 is orientation only. **Phase 1 has not started and
+  awaits an explicit go.**
+- **`llm` NVML still stale** — recreate in a window before any customer demo; needs an explicit go.
+- **Ryan's seven Iteration 5 questions remain unanswered**, question 6 (the single-period capacity read)
+  most of all — plan decision 4 warns rather than widens, and that is still his call.
+- **No human has rehearsed the talk track out loud.** 6a Phase 5 makes it a DoD item — and §6 above is
+  direct evidence of why a machine-checked guide is not the same as a rehearsed one.
+
 
 ## 2026-08-20 — Ryan's demo review; GPU/NVML recurrence fixed on `api`; Iteration 6a planned
 **Status:** Planning session only. **No implementation.** Branch
@@ -1240,6 +1420,15 @@ claim that *"`component-shortage-shock` does exactly this to 2 lanes and it move
 **wrong on its stated mechanism**: that scenario's disruption sits at periods 18–27, which the
 optimizer never reads. Its objective differs from baseline for other reasons (the 24 config deltas
 and the demand shock baked into `demand.csv`).
+
+> 🔴 **Correction appended 2026-08-20 (Iteration 6a Phase 0), original text left above as written.**
+> The parenthetical is wrong on one point: **`component-shortage-shock` has no demand shock.** Its
+> `demand.shock` is `null` and its generated `demand.csv` contains **0** rows with
+> `shock_multiplier != 1.0` (re-audited on regenerated data). The 24 config deltas alone — costs,
+> capacity tightness, lane costs and lead times, demand-*generation* parameters and service targets —
+> are what separate it from `baseline`. The demand shocks belong to `demand-surge` (periods 20–27,
+> ×1.75) and `stress-large` (periods 42–55, ×1.55). The error had propagated into the Iteration 5
+> handoff §6 and the `DEMO_GUIDE.md` talk track; both were fixed in the 2026-08-20 Phase 0 commit.
 
 **What I did about it, rather than working around it.** Every parse now carries a **reachability
 verdict** computed from the state — never a hardcoded 52 — and a perturbation that cannot move the
