@@ -30,14 +30,15 @@
   see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
   sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
   (the single-period capacity read) is now load-bearing for 6a.
-- **Phase:** **Iteration 6a Phase 1 COMPLETE (2026-08-20); Phase 2 not started, awaiting an explicit
-  go.** Phase 0 re-verified the baseline; Phase 1 shipped the settings ledger, complete-config
-  synthesis and validation behind two **read-only** endpoints — **no persistence and no execution
-  exist yet, asserted structurally.** Green on-device: `make test` **445 passed + 2 xpassed** (98
-  added by Phase 1), `make bench-all` **all 12 objectives bit-identical**, `make scenario-eval`
-  **29/29**, `make web-test` **62**, `make web-check` **26/26**. Iteration 5's phases 0–6 are all done
-  and verified on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has
-  not said to remove it.
+- **Phase:** **Iteration 6a Phase 2 COMPLETE (2026-08-20); Phase 3 not started, awaiting an explicit
+  go.** Phases 0–2 are done and verified on-device. A custom scenario can be built, validated,
+  **saved, listed and deleted**, and it renders in the Iteration 4 dataset view with its change list
+  against `baseline` — **with no changes to that code.** **Running one is Phase 3**, and nothing in
+  `src/scenario/` can execute the pipeline yet, asserted structurally. Green on-device: `make test`
+  **511 passed + 2 xpassed** (66 added by Phase 2), `make bench-all` **all 12 objectives
+  bit-identical**, `make scenario-eval` **29/29**, `make web-test` **62**, `make web-check`
+  **26/26**. Iteration 5's phases 0–6 are all done and verified on-device. The chat surface still
+  carries its `BETA` chip; Ryan has now seen it but has not said to remove it.
 - 🔴 **The settings ledger is machine-checked, and it refined the plan's own numbers.** Derived twice
   from the live system (build-and-diff for "what does this setting write", column ablation for "does
   the optimizer read it"): **38 unconditional · 6 conditional · 14 recorded-not-read · 1 label-only**,
@@ -133,11 +134,11 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next:** execute **Iteration 6a Phase 2** (persistence — save, list, delete, clear-all) per
-  [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an explicit go**. It owns
-  the one `.gitignore` rule (`data/scenarios/custom-*.yaml`, still unignored) and the atomic-save
-  requirement: `known_scenarios()` unions configs *and* data directories, so a config written whose
-  generation then failed would leave a dropdown entry answering **409** forever. One phase
+- **Next:** execute **Iteration 6a Phase 3** (running a custom scenario — real numbers from the real
+  pipeline, labelled as custom) per
+  [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an explicit go**. The
+  fairness invariant it must meet is already known reachable (§1.2): a custom scenario whose settings
+  equal `baseline`'s has to reproduce **81,789.359460** exactly. One phase
   per session with a
   brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
   plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
@@ -147,6 +148,120 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (Phase 2) — Iteration 6a **Phase 2**: persistence — save, list, delete, clear-all
+**Status:** **Phase 2 COMPLETE.** A saved custom scenario is a real scenario, and can be un-saved.
+Branch `feat/iteration6a-custom-scenario`. **git ref: `d4a3ed2`** (hash backfilled in this follow-up
+commit). Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 2.
+**All 12 recorded objectives re-verified bit-identical.**
+
+### 1. What shipped
+
+| File | What it does |
+|---|---|
+| `src/scenario/store.py` (new) | Save, list, delete, clear-all. The only module in `src/scenario/` allowed to touch the disk. |
+| `src/api/pipeline.py` | Four endpoints: `POST /scenarios/custom`, `GET /scenarios/custom`, `DELETE /scenarios/custom/{slug}`, `DELETE /scenarios/custom`. |
+| `src/api/ratelimit.py` | A `save` bucket (20/60 s, `HELIX_SCENARIO_MAX_SAVES`) so a 429 on a save does not read "too many what-if runs". |
+| `.gitignore` | `data/scenarios/custom-*.yaml` and the staging dir. The carried follow-up is closed. |
+| `Dockerfile` | Copies `Makefile` and `.gitignore` into the image so the structural tests read the real files. |
+| `tests/test_iteration6a_persistence.py` (new) | **66 tests.** |
+
+**The architectural claim held.** A saved scenario is a complete YAML plus generated data, and
+*nothing* in the Iteration 4 dataset code changed: `GET /dataset/overview?scenario=custom-ryan-demo`
+returns all **13** sections, with `scenario_diff` computing the change list against `baseline` for
+free. `GET /scenarios` picked it up with no new discovery code, exactly as §0.2 predicted.
+
+### 2. Save is atomic, and the failure paths are the tested ones
+
+`known_scenarios()` unions configs **and** data directories, so a config written whose generation then
+failed would leave a permanent dropdown entry answering 409. Therefore:
+
+- Generation runs into `data/.custom-staging/<name>` — **outside** `data/generated/`, because
+  `known_scenarios()` lists every directory in there and a half-built scenario would appear in the
+  dropdown while it was still being written.
+- It is moved into place with `os.replace` only after the generator returns.
+- An overwrite moves the old data aside first and discards it only once the new data is in place.
+- Every failure restores the config to exactly what it was, and the `try` block **ends at the point of
+  no return**, so a successful save cannot be rolled back by housekeeping.
+
+Measured by injecting failures:
+
+| Injected failure | Result |
+|---|---|
+| `RuntimeError` mid-generation | Refused; no config, no data, absent from `known_scenarios()` and the list |
+| `SystemExit` from the generator (the §1.5 case) | Caught and reported; nothing left behind |
+| Failed **overwrite** of an existing scenario | Config byte-identical, data fingerprint byte-identical |
+| Config on disk with no data (the state the plan warns about) | Save refuses with "delete it first"; **delete recovers it** |
+| Data directory with no config | Listed with `config_exists: false`, and deletable |
+
+**The generator's `SystemExit` is why this needs care.** It does not inherit from `Exception`, so a
+bare `except Exception` lets it through and takes the request down in a way FastAPI cannot render. The
+real `generate()` is used — the same path `make data SCENARIO=...` takes, not a parallel
+implementation — and a test asserts there is **exactly one call site**, with the catch beside it.
+
+### 3. 🔴 Brutal-truth review — four real defects in this phase's own work
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | 🔴 **Path traversal.** `custom-../../etc/x` satisfies "starts with `custom-`" and resolves to `data/scenarios/etc/x.yaml`. The API was safe *only* because `build_preview` validates first — but `save`/`delete` are library functions Phase 3 and Phase 4 call directly. A guarantee that depends on every future caller remembering to validate is not a guarantee. Both now re-validate the slug **and** enforce resolved-path containment, modelled on `_resolve_scenario_dir`. | Firing traversal slugs straight at the store, bypassing the API |
+| 2 | **Two layers disagreeing about a legal name.** The store lower-cased the slug *before* validating, so it accepted `UPPER` while the API refused it. It now validates what the caller actually wrote. | A parametrised hostile-slug test |
+| 3 | **A misleading 404.** `DELETE /scenarios/custom/baseline` reported "no saved scenario named 'custom-baseline'" instead of refusing. `scenario_name_for("baseline")` is `custom-baseline`, which is *not* canonical, so neither the canonical list nor the prefix check caught it — **guardrail 3 rested entirely on the validation layer being called.** Now refused on the raw slug, before prefixing, with the reason. | Running the DoD's own "refused by save *and* delete" line as a real request |
+| 4 | **An unreproducible save.** A `seed` argument disagreeing with the config's `random_seed_override` would have generated data the saved config cannot reproduce — `generate()` prefers the config value. Refused now (guardrail 4). | Re-reading the seed path after writing it |
+
+Also fixed while reviewing: **artifact deletion uses an explicit suffix list, not a
+`custom-<slug>-*` glob.** Deleting `custom-a` with a glob would have taken `custom-a-b`'s artifacts
+too; there is a test for exactly that pair.
+
+### 4. The phase boundary was tightened, not deleted
+
+Phase 1 asserted *no write path exists in `src/scenario/`*. Phase 2 adds one, so the honest move is a
+narrower invariant rather than a deleted test:
+
+- The write path must live in **`store.py` and nowhere else** — asserted in **both** directions, so it
+  cannot pass vacuously if the writes migrate.
+- The no-execution assertion still covers the whole package: **running a custom scenario is Phase 3.**
+- The `SystemExit` rule went from "never call the generator" to "call it in one place, catch it there".
+
+One test was passing for the wrong reason and was fixed: it grepped for `gen.generate(` while the store
+calls `generator.generate(`.
+
+### 5. Verification — all on-device
+
+| Check | Result |
+|---|---|
+| `make test` | **511 passed + 2 xpassed** (118 s) — **66 added**, was 445 + 2 |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**; classical wins all four; four advisories `llm_finalized` |
+| `make web-test` | **62 passed** (unchanged) |
+| `make web-check` | **26/26, ALL CHECKS PASSED** — Iteration 4 and 5 surfaces intact |
+| `GET /scenarios` | **4** before a save, **5** with one saved, **4** again after clear-all |
+| Dataset view on a custom scenario | **13/13** sections, change list against `baseline`, no dataset code changed |
+| Recorded suite | `src/bench/suite.py` and both Makefile loops still iterate a **literal four** (§1.7), asserted by reading them |
+| Suite hygiene | the test run leaves **no** custom scenarios, data or artifacts behind |
+| GPU | `/health` `gpu_visible:true` and a fresh-exec `torch.cuda.is_available()` `True` after each rebuild |
+
+**Save latency, measured in process: 0.04–0.07 s** for a baseline-sized scenario (2,912 demand rows,
+nine CSVs plus `metadata.json`) and **0.06 s** at 104 periods. That is *faster* than the plan's 0.23 s,
+which was measured as a `docker compose exec` subprocess — interpreter startup and the numpy/polars
+imports dominate that figure, not the generation. Worth knowing before Phase 4 sizes a spinner.
+
+Also verified through the save path: setting `simulation.horizon_periods: 104` moved the reported
+capacity read period to **104**, so the §1.3 derivation holds end to end and not only in the preview.
+
+**Open issues / follow-ups:**
+- **Phase 3 (running a custom scenario) has not started and awaits an explicit go.**
+- **Saved files are `root:root` on the host** — the container writes as root into the bind mount, as
+  §0.2 anticipated for `data/generated/`, and it now applies to `data/scenarios/custom-*.yaml` too.
+  Every documented workflow goes through the API or `docker compose exec`, so nothing breaks;
+  host-side cleanup needs `sudo`.
+- **A sub-second window exists where a config is on disk before its data is.** Unavoidable while
+  `generate()` resolves scenarios by name from `data/scenarios/`, and harmless on a single-user box
+  (decision 14). The *failure* case — the one the plan cares about — is fully rolled back.
+- **`data/.custom-staging/` is left in place (empty) after a save.** Git-ignored; not worth the churn
+  of removing and recreating it.
+- **An optional block still cannot be switched off through Advanced overrides** (carried from Phase 1).
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered.**
+
+
 
 ## 2026-08-20 (Phase 1) — Iteration 6a **Phase 1**: the settings ledger, schema & validation
 **Status:** **Phase 1 COMPLETE.** No persistence, no execution — both are asserted structurally, not
