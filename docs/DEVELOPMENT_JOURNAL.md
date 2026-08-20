@@ -30,17 +30,19 @@
   see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
   sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
   (the single-period capacity read) is now load-bearing for 6a.
-- **Phase:** **Iteration 6a Phase 3 COMPLETE (2026-08-20); Phase 4 (the UI) not started, awaiting an
-  explicit go.** Phases 0–3 are done and verified on-device. A custom scenario can be built,
-  validated, **saved, listed, deleted and RUN on the real pipeline** — results labelled as custom,
-  rendering in the Iteration 4 dataset view with its change list against `baseline`, **with no changes
-  to that code.** 🔴 **The fairness invariant holds: a custom scenario equal to `baseline` reproduces
-  81,789.359460 to the digit.** It is **API-only so far — there is no way to build one from the
-  browser yet**, which is Phase 4. Green on-device: `make test` **547 passed + 2 xpassed** (36 added
-  by Phase 3), `make bench-all` **all 12 objectives bit-identical**, `make scenario-eval` **29/29**,
-  `make web-test` **62**, `make web-check` **26/26**. Iteration 5's phases 0–6 are all done and
-  verified on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has not
-  said to remove it.
+- **Phase:** **Iteration 6a Phase 4 COMPLETE (2026-08-20); Phase 5 (regression, docs, handoff) not
+  started, awaiting an explicit go.** Phases 0–4 are done and verified on-device. 🔴 **The feature is
+  demoable in a browser**: a fifth dropdown entry opens a control panel over the settings that define a
+  scenario (8 grouped Simple controls, all 59 in Advanced), runs the real pipeline, shows a result
+  labelled as custom, and saves / reopens / deletes it. The 15 settings that cannot change the answer
+  are shown under an explicit *"recorded in the dataset, not read by the optimizer"* heading, and a
+  disruption window that misses the capacity read period is warned about before the run and after it.
+  🔴 **The fairness invariant holds: a custom scenario equal to `baseline` reproduces 81,789.359460 to
+  the digit.** Green on-device: `make test` **547 passed + 2 xpassed**, `make bench-all` **all 12
+  objectives bit-identical**, `make scenario-eval` **29/29**, `make web-test` **100**, `make web-check`
+  **32/32**. `NetworkMap.tsx` is untouched. Iteration 5's phases 0–6 are all done and verified
+  on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has not said to
+  remove it.
 - 🔴 **The settings ledger is machine-checked, and it refined the plan's own numbers.** Derived twice
   from the live system (build-and-diff for "what does this setting write", column ablation for "does
   the optimizer read it"): **38 unconditional · 6 conditional · 14 recorded-not-read · 1 label-only**,
@@ -136,12 +138,11 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next:** execute **Iteration 6a Phase 4** (the UI — Simple's 8 grouped controls and Advanced's
-  all-59, on the screen Ryan liked) per
-  [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an explicit go**. The
-  API is complete and green; Phase 4 is what makes it demoable. **Do not touch `NetworkMap.tsx`.**
-  The capacity warning and the "recorded in the dataset, not read by the optimizer" labelling ship in
-  the FIRST slice — they are correctness guardrails, not polish (§0.6). One phase
+- **Next:** execute **Iteration 6a Phase 5** (regression sweep, `DEMO_GUIDE.md` **Option E** with a
+  talk track, the Iteration 6a handoff, README / `docs/handoff.md`, and the Ryan packet carrying §4's
+  four questions) per [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an
+  explicit go**. 🔴 Its hardest DoD item is the one no machine check can meet: **a human reads the
+  Option E talk track out loud once.** One phase
   per session with a
   brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
   plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
@@ -151,6 +152,108 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (Phase 4) — Iteration 6a **Phase 4**: the UI — Simple and Advanced
+**Status:** **Phase 4 COMPLETE.** The feature is now demoable in a browser: build a scenario, run it,
+read a result labelled as custom, save it, reopen it, delete it. Branch
+`feat/iteration6a-custom-scenario`. **git ref: `e185e02`** (hash backfilled in this follow-up commit).
+Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 4.
+**All 12 recorded objectives re-verified bit-identical. `NetworkMap.tsx` untouched.**
+
+### 1. What shipped
+
+| File | What it does |
+|---|---|
+| `web/src/custom/CustomScenarioPanel.tsx` (new) | The panel: name, 8 Simple controls, all 59 in Advanced, validation, change list, estimate, saved list, Save / Save & run / Delete / Clear all. |
+| `web/src/lib/customForm.ts` (new) | The pure logic — slug preview, Advanced layout, value coercion, Simple↔Advanced precedence, validation display, change annotation. **38 new Vitest tests.** |
+| `web/src/lib/customApi.ts` (new) | The six endpoints, with a typed refusal that carries the API's own sentences. |
+| `web/src/App.tsx` | The fifth dropdown entry, the saved-scenario optgroup, the custom result banner. |
+| `web/src/lib/types.ts` | The 6a payload types. |
+| `web/e2e/dataset-view.check.mjs` | **6 new browser checks** (26 → 32). |
+
+**A fifth dropdown entry** — *"Custom scenario…"* — opens the panel; saved scenarios appear in their
+own `optgroup` labelled *"Your custom scenarios"*, visibly `custom-` prefixed, so a custom result can
+never be read as one of the four (guardrail 2).
+
+### 2. 🔴 Simple and Advanced stay in sync through the server, not through duplicated logic
+
+The temptation was to reimplement the Simple→raw-settings expansion in TypeScript. Instead:
+
+- The panel holds `simple` and `overrides` and sends both to `POST /scenarios/custom/preview`.
+- The server returns `resolved_config` — the exact config it would save — and **Advanced renders that**.
+- So a Simple edit shows up in Advanced with no client-side synthesis at all, and there is one
+  definition of what an edit resolves to.
+- An Advanced edit wins over the Simple control sharing its setting (the server's own precedence), and
+  the Simple control then says **"set in advanced"** rather than showing a slider position that is a lie.
+
+Every reach label, range, group and heading comes from `GET /scenarios/custom/settings`. **If a setting
+stops being inert on the server, no front-end file needs editing** — which is the point, because the
+labels were *derived* in Phase 1 and a hand-maintained copy would rot.
+
+### 3. Both correctness guardrails are on screen (§0.6 slice 4, shipped with slice 1)
+
+**The 15 settings that cannot move the answer** appear in Advanced under the server's own heading —
+*"recorded in the dataset, not read by the optimizer"* — with a note explaining they are editable so the
+saved scenario is complete, "not because they are levers". `dc_throughput_units_per_period`, the most
+misleading control in the iteration, carries its own *"no effect on the result"* tag. The change list
+tags an inert change too. Asserted in the browser: **59 settings rendered, the heading present, that
+setting flagged.**
+
+**The capacity no-op warning** renders as an amber block *before* the run — verified by computed style
+(`rgb(253, 247, 230)`), not by eye — naming period 52, with *"Do not read an unchanged result as
+resilience."* The results banner repeats it after the run. Screenshots:
+`custom-scenario-noop-warning.png`, `custom-scenario-result.png`.
+
+### 4. 🔴 Brutal-truth review — four real defects, three of them only a browser could find
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | 🔴 **Save was unclickable.** The floating *"Ask the plan"* button is `fixed bottom-5 right-5 z-30` — exactly where the panel puts Save / Save & run — and it **intercepted the clicks outright**. Not a test artifact: a real planner could not have saved a scenario. The button now shifts clear of the panel, and the panel takes `z-40` for narrow viewports. Unmounting the chat surface instead would have lost an open transcript, and Ryan parked that feature as-is (decision 12). | Playwright reported "intercepts pointer events" and retried the click 57 times before timing out |
+| 2 | 🔴 **The GPU-free walkthrough offered a control that needs the API.** `?replay=true` blocks every `/api/` call by design, so the custom entry could only ever produce *"Failed to fetch"* — in the one demo path that exists for when the backend is unavailable. The entry is now absent in replay, with a check asserting it. | Deliberately probing replay with the API blocked, rather than assuming a new control was inert there |
+| 3 | **`onClick={runScenario}` passed the click event as the scenario name.** Caught by the real `npm run build` (`tsc -b`) and **not** by `tsc --noEmit`, which resolves a different config. Verify with the build, not a looser typecheck. | The web image build failed |
+| 4 | **The capacity warning printed twice** — once in its amber block, once as the footer summary — reading as two separate problems. Also a block-level change rendered as `lane_disruption.lane_disruption`. | Reading the committed screenshot instead of trusting that the check passing meant it looked right |
+
+**A weak assertion, fixed.** The first no-op check matched `/will not change the answer/` — but the
+*API's own message* contains that phrase, so it would have passed even if the amber block never
+rendered. It now asserts the two strings this UI writes, plus the background colour. The screenshot
+also missed the block entirely (the panel scrolls; it sat at y≈1373 on a 1080px viewport) — the exact
+Iteration 5 lesson that committed evidence omitting the label it exists to carry is worse than none.
+The shot now scrolls it into view.
+
+**One more found by a unit test:** a half-typed range `"1.5,"` became `[1.5, 0]`, because `Number("")`
+is `0`, and came back as an inverted-range refusal while the planner was still typing.
+
+### 5. Verification — all on-device
+
+| Check | Result |
+|---|---|
+| `make web-check` | **32/32, ALL CHECKS PASSED** — was 26; 5 new custom checks plus the replay guardrail |
+| `make web-test` | **100 passed** — was 62; **38 added**, all on the pure form logic |
+| `make test` | **547 passed + 2 xpassed** — unchanged, as expected: no backend code changed |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| Real browser | full loop at 1920×1080 **and** 1440×900, **0 console errors**; Save & run confirmed not covered at laptop width |
+| `NetworkMap.tsx` | **not modified.** Verified by eye that the map renders for a custom scenario — 17 locations, 30 lanes, all present |
+| Reserved name | typing `baseline` shows the API's refusal and disables Save |
+| Bundle | 631.00 → **652.09 kB** raw (+21.09), 179.46 → **185.04 kB** gzip (+5.58), **no new dependencies** |
+
+The bundle delta is the panel, the form logic and the API client. Justified: it is the whole feature,
+and it adds no library — the +5.58 kB gzipped is what a planner-facing control panel over 59 settings
+costs.
+
+**Open issues / follow-ups:**
+- **Phase 5 (regression, docs, handoff) has not started and awaits an explicit go.** It owns
+  `DEMO_GUIDE.md` **Option E**, the Iteration 6a handoff, README/`docs/handoff.md` updates, and the
+  Ryan packet with §4's four questions.
+- 🔴 **The talk track has still never been read out loud by a human.** Phase 5 makes it a DoD item, and
+  it is the one item no machine check can meet.
+- **The dataset view's own scenario dropdown lists customs flat**, not grouped like the results one.
+  Cosmetic; the `custom-` prefix still makes them obvious.
+- **`POST /scenario-comparison` is still unrate-limited** (pre-existing) and the UI can now trigger it
+  from a click. Worth a look in Phase 5.
+- **An optional block still cannot be switched off through Advanced overrides** (carried from Phase 1);
+  Simple's checkbox is the way to do it, which is how the panel is laid out anyway.
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered.**
+
 
 ## 2026-08-20 (Phase 3) — Iteration 6a **Phase 3**: running a custom scenario
 **Status:** **Phase 3 COMPLETE.** Real numbers from the real pipeline, labelled as custom.
