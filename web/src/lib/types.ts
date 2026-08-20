@@ -10,6 +10,147 @@ export type ScenarioSummary = {
   criticality_tier?: string | null;
 };
 
+// --- Iteration 6a: custom scenarios ------------------------------------------
+
+/** One editable scenario setting, with the reach it earned from the ledger. */
+export type SettingSpec = {
+  key: string;
+  group: string;
+  kind: "int" | "float" | "str" | "range2";
+  label: string;
+  reach: string;
+  reach_label: string;
+  /** False for the settings that cannot move the optimizer's answer at all. */
+  reaches_optimizer: boolean;
+  writes: string[];
+  minimum?: number;
+  maximum?: number;
+  choices?: string[];
+  note?: string;
+};
+
+/** One idea a planner would say out loud, over one or more raw settings. */
+export type SimpleControlSpec = {
+  name: string;
+  label: string;
+  kind: "value" | "scale" | "group";
+  writes: string[];
+  minimum?: number;
+  maximum?: number;
+  fields?: string[];
+  help?: string;
+};
+
+export type CustomSettingsPayload = {
+  base_scenario: string;
+  default_seed: number;
+  name_rules: {
+    prefix: string;
+    pattern: string;
+    max_length: number;
+    reserved: string[];
+    note: string;
+  };
+  groups: string[];
+  settings: SettingSpec[];
+  simple_controls: SimpleControlSpec[];
+  reach_labels: Record<string, string>;
+  ledger: Record<string, number>;
+  /** Decision 15: shown in Advanced under an explicit heading, never in Simple. */
+  cannot_change_the_answer: { heading: string; settings: string[]; count: number };
+  excluded_from_6a: { keys: string[]; reason: string };
+};
+
+export type Refusal = { code: string; field?: string | null; message: string };
+export type ValidationWarning = Refusal & { detail?: Record<string, unknown> };
+
+export type ValidationPayload = {
+  ok: boolean;
+  refusals: Refusal[];
+  warnings: ValidationWarning[];
+};
+
+export type ConfigChange = {
+  group: string;
+  parameter: string;
+  baseline_value: unknown;
+  scenario_value: unknown;
+  /** Present when the changed setting cannot move the optimizer's answer. */
+  reach?: string;
+  reach_label?: string;
+  reaches_optimizer?: boolean;
+};
+
+export type CapacityReachability = {
+  applicable: boolean;
+  reaches_optimizer: boolean;
+  capacity_read_period: number;
+  window?: [number, number] | null;
+  suggested_duration_periods?: number | null;
+  why: string;
+};
+
+export type EstimateComponent = { stage: string; seconds: number; basis: string };
+
+export type RunEstimate = {
+  total_seconds: number;
+  components: EstimateComponent[];
+  excluded: string[];
+  note: string;
+};
+
+export type CustomPreview = {
+  scenario: string;
+  slug: string;
+  is_custom: true;
+  base_scenario: string;
+  seed: number;
+  validation: ValidationPayload;
+  resolved_config: Record<string, unknown>;
+  resolved_overrides: Record<string, unknown>;
+  config_changes: ConfigChange[];
+  config_changes_count: number;
+  capacity_reachability: CapacityReachability;
+  run_estimate: RunEstimate;
+  ledger: Record<string, number>;
+  label: string;
+};
+
+export type SavedScenario = {
+  scenario: string;
+  slug: string;
+  is_custom: boolean;
+  description?: string | null;
+  seed?: number | null;
+  horizon_periods?: number | null;
+  generated: boolean;
+  config_exists: boolean;
+  saved_at?: number | null;
+  has_recorded_run: boolean;
+  label: string;
+  created?: boolean;
+};
+
+export type RunCard = {
+  scenario: string;
+  is_custom: boolean;
+  generated: boolean;
+  reading: string;
+  will_run: string[];
+  excluded: { stage: string; why: string }[];
+  fixed_inputs: {
+    seed?: number | null;
+    horizon: number;
+    history_periods?: number | null;
+    finished_good_series: number;
+  };
+  estimate: RunEstimate;
+  capacity_reachability: CapacityReachability;
+  warnings: (ValidationWarning & { do_not_read_as?: string })[];
+  writes_artifact: string;
+  label: string;
+};
+
 export type CostBreakdown = {
   holding?: number;
   ordering?: number;
@@ -101,6 +242,16 @@ export type Rationale = {
 export type ScenarioComparison = {
   benchmark: Benchmark;
   rationale: Rationale;
+  /** Iteration 6a: what actually ran. Additive — absent on a recorded replay. */
+  run_settings?: {
+    include_ppo: boolean;
+    include_rationale: boolean;
+    is_custom: boolean;
+    horizon: number;
+    excluded: string[];
+  };
+  capacity_reachability?: CapacityReachability | null;
+  warnings?: (ValidationWarning & { do_not_read_as?: string })[];
 };
 
 export type ApiResponse<T> = {

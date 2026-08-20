@@ -526,6 +526,189 @@ async function askStarter(page, question, timeout = 90000) {
   await context.close();
 }
 
+// --- Iteration 6a Phase 4: build your own scenario ---------------------------
+// The full loop a planner does, in a real browser: open the panel from the fifth
+// dropdown entry, move controls, read the change list, save, run, read a result
+// that is labelled as custom, then delete it. Plus the two things that are
+// correctness rather than feature (plan §0.6): the inert-settings labelling and
+// the capacity no-op warning.
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+
+  const SLUG = `webcheck-${Date.now().toString(36)}`;
+  const PANEL = '[data-testid="custom-panel"]';
+
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+  // The fifth dropdown entry, grouped away from the recorded four.
+  const optionGroups = await page.locator("[data-testid='scenario-select'] optgroup").allInnerTexts();
+  const hasBuildEntry = await page.locator("[data-testid='scenario-select'] option[value='__custom__']").count();
+  await page.selectOption("[data-testid='scenario-select']", "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 15000 });
+
+  // Pre-filled from baseline, and it says so.
+  const panelIntro = await page.locator(PANEL).innerText();
+
+  await page.fill('[data-testid="custom-name"]', SLUG);
+  const targetName = await page.locator('[data-testid="custom-target-name"]').innerText();
+
+  // A Simple-tier control that reaches the optimizer.
+  await page.fill('[data-testid="simple-demand_level"] input', "52");
+  await page.waitForSelector('[data-testid="custom-changes"]', { timeout: 15000 });
+  const changesText = await page.locator('[data-testid="custom-changes"]').innerText();
+  const estimateText = await page.locator('[data-testid="custom-estimate"]').innerText();
+
+  // Advanced: all settings, with the inert ones under their own heading.
+  await page.click('[data-testid="custom-advanced-toggle"]');
+  await page.waitForSelector('[data-testid="custom-inert-settings"]', { timeout: 15000 });
+  const inertHeading = await page.locator('[data-testid="custom-inert-heading"]').innerText();
+  const inertBlock = await page.locator('[data-testid="custom-inert-settings"]').innerText();
+  // The single most misleading control in the iteration, explicitly labelled.
+  const dcThroughputLabelled =
+    (await page.locator('[data-testid="reach-capacity.dc_throughput_units_per_period"]').count()) > 0;
+  const advancedSettingCount = await page.locator('[data-testid^="setting-"]').count();
+
+  const labellingOk =
+    /not read by the optimizer/i.test(inertHeading) &&
+    dcThroughputLabelled &&
+    advancedSettingCount === 59;
+  if (!labellingOk) failures++;
+  console.log(
+    `${labellingOk ? "PASS" : "FAIL"} custom advanced labelling settings=${advancedSettingCount} ` +
+    `inertHeading="${inertHeading.slice(0, 48)}" dcThroughputFlagged=${dcThroughputLabelled}`
+  );
+
+  // Save and run it for real.
+  await page.click('[data-testid="custom-save-run"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 120000 });
+  const banner = await page.locator('[data-testid="custom-result-banner"]').innerText();
+  const winner = await page.locator("text=Winner:").first().innerText().catch(() => "");
+  const selectValue = await page.locator("[data-testid='scenario-select']").inputValue();
+
+  const runOk =
+    /not a recorded benchmark result/i.test(banner) &&
+    banner.includes(`custom-${SLUG}`) &&
+    /Winner:/.test(winner) &&
+    selectValue === `custom-${SLUG}` &&
+    errs.length === 0;
+  if (!runOk) failures++;
+  console.log(
+    `${runOk ? "PASS" : "FAIL"} custom created -> run -> results name=custom-${SLUG} ` +
+    `labelled=${/not a recorded benchmark result/i.test(banner)} winner="${winner}" ` +
+    `dropdownFollowed=${selectValue === `custom-${SLUG}`} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  const createOk =
+    hasBuildEntry === 1 &&
+    optionGroups.length >= 1 &&
+    /Starts from/.test(panelIntro) &&
+    targetName.includes(`custom-${SLUG}`) &&
+    /demand/i.test(changesText) &&
+    /A run should take/.test(estimateText);
+  if (!createOk) failures++;
+  console.log(
+    `${createOk ? "PASS" : "FAIL"} custom panel opens from the dropdown fifthEntry=${hasBuildEntry === 1} ` +
+    `groups=${optionGroups.length} targetName="${targetName.replace(/\s+/g, " ").slice(0, 40)}" ` +
+    `changeListed=${/demand/i.test(changesText)} estimateShown=${/A run should take/.test(estimateText)}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/custom-scenario-result.png` });
+
+  // --- the capacity no-op warning, before the run ---------------------------
+  await page.selectOption("[data-testid='scenario-select']", "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 15000 });
+  await page.fill('[data-testid="custom-name"]', `${SLUG}-noop`);
+  await page.click('[data-testid="simple-lane_disruption"] input[type="checkbox"]');
+  const fields = page.locator('[data-testid="simple-lane_disruption"] input.control');
+  await fields.nth(0).fill("inbound_raw");
+  await fields.nth(1).fill("2");
+  await fields.nth(2).fill("18");
+  await fields.nth(3).fill("10");
+  await fields.nth(4).fill("0");
+  await page.waitForSelector('[data-testid="custom-capacity-warning"]', { timeout: 20000 });
+  const warningBlock = page.locator('[data-testid="custom-capacity-warning"]');
+  const warning = await warningBlock.innerText();
+  // Assert on the strings *this UI* renders, not just on the API's sentence: the
+  // API message already contains "not change the answer", so a looser match would
+  // pass even if the amber block and its resilience caveat never rendered.
+  const heading = await warningBlock.locator("text=This disruption will not change the answer").count();
+  const caveat = await warningBlock.locator("text=Do not read an unchanged result as resilience").count();
+  const amber = await warningBlock.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+  const noopOk =
+    heading === 1 &&
+    caveat === 1 &&
+    /period 52/.test(warning) &&
+    amber !== "rgba(0, 0, 0, 0)";
+  if (!noopOk) failures++;
+  console.log(
+    `${noopOk ? "PASS" : "FAIL"} custom no-op window warned BEFORE the run heading=${heading === 1} ` +
+    `namesReadPeriod=${/period 52/.test(warning)} resilienceCaveat=${caveat === 1} amber="${amber}"`
+  );
+  // The Iteration 5 screenshot lesson: committed evidence that omits the label it
+  // exists to carry is worse than no screenshot. The panel scrolls, so the warning
+  // sits below a 1080px fold — scroll it into view before shooting.
+  await warningBlock.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${SHOT_DIR}/custom-scenario-noop-warning.png` });
+
+  // --- delete, and confirm it leaves the dropdown ---------------------------
+  const savedBefore = await page.locator('[data-testid="custom-saved-list"] li').count();
+  await page.click(`[aria-label="Delete custom-${SLUG}"]`);
+  await page.waitForFunction(
+    (expected) =>
+      document.querySelectorAll('[data-testid="custom-saved-list"] li').length < expected ||
+      document.querySelectorAll('[data-testid="custom-saved-list"]').length === 0,
+    savedBefore,
+    { timeout: 20000 },
+  );
+  const notice = await page.locator('[data-testid="custom-notice"]').innerText().catch(() => "");
+  await page.click(`${PANEL} [aria-label="Close custom scenario panel"]`);
+  const optionsAfter = await page.locator("[data-testid='scenario-select'] option").allInnerTexts();
+
+  const deleteOk =
+    /Deleted/.test(notice) &&
+    !optionsAfter.some((text) => text.includes(SLUG)) &&
+    optionsAfter.some((text) => text.trim() === "baseline");
+  if (!deleteOk) failures++;
+  console.log(
+    `${deleteOk ? "PASS" : "FAIL"} custom deleted and gone from the dropdown ` +
+    `notice="${notice.slice(0, 40)}" stillListed=${optionsAfter.some((t) => t.includes(SLUG))} ` +
+    `recordedFourIntact=${optionsAfter.filter((t) => !t.includes("custom")).length >= 4}`
+  );
+
+  await context.close();
+}
+
+// --- Iteration 6a: the recorded walkthrough must not offer a control that needs
+// the API. `?replay=true` blocks every /api/ call by design, so a "Custom
+// scenario…" entry there could only ever produce "Failed to fetch".
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  await page.route("**/api/**", (route) => route.abort());
+  await page.goto(`${BASE}/?replay=true`, { waitUntil: "networkidle" });
+  await page.waitForSelector("text=Why this plan", { timeout: 25000 }).catch(() => {});
+
+  const offered = await page
+    .locator("[data-testid='scenario-select'] option[value='__custom__']")
+    .count();
+  const noPanel = (await page.locator('[data-testid="custom-panel"]').count()) === 0;
+  const replayOk = offered === 0 && noPanel && errs.length === 0;
+  if (!replayOk) failures++;
+  console.log(
+    `${replayOk ? "PASS" : "FAIL"} replay offers no custom-scenario control ` +
+    `entryOffered=${offered} panelAbsent=${noPanel} errors=${errs.length}`
+  );
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);
