@@ -30,15 +30,17 @@
   see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
   sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
   (the single-period capacity read) is now load-bearing for 6a.
-- **Phase:** **Iteration 6a Phase 2 COMPLETE (2026-08-20); Phase 3 not started, awaiting an explicit
-  go.** Phases 0–2 are done and verified on-device. A custom scenario can be built, validated,
-  **saved, listed and deleted**, and it renders in the Iteration 4 dataset view with its change list
-  against `baseline` — **with no changes to that code.** **Running one is Phase 3**, and nothing in
-  `src/scenario/` can execute the pipeline yet, asserted structurally. Green on-device: `make test`
-  **511 passed + 2 xpassed** (66 added by Phase 2), `make bench-all` **all 12 objectives
-  bit-identical**, `make scenario-eval` **29/29**, `make web-test` **62**, `make web-check`
-  **26/26**. Iteration 5's phases 0–6 are all done and verified on-device. The chat surface still
-  carries its `BETA` chip; Ryan has now seen it but has not said to remove it.
+- **Phase:** **Iteration 6a Phase 3 COMPLETE (2026-08-20); Phase 4 (the UI) not started, awaiting an
+  explicit go.** Phases 0–3 are done and verified on-device. A custom scenario can be built,
+  validated, **saved, listed, deleted and RUN on the real pipeline** — results labelled as custom,
+  rendering in the Iteration 4 dataset view with its change list against `baseline`, **with no changes
+  to that code.** 🔴 **The fairness invariant holds: a custom scenario equal to `baseline` reproduces
+  81,789.359460 to the digit.** It is **API-only so far — there is no way to build one from the
+  browser yet**, which is Phase 4. Green on-device: `make test` **547 passed + 2 xpassed** (36 added
+  by Phase 3), `make bench-all` **all 12 objectives bit-identical**, `make scenario-eval` **29/29**,
+  `make web-test` **62**, `make web-check` **26/26**. Iteration 5's phases 0–6 are all done and
+  verified on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has not
+  said to remove it.
 - 🔴 **The settings ledger is machine-checked, and it refined the plan's own numbers.** Derived twice
   from the live system (build-and-diff for "what does this setting write", column ablation for "does
   the optimizer read it"): **38 unconditional · 6 conditional · 14 recorded-not-read · 1 label-only**,
@@ -134,11 +136,12 @@
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next:** execute **Iteration 6a Phase 3** (running a custom scenario — real numbers from the real
-  pipeline, labelled as custom) per
+- **Next:** execute **Iteration 6a Phase 4** (the UI — Simple's 8 grouped controls and Advanced's
+  all-59, on the screen Ryan liked) per
   [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5, **on an explicit go**. The
-  fairness invariant it must meet is already known reachable (§1.2): a custom scenario whose settings
-  equal `baseline`'s has to reproduce **81,789.359460** exactly. One phase
+  API is complete and green; Phase 4 is what makes it demoable. **Do not touch `NetworkMap.tsx`.**
+  The capacity warning and the "recorded in the dataset, not read by the optimizer" labelling ship in
+  the FIRST slice — they are correctness guardrails, not polish (§0.6). One phase
   per session with a
   brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
   plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
@@ -148,6 +151,131 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (Phase 3) — Iteration 6a **Phase 3**: running a custom scenario
+**Status:** **Phase 3 COMPLETE.** Real numbers from the real pipeline, labelled as custom.
+Branch `feat/iteration6a-custom-scenario`. **git ref: `ac1c90c`** (hash backfilled in this follow-up
+commit). Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 3.
+**All 12 recorded objectives re-verified bit-identical.**
+
+### 1. 🔴 The fairness invariant holds
+
+The one that matters. A custom scenario saved with **no overrides** — baseline's values under a
+different name — run through save → generate → the real pipeline:
+
+| Approach | Custom run | Recorded `baseline` | |
+|---|---:|---:|:--:|
+| naive baseline | 88,022.760795 | 88,022.760795 | ✅ |
+| tuned classical | **81,789.359460** | **81,789.359460** | ✅ |
+
+§1.2 proved this reachable before any code was written, which is what makes it a useful test: a
+failure here is not a surprising property of the generator, it is 6a having broken something.
+
+Two companions, because reproducibility tests are easy to pass for the wrong reason:
+**the same saved scenario run twice is identical**, and **a changed setting really does move the
+objective** — without that second test, a bug that ignored the custom config entirely would satisfy
+every other assertion in the file by always returning baseline's number.
+
+### 2. Decision 8, as shipped
+
+`POST /scenario-comparison` and `GET /scenario-comparison/stream` gained `include_ppo` and
+`include_rationale`. Both default to `None`, meaning *"whatever is right for this kind of scenario"*:
+
+| Scenario kind | PPO | Written rationale | Measured |
+|---|---|---|---:|
+| The four recorded | evaluated | generated | **29.7 s** (`llm_finalized`, 5 citations) |
+| A custom scenario | `not_evaluated` | `not_generated_for_this_run` | **1.1–1.2 s** |
+| Custom, rationale opted in | `not_evaluated` | generated | **22.9 s** |
+
+An explicit `true`/`false` always wins. `resolve_run_flags` is one function used by both endpoints, so
+they cannot drift apart, and it is unit-tested against all four canonical names.
+
+**The four recorded scenarios' payload is unchanged in shape** — same keys, three approaches,
+`ppo_outcome: lost_to_classical`, rationale `llm_finalized`, objective to the digit — plus two
+additive keys (`run_settings`, `capacity_reachability`/`warnings`) that no current UI reads.
+
+**A skipped rationale is a real object, never `null`.** Verified against `web/src/types.ts`: every
+field `Rationale` declares required is present, and a test enumerates them. `ResultsView`,
+`PlanSummary` and `RationalePanel` take it as a required prop and dereference
+`advisory_rationale` and `selected_approach`, so a null would break the results screen **for the four
+shipped scenarios too**. The placeholder path is exercised on `baseline` by a test, not only by custom
+runs, and the real rationale gained a symmetric `generated: true` so a consumer branches on one field.
+
+### 3. The no-op window: warned before, explained after, and proven
+
+`GET /scenario-comparison/card` is the pre-run card — Iteration 5's confirm pattern for a scenario
+already on disk: the reading, the estimate **with a basis per component**, the seed from the saved
+config, what is excluded and why, and the reachability warning. It **omits the `generate` component
+for a saved scenario**, because charging the estimate for a step that will not happen overstates the
+wait (0.98 s for a saved custom scenario; 23.73 s for `baseline` with everything on).
+
+A disruption at periods **18–27** against a read period of **52**, end to end:
+
+| Moment | What the planner is told |
+|---|---|
+| At save | `capacity_window_misses_read_period`, `reaches_optimizer: false` |
+| On the card, before the run | the same warning, naming period 52, suggesting `duration_periods: 35` to reach it, plus *"Do not read an unchanged result as resilience."* |
+| After the run | the same warning again, and the objective comes back **81,789.359460** — identical to baseline |
+
+That last number is the point: it is the **proof the warning is telling the truth**, not a claim about
+it. A window moved to 40–52 is not warned about and does move the objective. Both are tests. The
+warning is built by one shared function used before and after, so the same measured fact cannot acquire
+two vocabularies.
+
+Also recorded deliberately: the card reports the warning for **`component-shortage-shock`** too, since
+that scenario's disruption genuinely misses its read period (§1.3). Suppressing it for the recorded
+four would be selective honesty. No UI renders it today, so nothing on screen changed.
+
+### 4. 🔴 Brutal-truth review — three real defects
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | 🔴 **A vector-store leak.** Opting into a rationale creates a per-scenario Qdrant collection `helix_sco_rag_custom-<slug>`, and **delete left it behind** — so the feature could only accumulate state in the vector store, which is exactly what guardrail 6 exists to prevent. Delete now drops it, best effort, so a delete cannot fail because Qdrant is unreachable. | Listing Qdrant collections before and after a save→run→delete cycle, rather than trusting that Phase 2's delete was still complete once Phase 3 created something new |
+| 2 | 🔴 **A destructive test.** The clear-all tests call the box-global `clear_all()`, so **`make test` would have silently deleted a scenario a human saved** — including the one built for a demo. They now skip *loudly*, naming what they would have destroyed, and a non-destructive selector test always runs. Proven by saving `custom-ryans-demo-keepme`, running the tests, and confirming it survived. | A test failed intermittently; the cause was leftover scenarios from manual probes, which meant the test was reading — and deleting — real state |
+| 3 | **"Clear all" did not clear everything.** It left orphaned `benchmark/custom-*.json` artifacts for scenarios that were gone. It now sweeps them, which is safe *only* there: every custom scenario has just been deleted, so the `custom-a` / `custom-a-b` collision that rules out globbing in `_remove` cannot apply. | The objectives-gate script flagged two unexpected artifacts |
+
+Defect 2 is the one worth remembering. It would not have shown up as a failure — it would have shown
+up as a saved scenario quietly missing before a demo.
+
+Two Iteration 5 test fakes needed the new `include_ppo` kwarg. Rather than just unbreaking them, they
+now **assert it is `true`** for a recorded scenario, which pins the "no recorded result changes shape"
+guarantee at the point where a future change would violate it.
+
+### 5. The stream stays truthful
+
+For a custom run the stages are `ingest → forecast → baseline → classical → rag/skipped`. **No `ppo`
+stages at all**, because PPO did not run, and an explicit **`rag/skipped`** rather than silence — a
+stream that just stops mentioning a stage looks like a stall. Same reasoning as Iteration 5's
+`cache/hit`. Opting PPO in adds `ppo/running` and `ppo/complete`, and the rationale stays skipped.
+Both orderings are asserted exactly.
+
+### 6. Verification — all on-device
+
+| Check | Result |
+|---|---|
+| `make test` | **547 passed + 2 xpassed** (133 s) — **36 added**, was 511 + 2 |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, and **exactly four** head-to-head artifacts |
+| `make web-test` | **62 passed** (unchanged) |
+| `make web-check` | **26/26, ALL CHECKS PASSED** — Iteration 4 and 5 surfaces intact |
+| Fairness invariant | **81,789.359460 / 88,022.760795**, to the digit |
+| Determinism | same saved scenario twice, identical |
+| Custom artifact | name-keyed `benchmark/custom-<slug>-head-to-head-comparison.json`; no canonical artifact written by a custom run |
+| End state | four configs, four data directories, four artifacts, four Qdrant collections |
+| GPU | `/health` `gpu_visible:true` after each of five rebuilds |
+
+**Open issues / follow-ups:**
+- **Phase 4 (the Simple and Advanced UI) has not started and awaits an explicit go.** Everything so far
+  is API-only: there is no way to build a custom scenario from the browser yet.
+- **`POST /scenario-comparison` still has no rate limiting** (pre-existing, not introduced here). The
+  new card endpoint uses the `light` bucket. Worth a look when the UI can trigger runs on a click.
+- **Nothing renders `warnings` or `capacity_reachability` yet.** Phase 4 owns that, and the
+  capacity warning is a slice-1 correctness guardrail (§0.6), not polish.
+- **The 6a payload keys are additive, so `web/src/types.ts` does not yet describe them.** Phase 4.
+- **An optional block still cannot be switched off through Advanced overrides** (carried from Phase 1).
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered**, and §3 above is the
+  cleanest demonstration yet of why it matters: a planner can build a ten-week supplier outage, run it,
+  and get baseline's number back.
+
 
 ## 2026-08-20 (Phase 2) — Iteration 6a **Phase 2**: persistence — save, list, delete, clear-all
 **Status:** **Phase 2 COMPLETE.** A saved custom scenario is a real scenario, and can be un-saved.
