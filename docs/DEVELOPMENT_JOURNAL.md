@@ -17,15 +17,21 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** **`main` @ `bc42bb3`** — **Iteration 5 (Beta) is MERGED** (2026-08-05, `--no-ff`, pushed;
-  `main` was `7c8d0e2` = Iteration 4). All phases 0–6 complete and verified on-device, and `make test`
-  was re-run green **on `main`** after the merge. `feat/iteration5-beta-conversational-analyst` is kept,
-  not deleted. 🔴 **The Ryan packet is drafted, NOT sent** — outward-facing, Ishan's call:
-  `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md`.
-- **Phase:** none in flight. Phases 0 (baseline + vLLM pin), 1 (grounded read-only Q&A), 2 (intent
-  parser + perturbation schema), 3 (what-if execution), 4 (chat UI), 5 (safety/red team) and 6 (demo,
-  docs, handoff, merge prep) are all done and verified on-device. **Ryan has reviewed neither
-  Iteration 4 nor Iteration 5** (PTO), which is why the chat surface carries a visible `BETA` label.
+- **Branch:** **`feat/iteration6a-custom-scenario` @ `2867d8f`**, cut from **`main` @ `cd3905f`** on
+  2026-08-20. It carries **the Iteration 6a plan only — no implementation.** `main` still holds
+  Iteration 5 (Beta), MERGED 2026-08-05 as `bc42bb3` (`--no-ff`, pushed; `main` was `7c8d0e2` =
+  Iteration 4), with `make test` re-run green on `main` after the merge.
+  `feat/iteration5-beta-conversational-analyst` is kept, not deleted.
+- 🔴 **Ryan reviewed the live demo on 2026-08-19** — his first look at **both** Iteration 4 and
+  Iteration 5. Outcome: positive; the **dataset view's network map was his favourite feature**; the
+  **chat bot is explicitly parked as-is** ("not concerned about that right now"). He asked for two new
+  things — **a custom scenario and a custom dataset** — and, told the dataset one looked hard, asked to
+  see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
+  sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
+  (the single-period capacity read) is now load-bearing for 6a.
+- **Phase:** **Iteration 6a Phase 0 not started.** Iteration 5's phases 0–6 are all done and verified
+  on-device. The chat surface still carries its `BETA` chip; Ryan has now seen it but has not said to
+  remove it.
 - **Deliverables:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md` (handoff),
   `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md` (**draft, not sent**), `DEMO_GUIDE.md`
   **Option D** (the chat talk track), README §9/§12/§13, `docs/handoff.md`, `docs/containerization.md`.
@@ -87,17 +93,186 @@
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **GPU/NVML:** clean in **both** `api` and `llm` since 2026-07-30.
+- 🔴 **GPU/NVML: recurred 2026-08-20 and is PARTLY fixed.** After ~2 weeks up, **both** `api` and
+  `llm` returned `Failed to initialize NVML: Unknown Error` and `/health` read `gpu_visible:false` —
+  while compute kept working off already-loaded CUDA contexts, so it looked healthy and the 2026-08-19
+  demo was unaffected. Any **new** process in either container had no GPU, which silently breaks
+  `make bench-all`, the GPU probes and the embedding path. **`api` fixed** with
+  `docker compose up -d --no-deps --force-recreate api` (the same fix as 2026-07-10) and verified:
+  in-container `nvidia-smi`, `/health` `gpu_visible:true, gpu_name:"NVIDIA GB10",
+  driver_version:"580.159.03"`, `torch.cuda.is_available()` `True`, `nomic-embed` on `cuda:0` at 768
+  dim, and the full RAG advisory path `llm_finalized` with 5 citations in 20.1 s.
+  **`llm`'s own NVML is still stale** — it serves fine (live completion confirmed) and nothing reads
+  it, but a restart would not re-see the GPU. Recreate it in a window, accepting the ~10-min Nemotron
+  reload and the documented wedge risk. **Check `/health` before trusting any GPU-dependent result.**
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next (awaiting Ishan):** send Ryan the packet — with Iterations 4 **and** 5 in front of him — then
-  Iteration 6 (production track) only after his feedback. Also carried: **nobody has rehearsed the demo
-  talk track out loud** (a DoD item no machine check can meet).
+- **Next:** execute **Iteration 6a Phase 0** (orientation, green baseline, branch already cut) per
+  [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md), one phase per session with a
+  brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
+  plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
+  the production track is now Iteration 7 in effect. Also carried: **nobody has rehearsed the demo talk
+  track out loud** (a DoD item no machine check can meet) — Phase 5 of 6a makes it a DoD item.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 — Ryan's demo review; GPU/NVML recurrence fixed on `api`; Iteration 6a planned
+**Status:** Planning session only. **No implementation.** Branch
+`feat/iteration6a-custom-scenario` cut from `main` @ `cd3905f`; the plan committed as **`2867d8f`**
+(hash backfilled in this follow-up commit). One real change was made to the running box: the `api`
+container was force-recreated to restore GPU visibility.
+
+### 1. Ryan's review of 2026-08-19 — the first sponsor feedback on Iterations 4 and 5
+
+Ishan demoed the live stack. Outcome, recorded because it redirects the roadmap:
+
+- **Positive overall.** The dataset view landed; the **network map was named as his favourite
+  feature**. Do not touch `NetworkMap.tsx` without a reason.
+- **The chat bot is parked.** He liked it but is "not concerned about that right now" — it stays
+  exactly as shipped, `BETA` chip included, and is revisited later. He did **not** ask for the label to
+  come off.
+- **Two new asks**, which Ishan numbered:
+  - **6a — Custom Scenario.** A fifth entry in the dataset-view scenario dropdown: open with
+    baseline's values but with the scenario-building factors exposed as controls, build your own,
+    run it for real results, **name and save it** so it returns in the dropdown, and clear/delete.
+  - **6b — Custom Dataset.** Clone the current dataset and edit its core entities — *"instead of asking
+    the chat bot what would happen if a warehouse went down, why can't we just reduce a warehouse"* —
+    then save, run, and stack custom scenarios on it.
+- **Sequencing, his call:** he agreed the dataset one is hard and asked to **see the custom scenario
+  first**. So 6b is deferred, not dropped.
+- **Consequence for the packet:** `Iteration5_Ryan_Review_Packet.md` was **never sent** — the live demo
+  superseded it. **Its seven questions remain unanswered**, and question 6 (the single-period capacity
+  read) is now load-bearing, because 6a puts a control on exactly that mechanism.
+- **Deadline:** Ishan's internship ends **~2026-08-27**. Delivering 6a before then is the priority.
+
+Ishan's decisions on the open design questions, taken this session: **do not change the optimizer's
+capacity read** (warn instead); **Simple and Advanced tiers** in one form, on the analogy of a course
+-registration search with an "advanced" disclosure; **6a only**.
+
+### 2. 🔴 Real environment defect found and fixed — GPU/NVML detached again
+
+Found while measuring for the plan, not by a test. Both `api` and `llm` (up ~2 weeks) returned
+**`Failed to initialize NVML: Unknown Error`**, and `GET /health` read
+`gpu_visible:false, gpu_name:null, driver_version:null`. The host's own `nvidia-smi` was fine.
+
+**Why it was invisible:** live CUDA contexts survived the break. `vLLM` kept generating tokens and the
+`api`'s uvicorn process kept using its already-loaded `nomic-embed` model — so the 2026-08-19 demo was
+unaffected and the box looked healthy. But **every new process in either container had no GPU**, which
+silently breaks `make bench-all`, `make chat-eval`, the two GPU probes and any fresh embedding call.
+This is the third occurrence (2026-07-10, 2026-07-30, now).
+
+**Fix — the prescribed bring-up, not a workaround:** `docker compose up -d --no-deps --force-recreate api`.
+Verified after, on real runs:
+
+| Check | Result |
+|---|---|
+| `nvidia-smi` inside `api` | works — GB10, driver 580.159.03, CUDA 13.0 |
+| `GET /health` | `gpu_visible:true, gpu_name:"NVIDIA GB10", driver_version:"580.159.03"` |
+| `torch.cuda.is_available()` in a **fresh** exec | `True`, `device_count` 1 |
+| `nomic-embed` | `device: cuda:0`, dimension **768** |
+| Full RAG advisory path | **`llm_finalized`**, 5 citations, **20.1 s** |
+| `tests/test_service_health.py` | **2 passed, 2 xpassed** |
+
+**Open follow-up (unchanged from 2026-07-10):** **`llm`'s own NVML is still stale.** It serves fine — a
+live `/v1/chat/completions` was confirmed — and nothing in the app reads it, but a restart would not
+re-see the GPU. Recreate it in a window before any customer demo, accepting the ~10-minute Nemotron
+reload and the documented unified-memory wedge risk. **Read the `xpassed` count, not just "passed":** if
+`test_gpu_visible` and `test_driver_version` report `xfailed`, the fix has not taken and the suite will
+still say "passed" overall.
+
+### 3. New measured facts about the codebase (all on-device, 2026-08-20)
+
+These were gathered to make the plan accurate and several of them contradict what the docs said.
+
+- 🔴 **`stress-large`'s lane disruption is ALSO invisible to the optimizer.** Audited directly:
+  `component-shortage-shock` disrupts 20 lane-periods over periods **18–27** against a capacity read
+  period of **52**; `stress-large` disrupts 64 lane-periods over **38–53** against a read period of
+  **104**. **Neither has a single disrupted lane-period at the period the optimizer actually reads.**
+  The Iteration 5 handoff recorded this for `component-shortage-shock` only — **nobody had checked
+  `stress-large`.** So *both* shipped scenarios carrying a disruption have one the optimizer never
+  reads, and their objectives differ from `baseline` because of their other config deltas.
+- 🔴 **The capacity read period is itself a setting.** `build_lane_periods` writes capacity for
+  `1..simulation.horizon_periods`, and the optimizer reads at `max(demand.period)` — so changing
+  `horizon_periods` **moves** the read period. Any "this window will not affect the result" warning
+  must derive it, never hardcode 52.
+- 🔴 **13 of the 59 editable scenario settings cannot change the optimizer's answer.** Six of the seven
+  `capacity:` knobs land in `nodes.csv` (never read by forecast or optimizer), as do
+  `lanes.*.lead_time_std_days` and `lanes.*.co2_kg_per_unit` (columns not consumed) and
+  `service_targets.criticality_tier`. **`dc_throughput_units_per_period` is the dangerous one** — it
+  reads like "how much this warehouse can handle" and does nothing. Ledger: **39 unconditional · 7
+  conditional (`lane_disruption`) · 13 inert**.
+- **`nodes` / `bom` / `production_lines` are read by the dataset view** (`nodes` 3×) even though the
+  optimizer ignores them. So the 13 inert settings visibly change the dataset page and then fail to
+  change the answer — worse than doing nothing, and the reason the label must read *"recorded in the
+  dataset, not read by the optimizer"*.
+- **The fairness invariant is already true, proven not assumed.** The generator seeds only from the
+  numeric seed (`np.random.default_rng(effective_seed)`), not the scenario name. `baseline`'s config
+  written out as `custom-probe` and generated produced **all nine tables byte-identical** (provenance
+  `scenario` column dropped) and classical objective **81,789.359460** — the recorded value to the
+  digit. Probe removed afterwards.
+- **Latency profile for the design.** Generation **0.23 s** (`baseline`) / **0.55 s** (`stress-large`);
+  forecast **0.83 s** (32 series → 256 rows at horizon 8); baseline+classical **0.17 s** warm;
+  +PPO(128) **2.82 s**; LLM rationale **20.1 s**. The rationale is **~20× the whole numeric
+  comparison**, which is why the plan defaults it off for the lever loop.
+- **All four scenarios' recorded objectives are still bit-identical** — baseline/classical pairs
+  88,022.760795 / 81,789.359460 · 102,834.785064 / 95,445.445064 · 100,734.738785 / 94,165.363245 ·
+  2,622,335.215962 / 2,521,615.068565, classical winning all four. Read from the committed artifacts,
+  not re-run. Artifact mtimes show a UI run on 2026-08-19 rewrote `component-shortage-shock`'s
+  artifact and **reproduced its objective exactly** — determinism confirmed by accident.
+
+### 4. What shipped in `2867d8f`
+
+`docs/Iteration6a_Plan_of_Action.md`, in house style (Read-First · the findings that change the plan ·
+decisions · execution protocol · questions for Ryan · phases 0–5 with DoD and STOP checkpoints · risks
+· why it is worth building). Load-bearing content:
+
+- **The architectural bet:** the four scenarios are **data, not code** — 59 settings in
+  `data/scenarios/*.yaml`, turned into the nine CSVs by the generator. A custom scenario is a new YAML
+  file and nothing else, so **the generator, optimizer and forecast are all untouched** and the four
+  recorded objectives *cannot* move. Discovery, the dataset view, the config-delta panel and the run
+  path all already work by name.
+- **Decision 4 (Ishan):** do **not** widen the capacity read. Windows default to running to the end of
+  the horizon; narrowing one off the read period warns **before** the run, reusing Iteration 5's
+  `reaches_optimizer` / `capacity_read_period` fields and its amber wording. Widening it would move
+  every objective in every document Ryan saw on 2026-08-19. **↩︎ his question 6.**
+- **Decision 8:** default run is baseline + classical, **no PPO and no LLM rationale** — but the
+  rationale comes back as a real object with an explicit *"not generated"* marker, never `null`,
+  because `ResultsView` / `PlanSummary` / `RationalePanel` take it as a **required** prop.
+- **An explicit cut line (§0.6)** because of the deadline, with the no-op labelling and the capacity
+  warning shipping in the **first** slice as correctness guardrails, not polish.
+- **Naming:** `custom-<slug>`, config at `data/scenarios/custom-<slug>.yaml`, data at
+  `data/generated/custom-<slug>/`; the four canonical names reserved and refused.
+
+### 5. Brutal-truth review of the plan itself
+
+Reviewed before commit, on the assumption the plan was wrong. **Seven real defects in my own draft,
+all fixed:** the settings count was **61** and is **59** (two null placeholders counted as settings);
+"6 finished-good series" was the dict's key count, not 32 series; "never read downstream" was wrong
+because the dataset view **does** read those tables; the rationale opt-out would have **crashed the
+results screen** for all four shipped scenarios; save was not atomic, so a failed generation would
+leave a dropdown entry answering **409** forever; the capacity warning would have hardcoded period 52;
+and "17×" should have been ~20×. Also recorded: `data/generated/` is `root:root` on the host, so
+host-side cleanup needs `sudo` while the API (root in-container) is unaffected.
+
+Claims attacked and held: `.gitignore` already covers custom **data** and **artifacts** but **not** the
+config (one rule to add in Phase 2); `bench-all`, `demo-data` and `src/bench/suite.py` all iterate
+literal four-item lists so customs cannot leak into the recorded suite; `tests/test_phase5_api.py`
+uses `.issubset`, so extra scenarios do not break it; `MAX_SECTION_ROWS = 200` means 59 settings cannot
+truncate the config-delta panel; `_recorded_latencies` returns `{}` rather than inventing a figure; and
+no per-scenario static asset exists that a custom name would 404 on.
+
+**Open issues / follow-ups:**
+- **Nothing is implemented.** Phase 0 has not run. `make test` / `make bench-all` / `make web-check`
+  were **not** re-run this session (only `tests/test_service_health.py`); Phase 0 owns that.
+- **`llm` NVML still stale** — recreate in a window (§2).
+- **Ryan's seven Iteration 5 questions are still unanswered**, question 6 most of all.
+- **The `stress-large` disruption finding is new** and should be reflected in the Iteration 5 handoff's
+  limits section when that document is next touched.
+- **No human has rehearsed a talk track out loud.** 6a Phase 5 makes it a DoD item.
+
 
 ## 2026-08-05 — Iteration 5 (Beta), Phase 6: demo, docs, handoff & merge PREPARED
 **Status:** Phase 6 complete. **The merge to `main` is prepared and held for Ishan's explicit go; the
