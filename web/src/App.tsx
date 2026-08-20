@@ -161,20 +161,21 @@ export default function App() {
         current && current.benchmark.scenario === deleted ? null : current,
       );
       setStages([]);
-      setScenarios((current) => {
-        const remaining = current.filter((item) => item.scenario !== deleted);
-        setScenario((selected) =>
-          selected === deleted
-            ? remaining.find((item) => !item.scenario.startsWith(CUSTOM_PREFIX))?.scenario ??
-              remaining[0]?.scenario ??
-              ""
-            : selected,
-        );
-        return remaining;
-      });
+      // Computed outside the updaters on purpose: a setState updater has to be
+      // pure, and React invokes it twice in StrictMode. Nesting setScenario
+      // inside setScenarios happened to be idempotent, which is luck, not design.
+      const remaining = scenarios.filter((item) => item.scenario !== deleted);
+      setScenarios(remaining);
+      setScenario((selected) =>
+        selected === deleted
+          ? remaining.find((item) => !item.scenario.startsWith(CUSTOM_PREFIX))?.scenario ??
+            remaining[0]?.scenario ??
+            ""
+          : selected,
+      );
       refreshScenarios();
     },
-    [refreshScenarios],
+    [scenarios, refreshScenarios],
   );
 
   const toggleChat = useCallback((open: boolean) => {

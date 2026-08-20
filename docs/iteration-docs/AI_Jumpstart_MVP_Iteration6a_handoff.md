@@ -168,10 +168,10 @@ Every number in this document came from a run on this device on 2026-08-20.
 
 | Check | Result |
 |---|---|
-| `make test` | **555 passed + 2 xpassed** — **208 tests added by this iteration** (was 347 + 2). On a box that already has a saved custom scenario it reads **551 passed + 4 skipped + 2 xpassed**: the four clear-all tests refuse to run rather than delete someone's saved work |
+| `make test` | **558 passed + 2 xpassed** — **211 tests added by this iteration** (was 347 + 2). On a box that already has a saved custom scenario it reads **554 passed + 4 skipped + 2 xpassed**: the four clear-all tests refuse to run rather than delete someone's saved work |
 | `make bench-all` | **all 12 objectives bit-identical**, exactly four artifacts |
 | `make web-test` | **108 Vitest** (was 62) |
-| `make web-check` | **32/32** headless-Chromium checks (was 26) |
+| `make web-check` | **38/38** headless-Chromium checks (was 26) |
 | `make scenario-eval` | **29/29**, all 17 refusal classes and 5 warning classes exercised |
 | Fairness invariant | a custom scenario equal to `baseline` returns **81,789.359460** |
 | Determinism | the same saved scenario run twice, identical to the cent |

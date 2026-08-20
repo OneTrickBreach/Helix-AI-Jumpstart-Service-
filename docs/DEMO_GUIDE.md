@@ -21,7 +21,7 @@
 | **One-command setup** | `make demo` |
 | **Hardware** | NVIDIA GB10 (arm64, Grace Blackwell, ~121 GiB unified memory) |
 | **Stack** | 4 containers: `web` (nginx), `api` (FastAPI), `llm` (vLLM/Nemotron 30B), `vectordb` (Qdrant) |
-| **Test suite** | 555 passed + 2 xpassed (557 total); web 108 Vitest (`make web-test`); `make web-check` 32/32 for the UI |
+| **Test suite** | 558 passed + 2 xpassed (560 total); web 108 Vitest (`make web-test`); `make web-check` 38/38 for the UI |
 | **Full demo guide** | This file |
 
 ---
@@ -123,7 +123,7 @@ Generates data, rebuilds the web UI, and prints the demo URLs.
 ### 4. Optional: run the test suite
 
 ```bash
-make test          # 555 passed, 2 xpassed (557 total)
+make test          # 558 passed, 2 xpassed (560 total)
 ```
 
 The 2 xpassed tests are GPU-probe tests for a known NVML initialization issue after container

@@ -3,9 +3,9 @@
 > **Status:** Iteration 4 (dataset transparency) merged to `main` 2026-08-03. **Iteration 5 (Beta) —
 > the conversational analyst — is complete on `feat/iteration5-beta-conversational-analyst`
 > (2026-08-05) and MERGED to `main` (`bc42bb3`). **Iteration 6a** (custom scenario panel) is complete
-> and verified on `feat/iteration6a-custom-scenario` (2026-08-20).** `make test` → **555 passed + 2
-> xpassed** (557 total); web
-> **108 Vitest**, **32/32** browser checks. Tuned classical still wins all four scenarios, bit-identical.
+> and verified on `feat/iteration6a-custom-scenario` (2026-08-20).** `make test` → **558 passed + 2
+> xpassed** (560 total); web
+> **108 Vitest**, **38/38** browser checks. Tuned classical still wins all four scenarios, bit-identical.
 > 🔴 Ryan has not reviewed Iteration 4 or 5 — the chat surface carries a visible `BETA` chip.
 
 _Last updated: **2026-08-20** (Iteration 6a Phase 5)_

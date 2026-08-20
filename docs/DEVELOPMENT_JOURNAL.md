@@ -38,9 +38,9 @@
   reproduces 81,789.359460 to the digit.** The 15 settings that cannot change the answer are shown
   under an explicit *"recorded in the dataset, not read by the optimizer"* heading, and a disruption
   window that misses the capacity read period is warned about before the run and explained after.
-  Green on-device: `make test` **555 passed + 2 xpassed** (208 added by 6a), `make bench-all` **all 12
+  Green on-device: `make test` **558 passed + 2 xpassed** (211 added by 6a), `make bench-all` **all 12
   objectives bit-identical**, `make scenario-eval` **29/29**, `make web-test` **108**, `make web-check`
-  **34/34**. `NetworkMap.tsx` is untouched. Deliverables: the
+  **38/38**. `NetworkMap.tsx` is untouched. Deliverables: the
   [6a handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md), the
   [Ryan packet](iteration-docs/Iteration6a_Ryan_Review_Packet.md) (**draft, not sent**), `DEMO_GUIDE.md`
   **Option E**. 🔴 **One DoD item is still open and only a person can close it: nobody has read the
@@ -156,6 +156,97 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (final review) — Iteration 6a: the UI defects a reviewer found, and the last brutal-truth pass
+**Status:** **Iteration 6a COMPLETE and reviewed.** Everything below was found *after* Phase 5 was
+called done, by Ishan using the UI. Recorded together because they share one cause.
+
+### 1. 🔴 Four defects, all of the same kind: it works and you cannot find it
+
+| # | Defect | Why the suite missed it |
+|---|---|---|
+| 1 | **The entry was only on the results screen.** The plan's Phase 4 objective says *"on the screen he liked"* — the dataset view. A reviewer there could not find the feature at all. | `web-check` drove the results screen, where it worked |
+| 2 | 🔴 **`index.html` was cacheable**, so a returning viewer kept loading the previous build. The panel was live in the container and absent in the browser. | Every Playwright context starts with an empty cache — the suite was **structurally blind** |
+| 3 | **Delete was unfindable**: bottom of a scrolling panel, bare 14px icon, and *"Clear all"* only after a save. | A functional check clicked it by test-id; it never asked whether a human could see it |
+| 4 | **PPO and the rationale had no UI switch**, and "PPO timesteps"/"Top K" were silently ignored by every custom run — **a no-op control, in the iteration whose whole point is refusing to ship those.** | Nothing asserted that a visible control does something |
+
+Fixed: the entry and a **Delete** button are on both screens (two-step confirm, absent for the four);
+`index.html` is `no-store` with hashed assets `immutable`; **YOUR SAVED SCENARIOS** is the first block
+in the panel with labelled Delete / Delete all; and a *"A custom run will include:"* row offers both
+opt-ins with their measured cost and states that PPO timesteps and Top K apply only when ticked.
+
+**`make web-check` 32 → 38.** Two of the new checks assert *discoverability*, not function: the delete
+section measured above the fold at panel-open, and the response headers for `index.html`. The header
+one exists because the symptom is **a working page that is quietly out of date**.
+
+### 2. 🔴 Two of my own tests were wrong, and one assertion was theatre
+
+- **`test_a_preview_writes_nothing_anywhere`** asserted that *no* `custom-*.yaml` exists. True when
+  written; wrong from the moment Phase 2 shipped saving. It failed on any box with a saved scenario —
+  including the demo box — while the preview had written nothing. Now a before/after fingerprint.
+- **The no-op-warning check** matched `/will not change the answer/`, a phrase the **API's own message**
+  contains, so it would have passed with the amber block never rendering. Now asserts the strings the
+  UI writes, plus the computed background colour.
+- **The delete-visibility check** first read `sectionY=-469 < 1080` and passed — the panel had been
+  scrolled, so the section was *off the top*. Now two-sided and measured at panel-open.
+
+### 3. 🔴 A reviewer's saved scenario disappeared and there was no way to say what removed it
+
+`custom-test` went missing mid-review. Every automated path is guarded — the test-suite deletes are
+marker-scoped and the three `clear_all()` calls sit behind a skip that refuses to destroy foreign
+scenarios — and I could not attribute it, because **I had recreated both containers and taken the
+access logs with them.** The likeliest explanation is a deliberate click on the new Delete button, but
+that is an assumption, and the honest statement is that the box could not answer the question.
+
+So the store now logs `scenario_saved` / `scenario_deleted` (with every path removed) and
+`scenarios_cleared` at WARNING.
+
+🔴 **And the first version of that logging did nothing at all.** Module loggers in this codebase have
+never had a handler — uvicorn configures its own and leaves ours alone — so `logger.info` went into the
+void *while its own `caplog` test passed*, because pytest attaches a handler of its own. **An audit line
+nobody can read is worse than none: it looks like one exists.** `_configure_app_logging()` now gives the
+`helix` namespace a stdout handler, scoped to `helix` rather than root so `basicConfig` does not switch
+on transformers and httpx at INFO. Verified by reading it back out of `docker compose logs api`, and a
+test asserts the production path has a handler and an effective level — not just that `caplog` sees it.
+
+### 4. One more code defect from the same rush
+
+`handleDeleted` called `setScenario` **inside** the `setScenarios` updater. State updaters must be pure;
+React invokes them twice in StrictMode. It was idempotent by luck, not design. Now computed outside.
+
+### 5. Verification — final, from a clean rebuild of `api` and `web`
+
+| Check | Result |
+|---|---|
+| `make test` | **558 passed + 2 xpassed** — **211 added by Iteration 6a** (was 347 + 2) |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| `make web-test` | **108 passed** |
+| `make web-check` | **38/38, ALL CHECKS PASSED** (was 26 before 6a) |
+| `make scenario-eval` | **29/29**, refusals **17/17**, warnings **5/5** |
+| Fairness invariant | **81,789.359460 / 88,022.760795**, re-verified end to end |
+| Audit line | read back out of the real container log, naming every path removed |
+
+### 6. 🔴 The lesson, recorded because it is the most useful thing here
+
+**38 automated checks were green while four things were unusable or misleading.** Every one of those
+checks verifies that something *exists and functions*; every defect in §1 was something that existed
+and functioned and could not be **found**. A harness written by whoever built the feature tends to
+assert the path the builder already had in mind.
+
+Five minutes of a person clicking found four defects, two wrong tests and a piece of dead logging. That
+is the same argument as the talk-track item this repo has carried unmet since Iteration 3 — and it is
+now backed by evidence rather than principle.
+
+**Open issues / follow-ups:**
+- 🔴 **Nobody has read the `DEMO_GUIDE.md` Option E talk track out loud.** Still the one item no machine
+  check can close.
+- **Container logs die with the container.** The audit line is in stdout, so a recreate loses it. A log
+  driver or a file sink is ops work, deliberately not done here.
+- **`POST /scenario-comparison` is still not rate limited** and is reachable from a click.
+- **`llm` NVML still stale** — recreate in a window before any customer demo.
+- **An optional block cannot be switched off from Advanced** — the Simple checkbox is the way.
+- **Iteration 6b (custom dataset) is deferred, not dropped.**
+
 
 ## 2026-08-20 (Phase 5 follow-up) — two defects a reviewer found that made the feature invisible
 **Status:** Fixed and verified. **git ref: `19ee76b`** (hash backfilled in this follow-up commit).

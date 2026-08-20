@@ -24,6 +24,7 @@ rather than on "everything that is not one of the four".
 from __future__ import annotations
 
 import importlib.util
+import logging
 import os
 import shutil
 import sys
@@ -35,6 +36,13 @@ import yaml
 
 from src.scenario.synthesize import CANONICAL_SCENARIOS, SCENARIO_CONFIG_ROOT
 from src.scenario.validate import CUSTOM_PREFIX, scenario_name_for, validate_slug
+
+#: Saved scenarios are box-global (decision 14) and deleting one removes its
+#: config, data and recorded artifact. Without a record of who asked for what,
+#: "where did my scenario go?" has no answer — which happened during Phase 5
+#: review, when a reviewer's saved scenario disappeared and the container had
+#: been recreated, taking the access log with it.
+logger = logging.getLogger("helix.scenario.store")
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GENERATED_DATA_ROOT = REPO_ROOT / "data" / "generated"
@@ -350,6 +358,9 @@ def save(
     # it. Clearing the superseded copy is housekeeping, and a failure here must not
     # be reported as a failed save.
     _rmtree_quiet(superseded)
+    logger.info(
+        "scenario_saved scenario=%s created=%s seed=%s", scenario, not already, effective_seed
+    )
     return summary(scenario, created=not already)
 
 
@@ -499,6 +510,7 @@ def _remove(scenario: str) -> dict[str, Any]:
                 # does exactly that, which is why it cannot clobber the demo's
                 # recorded artifacts).
                 removed.append(str(artifact))
+    logger.info("scenario_deleted scenario=%s removed=%s", scenario, removed)
     return {
         "scenario": scenario,
         "removed": removed,
@@ -525,6 +537,10 @@ def clear_all() -> dict[str, Any]:
     # custom-a / custom-a-b collision that rules out globbing in `_remove` cannot
     # apply. Without this, "clear all" would not actually clear everything.
     removed.extend(_sweep_orphaned_artifacts())
+    logger.warning(
+        "scenarios_cleared count=%d scenarios=%s", len(results),
+        [result["scenario"] for result in results],
+    )
     return {
         "deleted": [result["scenario"] for result in results],
         "deleted_count": len(results),

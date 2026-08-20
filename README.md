@@ -224,8 +224,8 @@ scenario one first. **Iteration 6a is that ask, delivered in the week it was mad
 
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
 - `make demo` generates data, rebuilds the web UI, and prints the demo URLs (results, dataset, chat).
-- `make test` — **555 passed, 2 xpassed** (557 total). Web: **108 Vitest** (`make web-test`),
-  **32/32** browser checks (`make web-check`).
+- `make test` — **558 passed, 2 xpassed** (560 total). Web: **108 Vitest** (`make web-test`),
+  **38/38** browser checks (`make web-check`).
 - `make scenario-eval` — **29/29** validation cases (7 controls); `make scenario-ledger` prints what
   each of the 59 settings can and cannot change.
 - `make bench-all` runs all four scenarios through baseline, classical, PPO, and advisory RAG/LLM.
@@ -509,7 +509,7 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ```bash
 make up                        # build + start all four arm64 services
-make test                      # 555 passed + 2 xpassed (557 total)
+make test                      # 558 passed + 2 xpassed (560 total)
 make demo                      # generate data, rebuild web, print every demo URL
 ```
 

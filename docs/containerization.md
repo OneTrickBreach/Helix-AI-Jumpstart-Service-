@@ -3,9 +3,9 @@
 > **Status:** Four-service PoC stack, **re-verified live on the GB10 (2026-08-05, Iteration 5 Phase 6)**.
 > All images are arm64; the API and shared LLM declare GPU reservations. cuOpt/OR-Tools VRP
 > capability is integrated in the `api` service (`/cuopt/*`), not a separate container. `make up` →
-> `make test` (**555 passed + 2 xpassed**, 557 total) → `make bench-all` (4 scenarios, 12 objectives
+> `make test` (**558 passed + 2 xpassed**, 560 total) → `make bench-all` (4 scenarios, 12 objectives
 > bit-identical) → `make demo` all pass on-device. Web: `make web-test` **108 Vitest**,
-> `make web-check` **32/32**.
+> `make web-check` **38/38**.
 >
 > **The `llm` base image is pinned by digest** (`vllm/vllm-openai:v0.26.0`, build `ffd46bfab212`) as of
 > Iteration 5 Phase 0 — it silently changed under us once, during Iteration 4 Phase 0, and moved the

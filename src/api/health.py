@@ -8,10 +8,38 @@ Minimal FastAPI server providing:
 This is the single entrypoint for the `api` container.
 """
 
+import logging
 import subprocess
 import os
+import sys
 
 from fastapi import FastAPI
+
+
+def _configure_app_logging() -> None:
+    """Give the ``helix`` logger namespace somewhere to write.
+
+    Module loggers in this codebase had no handler, so every ``logger.info`` was
+    silently dropped: uvicorn configures its own loggers and does not touch ours.
+    That was discovered the hard way — the custom-scenario store's audit line for
+    save and delete never appeared anywhere, which makes an audit line worse than
+    useless, because it looks like one exists.
+
+    Scoped to ``helix`` rather than the root logger on purpose: ``basicConfig``
+    would also switch on transformers, httpx and optuna at INFO and bury the
+    signal. Idempotent, so repeated imports and the test suite do not stack
+    handlers.
+    """
+    helix = logging.getLogger("helix")
+    helix.setLevel(os.environ.get("HELIX_LOG_LEVEL", "INFO").upper())
+    if not any(getattr(h, "_helix_handler", False) for h in helix.handlers):
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setFormatter(logging.Formatter("%(levelname)s:     %(name)s %(message)s"))
+        handler._helix_handler = True  # type: ignore[attr-defined]
+        helix.addHandler(handler)
+
+
+_configure_app_logging()
 
 app = FastAPI(
     title="Helix AI Jumpstart API",

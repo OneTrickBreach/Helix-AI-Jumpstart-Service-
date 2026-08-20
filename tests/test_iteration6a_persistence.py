@@ -509,6 +509,61 @@ def test_clear_all_sweeps_an_orphaned_artifact_left_by_a_deleted_scenario():
     assert any("orphaned" in path for path in result["removed"])
 
 
+def test_save_and_delete_leave_an_audit_line(caplog):
+    """"Where did my scenario go?" has to have an answer.
+
+    Saved scenarios are box-global and deleting one removes its config, data and
+    recorded artifact. During Phase 5 review a reviewer's saved scenario vanished
+    and there was no way to say what removed it — the container had been recreated
+    and taken the access log with it.
+    """
+    import logging
+
+    slug = _slug("audit")
+    with caplog.at_level(logging.INFO, logger="helix.scenario.store"):
+        store.save(slug, _config(slug))
+        store.delete(slug)
+    messages = [record.getMessage() for record in caplog.records]
+    assert any(f"scenario_saved scenario=custom-{slug}" in message for message in messages)
+    assert any(f"scenario_deleted scenario=custom-{slug}" in message for message in messages)
+
+
+def test_clear_all_logs_a_warning_naming_what_it_removed(caplog):
+    """Clear-all is the most destructive verb here, so it logs at WARNING."""
+    _skip_if_it_would_destroy_real_scenarios()
+    import logging
+
+    slug = _slug("auditclear")
+    store.save(slug, _config(slug))
+    with caplog.at_level(logging.INFO, logger="helix.scenario.store"):
+        store.clear_all()
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    assert any("scenarios_cleared" in message for message in warnings)
+    assert any(f"custom-{slug}" in message for message in warnings)
+
+
+def test_the_store_logger_actually_has_somewhere_to_write():
+    """An audit line nobody can read is worse than none — it looks like one exists.
+
+    Module loggers here had no handler, so the first version of this logged into
+    the void while its own caplog test passed (pytest attaches a handler of its
+    own). This asserts the production path: importing the app gives the ``helix``
+    namespace a handler and an effective level that lets INFO through.
+    """
+    import logging
+
+    import src.api.health  # noqa: F401  - importing configures app logging
+
+    store_logger = logging.getLogger("helix.scenario.store")
+    assert store_logger.isEnabledFor(logging.INFO), "INFO is filtered out in production"
+    handlers = []
+    current: logging.Logger | None = store_logger
+    while current:
+        handlers.extend(current.handlers)
+        current = current.parent if current.propagate else None
+    assert handlers, "no handler anywhere up the chain: the audit line goes nowhere"
+
+
 def test_deleting_something_that_does_not_exist_is_a_not_found():
     with pytest.raises(store.ScenarioNotFound):
         store.delete(_slug("ghost"))
