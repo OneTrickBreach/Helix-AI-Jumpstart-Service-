@@ -34,6 +34,8 @@ from src.optimize.baseline.policy import optimize_baseline
 from src.pipeline.bench import run_head_to_head
 from src.pipeline.run import run_baseline_pipeline
 from src.rag.advisory import generate_advisory_rationale
+from src.scenario.api import custom_settings_payload
+from src.scenario.preview import build_preview
 
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -113,6 +115,25 @@ class ChatAskRequest(BaseModel):
     # cannot be used to smuggle a large payload into the prompt path.
     question: str = Field(min_length=1, max_length=600)
     use_llm: bool = True
+
+
+class CustomScenarioPreviewRequest(BaseModel):
+    """Iteration 6a Phase 1 — preview a custom scenario. Writes nothing, runs nothing.
+
+    ``name`` deliberately carries no regex here. Decision 11 is validate-then-refuse
+    in plain English, and a pydantic pattern mismatch would surface as a 422 with a
+    regex in it. ``validate_slug`` produces a sentence a planner can act on instead;
+    the length bound is all that is needed to stop an oversized payload.
+    """
+
+    name: str = Field(min_length=1, max_length=64)
+    overrides: dict[str, Any] = Field(default_factory=dict, max_length=200)
+    simple: dict[str, Any] = Field(default_factory=dict, max_length=32)
+    seed: int = Field(default=12345, ge=0, le=2_147_483_647)
+    description: str | None = Field(default=None, max_length=280)
+    horizon: int = Field(default=8, ge=1, le=52)
+    include_ppo: bool = False
+    include_rationale: bool = False
 
 
 class GenericResponse(BaseModel):
@@ -215,6 +236,40 @@ def _sse_event(event: str, data: dict[str, Any]) -> str:
 @router.get("/scenarios", response_model=GenericResponse)
 def list_scenarios():
     return GenericResponse(status="ok", data={"scenarios": _scenario_configs()})
+
+
+@router.get("/scenarios/custom/settings", response_model=GenericResponse)
+def custom_scenario_settings():
+    """The settings ledger: every editable setting, its range, and what it can change.
+
+    Read-only. This is the honest-labelling surface — each setting carries the
+    reach it *earned* from the two derivations in :mod:`src.scenario.ledger`, so
+    the Advanced tier can show the 13 + 1 settings that cannot move the answer
+    under decision 15's heading rather than as live controls.
+    """
+    return GenericResponse(status="ok", data=custom_settings_payload())
+
+
+@router.post("/scenarios/custom/preview", response_model=GenericResponse)
+def custom_scenario_preview(req: CustomScenarioPreviewRequest, request: Request):
+    """Resolve a custom scenario and report on it **without writing or running anything**.
+
+    Returns the complete config the edits resolve to, the diff against ``baseline``,
+    the ``reaches_optimizer`` verdict for any lane disruption, and a run estimate
+    with its basis. Persistence is Phase 2; execution is Phase 3.
+    """
+    enforce(request, bucket="light")
+    payload = build_preview(
+        req.name,
+        overrides=req.overrides or None,
+        simple=req.simple or None,
+        seed=req.seed,
+        description=req.description,
+        run_horizon=req.horizon,
+        include_ppo=req.include_ppo,
+        include_rationale=req.include_rationale,
+    )
+    return GenericResponse(scenario=payload["scenario"], status="ok", data=payload)
 
 
 @router.get("/dataset/overview", response_model=GenericResponse)
