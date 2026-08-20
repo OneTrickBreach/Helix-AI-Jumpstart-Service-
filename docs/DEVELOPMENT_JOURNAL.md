@@ -137,8 +137,8 @@
 **Status:** **Phase 0 COMPLETE.** Orientation, green baseline and reference capture. **No implementation
 — no `src/`, `web/`, `data/generator/` or optimizer code was touched.** The only changes are three
 documentation fixes for a defect found during the checkpoint review. Branch
-`feat/iteration6a-custom-scenario`, cut previously from `main` @ `cd3905f`; this entry's commit hash is
-backfilled in the follow-up commit. Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 0.
+`feat/iteration6a-custom-scenario`, cut previously from `main` @ `cd3905f`. **git ref: `9ad91e4`**
+(hash backfilled in this follow-up commit). Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 0.
 
 ### 1. 🔴 GPU checked FIRST, and it is genuinely healthy this time
 
