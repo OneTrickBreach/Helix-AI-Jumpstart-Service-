@@ -40,7 +40,7 @@
   window that misses the capacity read period is warned about before the run and explained after.
   Green on-device: `make test` **555 passed + 2 xpassed** (208 added by 6a), `make bench-all` **all 12
   objectives bit-identical**, `make scenario-eval` **29/29**, `make web-test` **108**, `make web-check`
-  **32/32**. `NetworkMap.tsx` is untouched. Deliverables: the
+  **34/34**. `NetworkMap.tsx` is untouched. Deliverables: the
   [6a handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md), the
   [Ryan packet](iteration-docs/Iteration6a_Ryan_Review_Packet.md) (**draft, not sent**), `DEMO_GUIDE.md`
   **Option E**. 🔴 **One DoD item is still open and only a person can close it: nobody has read the
@@ -157,6 +157,78 @@
 
 ## Entries (newest first)
 
+## 2026-08-20 (Phase 5 follow-up) — two defects a reviewer found that made the feature invisible
+**Status:** Fixed and verified. **git ref: `19ee76b`** (hash backfilled in this follow-up commit).
+Found by Ishan looking at the live UI immediately after Phase 5 was called complete — not by any check
+in the suite, which is the point of writing it up.
+
+### 1. 🔴 The entry was on the wrong screen
+
+Phase 4 wired *"Custom scenario…"* into the **results** dropdown only. Ishan was on the **dataset
+view**, opened the dropdown, and saw the four scenarios and nothing else.
+
+**The plan's own Phase 4 objective is: "the control panel Ryan asked for, *on the screen he liked*."**
+The screen he singled out on 2026-08-19 is the dataset view — the network map is his favourite feature.
+So the feature was built and then put somewhere he would not be looking, and `DEMO_GUIDE.md` Option E
+compounded it by telling the reader to go to the results screen rather than working where they were.
+
+Fixed: the dataset view's dropdown now carries the same grouped list and the same fifth entry, and
+opens the same panel beside the map — which stays on screen, since the panel sits beside a view and
+never over it. Asserted in the browser, including that the map is still visible.
+
+### 2. 🔴 `index.html` was cacheable, so a returning viewer could not see any new build
+
+Worse, and the reason the first report was confusing: with the entry live in the container, the browser
+still showed the old app. nginx served `index.html` with only `Last-Modified` and `ETag` — **no
+`Cache-Control`** — so browsers cached it heuristically.
+
+`index.html` is the one file Vite does **not** fingerprint: it is what names the current asset hashes.
+Caching it means a returning viewer keeps loading the previous build and simply does not see new
+features. **That is a demo-breaking failure mode, not a developer annoyance** — it would have hit Ryan
+mid-demo, on a screen that looks like it is working.
+
+Fixed in `docker/web/default.conf.template`: `index.html` (and any HTML fallback) is `no-store,
+must-revalidate`; `/assets/` is `public, max-age=31536000, immutable`. Each is emitted as a **single**
+header — `expires` was dropped because it adds a second `Cache-Control` of its own, which the first
+attempt did.
+
+### 3. Both are now checks, because both failed silently
+
+`make web-check` **32 → 34**:
+
+| New check | What it pins |
+|---|---|
+| *custom panel opens from the DATASET view* | the entry is offered there, grouped, opens the panel, and the network map stays visible |
+| *a new build reaches a returning viewer* | the real response headers: `index.html` `no-store`, assets `immutable` |
+
+The second one asserts headers rather than behaviour deliberately: the symptom is **a working page that
+is quietly out of date**, which no functional assertion on a freshly-launched browser context can catch
+— every Playwright context starts with an empty cache, so the suite was structurally blind to it.
+
+### 4. Verification
+
+| Check | Result |
+|---|---|
+| `make web-check` | **34/34, ALL CHECKS PASSED** |
+| `make web-test` | **108 passed** (7 files) |
+| `make test` | **555 passed + 2 xpassed** (no backend change) |
+| Real browser | panel opens from the dataset view, map visible beside it, **0 console errors** |
+| Headers | `index.html` → `no-store, must-revalidate`; asset → `public, max-age=31536000, immutable`; one header each |
+
+Docs corrected where they pointed a reader at one screen: `DEMO_GUIDE.md` Option E (plus a
+troubleshooting row naming a stale cache and telling the reader to hard-reload), the 6a handoff, the
+Ryan packet, `docs/handoff.md` and `README.md`.
+
+**The lesson worth keeping:** every browser check ran green while the feature was unreachable for the
+person actually using it. `web-check` launches a fresh context and drives the results screen, so it
+could not see either problem. **Looking at the real thing on the real screen found two defects that
+34 automated checks did not** — which is the same argument as the unmet talk-track item.
+
+**Open issues / follow-ups:** unchanged from Phase 5, except that the dataset-view dropdown item is now
+closed. 🔴 **Nobody has read the Option E talk track out loud** — and this entry is the strongest
+evidence yet for why that item matters.
+
+
 ## 2026-08-20 (Phase 5) — Iteration 6a **Phase 5**: regression sweep, docs & handoff — ITERATION COMPLETE
 **Status:** **Phase 5 COMPLETE, and with it Iteration 6a.** Branch `feat/iteration6a-custom-scenario`,
 **not merged** — that is Ishan's call with Ryan, as the Iteration 5 merge was.
@@ -264,7 +336,6 @@ leak, a derivation that produced a false no-op, and a false claim in my own hand
   in the handoff's limits; deliberately not changed here, because Phase 5's remit was regression and
   docs, and a 429 on a recorded scenario's run is not a change to make in the last phase unasked.
 - **`llm` NVML still stale** — recreate in a window before any customer demo.
-- **The dataset view's dropdown lists custom scenarios flat**, not grouped like the results one.
 - **An optional block cannot be switched off from Advanced** — the Simple checkbox is the way.
 - **Iteration 6b (custom dataset) is deferred, not dropped.** Carry-forward finding: the generator builds
   entities from counts with positional IDs, so *reducing* a count deletes the **last** entity —
