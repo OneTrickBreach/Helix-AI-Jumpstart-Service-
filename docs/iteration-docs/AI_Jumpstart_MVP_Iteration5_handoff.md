@@ -6,6 +6,15 @@
 **Branch:** `feat/iteration5-beta-conversational-analyst` → **merged to `main` 2026-08-05 (`bc42bb3`)**
 **Predecessor:** Iteration 4 (dataset transparency), merged to `main` 2026-08-03 — **not yet reviewed by you**
 
+> 🔴 **Superseded in part, 2026-08-20.** You reviewed both Iteration 4 and this one on **2026-08-19**,
+> so the "unreviewed" framing throughout this document is out of date — it was accurate when written.
+> Outcome of that review: positive, the dataset view's **network map** was your favourite feature, and
+> this conversational layer is **parked as-is** (you did not ask for the `BETA` chip to come off, so it
+> stays). The §9 questions below are **still unanswered**, and question 6 — the single-period capacity
+> read — is now load-bearing: see
+> [`AI_Jumpstart_MVP_Iteration6a_handoff.md`](AI_Jumpstart_MVP_Iteration6a_handoff.md) §2.2 for new
+> evidence, and [`Iteration6a_Ryan_Review_Packet.md`](Iteration6a_Ryan_Review_Packet.md) for the ask.
+
 ---
 
 ## TL;DR
@@ -255,8 +264,26 @@ R16  answer_source: template_after_ungrounded_number
     spending any compute and, if you run it anyway, leads the result with **"Do not read this as
     resilience"** and the mechanism. It is never silently widened to manufacture a difference.
   - **`component-shortage-shock`'s periods 18–27 lane disruption therefore does not itself drive that
-    scenario's objective.** It differs from `baseline` because of 24 configuration deltas plus a demand
-    shock baked into `demand.csv`. Whether the optimizer *should* read capacity across the whole
+    scenario's objective.** It differs from `baseline` because of its **24 configuration deltas**
+    (54 differing values at leaf level). Of those, **31 reach the optimizer** — costs, capacity
+    tightness, lane costs and base lead times, demand-*generation* parameters, and the fill-rate and
+    days-of-inventory targets — and they are what move the objective. The other deltas do not: 7 are
+    the windowed lane disruption above, and **13 are settings the optimizer never reads at all**
+    (the six `capacity.*` values that land in `nodes.csv`, `lead_time_std_days` and `co2_kg_per_unit`
+    on all three lane families, and `criticality_tier`). Worth stating plainly: **every one of those
+    13 differs in this scenario**, so a reader comparing the two configs sees changes that cannot
+    have affected the result.
+    🔴 **Corrected 2026-08-20:** this bullet previously said "plus a demand shock baked into
+    `demand.csv`". **That was wrong — `component-shortage-shock` has no demand shock.** Its
+    `demand.shock` is `null`, its generated `demand.csv` carries **0** rows with a
+    `shock_multiplier != 1.0`, and the dataset view reports `shock_window: None` for it. The demand
+    shocks belong to `demand-surge` (periods 20–27, ×1.75) and `stress-large` (periods 42–55, ×1.55).
+    Verified on-device by re-auditing the regenerated data; see the journal entry of 2026-08-20.
+  - 🔴 **`stress-large`'s disruption is invisible to the optimizer too** — recorded here because the
+    original text checked only `component-shortage-shock`. It disrupts **64** lane-periods over
+    periods **38–53** against a capacity read period of **104**, so **0** disrupted lane-periods fall
+    at the period actually read. **Both** shipped scenarios carrying a lane disruption have one the
+    optimizer never sees. Whether the optimizer *should* read capacity across the whole
     horizon is question 6 in §9 — changing it would move every recorded objective, so I did not.
 - **Latency is honest, not flattering.** A model-written answer is **median 7.9 s and can reach 24 s**
   on this box: the counting is instant, but Nemotron narrates at ~48 tokens/s and does its own

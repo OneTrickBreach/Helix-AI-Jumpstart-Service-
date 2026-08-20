@@ -1,7 +1,11 @@
 # Iteration 5 (Beta) — Review Packet for Ryan
 
-> **🔴 STATUS: DRAFT — NOT SENT.** Drafting is the agent's job; sending is Ishan's. Nothing in this
-> file has been shared with anyone. Same posture as the Iteration 4 packet.
+> **🔴 STATUS: DRAFT — NEVER SENT, AND NOW SUPERSEDED (2026-08-20).** The **live demo of 2026-08-19**
+> overtook this packet: Ryan reviewed Iterations 4 and 5 in person, so it was never sent. Its **seven
+> questions remain unanswered**, and question 6 (the single-period capacity read) is now load-bearing
+> for Iteration 6a. The current ask is
+> [`Iteration6a_Ryan_Review_Packet.md`](Iteration6a_Ryan_Review_Packet.md), which carries question 6
+> forward with new evidence. Kept for the record, not for sending.
 >
 > **Prerequisites before sending:** (1) ~~the merge~~ — **done**, Iteration 5 is on `main` as
 > `bc42bb3` (2026-08-05); (2) a human should run the demo-guide Option D talk track out loud once,

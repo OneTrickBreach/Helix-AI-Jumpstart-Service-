@@ -125,6 +125,14 @@ chat-eval: check-api-running
 chat-eval-template: check-api-running
 	docker compose exec api python3 -m src.chat.eval --no-llm
 
+## Iteration 6a: run the custom-scenario validation eval set (no GPU, no LLM, no writes)
+scenario-eval: check-api-running
+	docker compose exec api python3 -m src.scenario.validation_eval
+
+## Iteration 6a: print the settings ledger — what each setting can and cannot change
+scenario-ledger: check-api-running
+	docker compose exec api python3 -m src.scenario.ledger_report
+
 ## Read one what-if sentence into a validated perturbation (does NOT run it)
 chat-parse: check-api-running
 	@docker compose exec api python3 -m src.chat.parse --scenario "$(SCENARIO)" --question "$(CHAT_QUESTION)"

@@ -17,15 +17,47 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** **`main` @ `bc42bb3`** — **Iteration 5 (Beta) is MERGED** (2026-08-05, `--no-ff`, pushed;
-  `main` was `7c8d0e2` = Iteration 4). All phases 0–6 complete and verified on-device, and `make test`
-  was re-run green **on `main`** after the merge. `feat/iteration5-beta-conversational-analyst` is kept,
-  not deleted. 🔴 **The Ryan packet is drafted, NOT sent** — outward-facing, Ishan's call:
-  `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md`.
-- **Phase:** none in flight. Phases 0 (baseline + vLLM pin), 1 (grounded read-only Q&A), 2 (intent
-  parser + perturbation schema), 3 (what-if execution), 4 (chat UI), 5 (safety/red team) and 6 (demo,
-  docs, handoff, merge prep) are all done and verified on-device. **Ryan has reviewed neither
-  Iteration 4 nor Iteration 5** (PTO), which is why the chat surface carries a visible `BETA` label.
+- **Branch:** **`feat/iteration6a-custom-scenario`**, cut from **`main` @ `cd3905f`** on
+  2026-08-20. It carries **the whole of Iteration 6a — plan, implementation, tests and docs, phases
+  0–5 complete. NOT MERGED**; that is Ishan's call with Ryan, as the Iteration 5 merge was.
+  `main` still holds
+  Iteration 5 (Beta), MERGED 2026-08-05 as `bc42bb3` (`--no-ff`, pushed; `main` was `7c8d0e2` =
+  Iteration 4), with `make test` re-run green on `main` after the merge.
+  `feat/iteration5-beta-conversational-analyst` is kept, not deleted.
+- 🔴 **Ryan reviewed the live demo on 2026-08-19** — his first look at **both** Iteration 4 and
+  Iteration 5. Outcome: positive; the **dataset view's network map was his favourite feature**; the
+  **chat bot is explicitly parked as-is** ("not concerned about that right now"). He asked for two new
+  things — **a custom scenario and a custom dataset** — and, told the dataset one looked hard, asked to
+  see the scenario one first. The drafted `Iteration5_Ryan_Review_Packet.md` was therefore **never
+  sent**; the live demo superseded it. **His seven questions are still unanswered**, and question 6
+  (the single-period capacity read) is now load-bearing for 6a.
+- **Phase:** 🔴 **ITERATION 6a COMPLETE (2026-08-20) — all six phases, verified on-device.** A planner
+  opens the Scenario dropdown, picks **"Custom scenario…"**, moves 8 grouped controls (or all 59 in
+  Advanced), runs the real pipeline in **~1.2 s**, reads a result labelled as custom, and saves /
+  reopens / deletes it. 🔴 **The fairness invariant holds: a custom scenario equal to `baseline`
+  reproduces 81,789.359460 to the digit.** The 15 settings that cannot change the answer are shown
+  under an explicit *"recorded in the dataset, not read by the optimizer"* heading, and a disruption
+  window that misses the capacity read period is warned about before the run and explained after.
+  Green on-device: `make test` **558 passed + 2 xpassed** (211 added by 6a), `make bench-all` **all 12
+  objectives bit-identical**, `make scenario-eval` **29/29**, `make web-test` **108**, `make web-check`
+  **38/38**. `NetworkMap.tsx` is untouched. Deliverables: the
+  [6a handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md), the
+  [Ryan packet](iteration-docs/Iteration6a_Ryan_Review_Packet.md) (**draft, not sent**), `DEMO_GUIDE.md`
+  **Option E**. 🔴 **One DoD item is still open and only a person can close it: nobody has read the
+  Option E talk track out loud.** Iteration 5's phases 0–6 are all done and verified on-device. The chat
+  surface still carries its `BETA` chip; Ryan has now seen it but has not said to remove it.
+- 🔴 **The settings ledger is machine-checked, and it refined the plan's own numbers.** Derived twice
+  from the live system (build-and-diff for "what does this setting write", column ablation for "does
+  the optimizer read it"): **38 unconditional · 6 conditional · 14 recorded-not-read · 1 label-only**,
+  so **15** of the 59 settings cannot change the answer, where §1.4 predicted 13. Both refinements are
+  *names*: `lane_disruption.name` writes only the unread `disruption_code`, and `demand.shock.name`
+  reaches no table at all. A test asserting derived == declared is what fails when a label becomes a lie.
+- 🔴 **Measured 2026-08-20: zeroing an entire lane family at the capacity read period LOWERS the
+  objective** (baseline, all 10 inbound lanes: 81,789.36 → 77,788.55). Only transport cost moves —
+  backorder, holding, lost-sale and ordering are identical to the cent and fill rate does not budge —
+  so the plan simply stops paying to ship. A "we lose every supplier" scenario therefore reads as a
+  saving. Shipped as a pre-run warning stating the mechanism; it had been a *refusal* until the review
+  measured it and found both the refusal and its stated reason wrong.
 - **Deliverables:** `docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md` (handoff),
   `docs/iteration-docs/Iteration5_Ryan_Review_Packet.md` (**draft, not sent**), `DEMO_GUIDE.md`
   **Option D** (the chat talk track), README §9/§12/§13, `docs/handoff.md`, `docs/containerization.md`.
@@ -87,17 +119,1165 @@
 - **Stack:** four-service API-first PoC: `web`, `api`, `llm`, `vectordb` (GPU on `api`, `llm`).
   cuOpt 26.06.00 available for arm64/CUDA-13 (verified 2026-07-27). OR-Tools CPU remains the
   lane-routing engine — cuOpt VRP crossover at ~100 locations, above prototype scale.
-- **GPU/NVML:** clean in **both** `api` and `llm` since 2026-07-30.
+- 🔴 **GPU/NVML: recurred 2026-08-20, `api` fixed and RE-VERIFIED at Phase 0** — `/health`
+  `gpu_visible:true` (it shells out to `nvidia-smi` as a **new subprocess per request**, which is
+  exactly the case NVML detachment breaks), plus a **fresh** `docker compose exec` confirming
+  `torch.cuda.is_available()` `True` on `NVIDIA GB10` with a real CUDA matmul. Note the two
+  `xfail`-marked probes only read `/health`, so their `XPASS` is not an independent check — the fresh
+  exec is. **`llm` remains stale** (`Failed to initialize NVML`), serves fine, not recreated (needs an
+  explicit go). Detail below.
+- 🔴 **GPU/NVML: recurred 2026-08-20 and is PARTLY fixed.** After ~2 weeks up, **both** `api` and
+  `llm` returned `Failed to initialize NVML: Unknown Error` and `/health` read `gpu_visible:false` —
+  while compute kept working off already-loaded CUDA contexts, so it looked healthy and the 2026-08-19
+  demo was unaffected. Any **new** process in either container had no GPU, which silently breaks
+  `make bench-all`, the GPU probes and the embedding path. **`api` fixed** with
+  `docker compose up -d --no-deps --force-recreate api` (the same fix as 2026-07-10) and verified:
+  in-container `nvidia-smi`, `/health` `gpu_visible:true, gpu_name:"NVIDIA GB10",
+  driver_version:"580.159.03"`, `torch.cuda.is_available()` `True`, `nomic-embed` on `cuda:0` at 768
+  dim, and the full RAG advisory path `llm_finalized` with 5 citations in 20.1 s.
+  **`llm`'s own NVML is still stale** — it serves fine (live completion confirmed) and nothing reads
+  it, but a restart would not re-see the GPU. Recreate it in a window, accepting the ~10-min Nemotron
+  reload and the documented wedge risk. **Check `/health` before trusting any GPU-dependent result.**
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
-- **Next (awaiting Ishan):** send Ryan the packet — with Iterations 4 **and** 5 in front of him — then
-  Iteration 6 (production track) only after his feedback. Also carried: **nobody has rehearsed the demo
-  talk track out loud** (a DoD item no machine check can meet).
+- **Next:** 🔴 **two things only a human can do.** (1) **Read the `DEMO_GUIDE.md` Option E talk track
+  out loud once** — the definition-of-done item this repo has never met, carried since Iteration 3.
+  (2) **Decide the merge to `main`**, and whether to send
+  [`Iteration6a_Ryan_Review_Packet.md`](iteration-docs/Iteration6a_Ryan_Review_Packet.md), whose
+  question 1 is Ryan's own unanswered question 6 — the single-period capacity read — now with new
+  evidence. After that **Iteration 6b (custom dataset)** is the next feature. One phase
+  per session with a
+  brutal-truth review at each checkpoint. **Deadline: Ishan's internship ends ~2026-08-27**, so the
+  plan carries an explicit cut line (§0.6). **Iteration 6b (custom dataset) is deferred, not dropped**;
+  the production track is now Iteration 7 in effect. Also carried: **nobody has rehearsed the demo talk
+  track out loud** (a DoD item no machine check can meet) — Phase 5 of 6a makes it a DoD item.
 
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (final review) — Iteration 6a: the UI defects a reviewer found, and the last brutal-truth pass
+**Status:** **Iteration 6a COMPLETE and reviewed.** Everything below was found *after* Phase 5 was
+called done, by Ishan using the UI. Recorded together because they share one cause.
+
+### 1. 🔴 Four defects, all of the same kind: it works and you cannot find it
+
+| # | Defect | Why the suite missed it |
+|---|---|---|
+| 1 | **The entry was only on the results screen.** The plan's Phase 4 objective says *"on the screen he liked"* — the dataset view. A reviewer there could not find the feature at all. | `web-check` drove the results screen, where it worked |
+| 2 | 🔴 **`index.html` was cacheable**, so a returning viewer kept loading the previous build. The panel was live in the container and absent in the browser. | Every Playwright context starts with an empty cache — the suite was **structurally blind** |
+| 3 | **Delete was unfindable**: bottom of a scrolling panel, bare 14px icon, and *"Clear all"* only after a save. | A functional check clicked it by test-id; it never asked whether a human could see it |
+| 4 | **PPO and the rationale had no UI switch**, and "PPO timesteps"/"Top K" were silently ignored by every custom run — **a no-op control, in the iteration whose whole point is refusing to ship those.** | Nothing asserted that a visible control does something |
+
+Fixed: the entry and a **Delete** button are on both screens (two-step confirm, absent for the four);
+`index.html` is `no-store` with hashed assets `immutable`; **YOUR SAVED SCENARIOS** is the first block
+in the panel with labelled Delete / Delete all; and a *"A custom run will include:"* row offers both
+opt-ins with their measured cost and states that PPO timesteps and Top K apply only when ticked.
+
+**`make web-check` 32 → 38.** Two of the new checks assert *discoverability*, not function: the delete
+section measured above the fold at panel-open, and the response headers for `index.html`. The header
+one exists because the symptom is **a working page that is quietly out of date**.
+
+### 2. 🔴 Two of my own tests were wrong, and one assertion was theatre
+
+- **`test_a_preview_writes_nothing_anywhere`** asserted that *no* `custom-*.yaml` exists. True when
+  written; wrong from the moment Phase 2 shipped saving. It failed on any box with a saved scenario —
+  including the demo box — while the preview had written nothing. Now a before/after fingerprint.
+- **The no-op-warning check** matched `/will not change the answer/`, a phrase the **API's own message**
+  contains, so it would have passed with the amber block never rendering. Now asserts the strings the
+  UI writes, plus the computed background colour.
+- **The delete-visibility check** first read `sectionY=-469 < 1080` and passed — the panel had been
+  scrolled, so the section was *off the top*. Now two-sided and measured at panel-open.
+
+### 3. 🔴 A reviewer's saved scenario disappeared and there was no way to say what removed it
+
+`custom-test` went missing mid-review. Every automated path is guarded — the test-suite deletes are
+marker-scoped and the three `clear_all()` calls sit behind a skip that refuses to destroy foreign
+scenarios — and I could not attribute it, because **I had recreated both containers and taken the
+access logs with them.** The likeliest explanation is a deliberate click on the new Delete button, but
+that is an assumption, and the honest statement is that the box could not answer the question.
+
+So the store now logs `scenario_saved` / `scenario_deleted` (with every path removed) and
+`scenarios_cleared` at WARNING.
+
+🔴 **And the first version of that logging did nothing at all.** Module loggers in this codebase have
+never had a handler — uvicorn configures its own and leaves ours alone — so `logger.info` went into the
+void *while its own `caplog` test passed*, because pytest attaches a handler of its own. **An audit line
+nobody can read is worse than none: it looks like one exists.** `_configure_app_logging()` now gives the
+`helix` namespace a stdout handler, scoped to `helix` rather than root so `basicConfig` does not switch
+on transformers and httpx at INFO. Verified by reading it back out of `docker compose logs api`, and a
+test asserts the production path has a handler and an effective level — not just that `caplog` sees it.
+
+### 4. One more code defect from the same rush
+
+`handleDeleted` called `setScenario` **inside** the `setScenarios` updater. State updaters must be pure;
+React invokes them twice in StrictMode. It was idempotent by luck, not design. Now computed outside.
+
+### 5. Verification — final, from a clean rebuild of `api` and `web`
+
+| Check | Result |
+|---|---|
+| `make test` | **558 passed + 2 xpassed** — **211 added by Iteration 6a** (was 347 + 2) |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| `make web-test` | **108 passed** |
+| `make web-check` | **38/38, ALL CHECKS PASSED** (was 26 before 6a) |
+| `make scenario-eval` | **29/29**, refusals **17/17**, warnings **5/5** |
+| Fairness invariant | **81,789.359460 / 88,022.760795**, re-verified end to end |
+| Audit line | read back out of the real container log, naming every path removed |
+
+### 6. 🔴 The lesson, recorded because it is the most useful thing here
+
+**38 automated checks were green while four things were unusable or misleading.** Every one of those
+checks verifies that something *exists and functions*; every defect in §1 was something that existed
+and functioned and could not be **found**. A harness written by whoever built the feature tends to
+assert the path the builder already had in mind.
+
+Five minutes of a person clicking found four defects, two wrong tests and a piece of dead logging. That
+is the same argument as the talk-track item this repo has carried unmet since Iteration 3 — and it is
+now backed by evidence rather than principle.
+
+**Open issues / follow-ups:**
+- 🔴 **Nobody has read the `DEMO_GUIDE.md` Option E talk track out loud.** Still the one item no machine
+  check can close.
+- **Container logs die with the container.** The audit line is in stdout, so a recreate loses it. A log
+  driver or a file sink is ops work, deliberately not done here.
+- **`POST /scenario-comparison` is still not rate limited** and is reachable from a click.
+- **`llm` NVML still stale** — recreate in a window before any customer demo.
+- **An optional block cannot be switched off from Advanced** — the Simple checkbox is the way.
+- **Iteration 6b (custom dataset) is deferred, not dropped.**
+
+
+## 2026-08-20 (Phase 5 follow-up) — two defects a reviewer found that made the feature invisible
+**Status:** Fixed and verified. **git ref: `19ee76b`** (hash backfilled in this follow-up commit).
+Found by Ishan looking at the live UI immediately after Phase 5 was called complete — not by any check
+in the suite, which is the point of writing it up.
+
+### 1. 🔴 The entry was on the wrong screen
+
+Phase 4 wired *"Custom scenario…"* into the **results** dropdown only. Ishan was on the **dataset
+view**, opened the dropdown, and saw the four scenarios and nothing else.
+
+**The plan's own Phase 4 objective is: "the control panel Ryan asked for, *on the screen he liked*."**
+The screen he singled out on 2026-08-19 is the dataset view — the network map is his favourite feature.
+So the feature was built and then put somewhere he would not be looking, and `DEMO_GUIDE.md` Option E
+compounded it by telling the reader to go to the results screen rather than working where they were.
+
+Fixed: the dataset view's dropdown now carries the same grouped list and the same fifth entry, and
+opens the same panel beside the map — which stays on screen, since the panel sits beside a view and
+never over it. Asserted in the browser, including that the map is still visible.
+
+### 2. 🔴 `index.html` was cacheable, so a returning viewer could not see any new build
+
+Worse, and the reason the first report was confusing: with the entry live in the container, the browser
+still showed the old app. nginx served `index.html` with only `Last-Modified` and `ETag` — **no
+`Cache-Control`** — so browsers cached it heuristically.
+
+`index.html` is the one file Vite does **not** fingerprint: it is what names the current asset hashes.
+Caching it means a returning viewer keeps loading the previous build and simply does not see new
+features. **That is a demo-breaking failure mode, not a developer annoyance** — it would have hit Ryan
+mid-demo, on a screen that looks like it is working.
+
+Fixed in `docker/web/default.conf.template`: `index.html` (and any HTML fallback) is `no-store,
+must-revalidate`; `/assets/` is `public, max-age=31536000, immutable`. Each is emitted as a **single**
+header — `expires` was dropped because it adds a second `Cache-Control` of its own, which the first
+attempt did.
+
+### 3. Both are now checks, because both failed silently
+
+`make web-check` **32 → 34**:
+
+| New check | What it pins |
+|---|---|
+| *custom panel opens from the DATASET view* | the entry is offered there, grouped, opens the panel, and the network map stays visible |
+| *a new build reaches a returning viewer* | the real response headers: `index.html` `no-store`, assets `immutable` |
+
+The second one asserts headers rather than behaviour deliberately: the symptom is **a working page that
+is quietly out of date**, which no functional assertion on a freshly-launched browser context can catch
+— every Playwright context starts with an empty cache, so the suite was structurally blind to it.
+
+### 4. Verification
+
+| Check | Result |
+|---|---|
+| `make web-check` | **34/34, ALL CHECKS PASSED** |
+| `make web-test` | **108 passed** (7 files) |
+| `make test` | **555 passed + 2 xpassed** (no backend change) |
+| Real browser | panel opens from the dataset view, map visible beside it, **0 console errors** |
+| Headers | `index.html` → `no-store, must-revalidate`; asset → `public, max-age=31536000, immutable`; one header each |
+
+Docs corrected where they pointed a reader at one screen: `DEMO_GUIDE.md` Option E (plus a
+troubleshooting row naming a stale cache and telling the reader to hard-reload), the 6a handoff, the
+Ryan packet, `docs/handoff.md` and `README.md`.
+
+**The lesson worth keeping:** every browser check ran green while the feature was unreachable for the
+person actually using it. `web-check` launches a fresh context and drives the results screen, so it
+could not see either problem. **Looking at the real thing on the real screen found two defects that
+34 automated checks did not** — which is the same argument as the unmet talk-track item.
+
+**Open issues / follow-ups:** unchanged from Phase 5, except that the dataset-view dropdown item is now
+closed. 🔴 **Nobody has read the Option E talk track out loud** — and this entry is the strongest
+evidence yet for why that item matters.
+
+
+## 2026-08-20 (Phase 5) — Iteration 6a **Phase 5**: regression sweep, docs & handoff — ITERATION COMPLETE
+**Status:** **Phase 5 COMPLETE, and with it Iteration 6a.** Branch `feat/iteration6a-custom-scenario`,
+**not merged** — that is Ishan's call with Ryan, as the Iteration 5 merge was.
+**git ref: `fcd55dc`** (hash backfilled in this follow-up commit).
+Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 5.
+**All 12 recorded objectives re-verified bit-identical, from a clean rebuild of `api` and `web`.**
+
+### 1. The decision-12 regression test the sweep called for
+
+Ryan parked the chat bot on 2026-08-19, so 6a built nothing for it — but custom scenarios became
+**visible** to it for free, because it reads the same scenario list the dropdown does. Visible-for-free
+is precisely the case that needs a regression test rather than a feature.
+
+`tests/test_iteration6a_chat_regression.py` — **8 cases**, split by intent:
+
+| It must not break | It must not claim it |
+|---|---|
+| a custom scenario is in `known_scenarios()` | no `src/chat/*.py` reaches into the custom-scenario layer |
+| the facts bundle builds for one | asking it to "create and save a scenario" produces no claim of having done so |
+| a grounded question is answered, 0 ungrounded numbers, `beta: true` | — |
+| the 404 split still holds for an unsaved custom name | — |
+| a what-if runs on one and leaves its generated CSVs **byte-identical** | — |
+| the confirm gate still gates | — |
+
+The UI half is **8 Vitest cases** in `web/src/chat/chatPanel.decision12.test.ts`. It lives there rather
+than in pytest because `web/` is deliberately not copied into the api image, so a Python check on those
+files could only ever skip — and **a guardrail that silently skips is not a guardrail.**
+
+### 2. `DEMO_GUIDE.md` Option E
+
+A five-step talk track built around the two honesty beats rather than around the feature: the control
+that reads like the most intuitive on the panel and does nothing, and the disruption window the
+optimizer cannot see. Plus a *"what to avoid saying"* list and a troubleshooting table.
+
+🔴 **Two numbers in my own first draft were wrong**, caught by checking them against the live API rather
+than trusting code I had just written:
+
+- the quoted estimate **omitted the `generate` component** that is actually shown for an unsaved draft;
+- the optimize basis was quoted as *"recorded per-approach latencies from baseline's last run"* when a
+  new scenario actually reads *"no run on record for this scenario, so baseline's recorded latencies are
+  used instead"*.
+
+Both corrected verbatim. Every other claim was verified live, including that running the no-op window
+anyway returns **81,789.359460**, and that typing `baseline` as a name is refused with Save disabled.
+
+### 3. 🔴 Stale claims across the docs — which is most of what this phase actually was
+
+The brutal-truth pass here was not about new code. It was about what the repo *says*:
+
+| Stale claim | Where | Reality |
+|---|---|---|
+| `347 passed / 62 Vitest / 26 checks` | README, `handoff.md`, `containerization.md`, `DEMO_GUIDE.md` | **555 / 108 / 32** |
+| *"Iterations 4 and 5 not yet reviewed by Ryan"* | README roadmap table | **He reviewed both on 2026-08-19** |
+| *"the sponsor has not reviewed it yet"* as the reason for the `BETA` chip | `DEMO_GUIDE.md` | The instruction is right, the reason is not — he **parked it as-is** and never asked for the label off |
+| Roadmap had no 6a or 6b, and called production "Iteration 6" | README | 6a done, 6b deferred, production is **7** in effect |
+| *"Options A–D"* | README, `handoff.md` | **A–E** |
+
+**Dated deliverables were annotated, not rewritten** — the same convention used for the demand-shock
+correction in Phase 0. The Iteration 5 handoff gets a *superseded-in-part* note pointing at the new
+capacity evidence; the never-sent Iteration 5 packet is marked superseded with a pointer to the 6a one.
+
+### 4. 🔴 I removed a false claim from my own handoff before committing it
+
+The first draft of the handoff's limits section read *"A human has now read the Option E talk track out
+loud."* **Nobody has.** I cannot know that, and shipping it would have quietly closed the one
+definition-of-done item this repo has never met. It now says so explicitly, in the handoff, in the Ryan
+packet and in `docs/handoff.md`'s carried limits.
+
+Worth recording as a defect in its own right, because it names the failure mode of a documentation
+phase: **writing something that sounds like verification.**
+
+### 5. What shipped
+
+| Document | Content |
+|---|---|
+| `iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md` (new) | The handoff in house style: TL;DR, the architectural bet, the two honesty features, the endpoints with measured latency, verification, honest limits, four questions, what's next |
+| `iteration-docs/Iteration6a_Ryan_Review_Packet.md` (new) | **Draft, not sent.** The four questions, question 1 being his unanswered question 6 with new evidence |
+| `DEMO_GUIDE.md` | **Option E**, the quick reference, and an updated *"what's next"* talk track |
+| `README.md` | §9 rewritten for 6a, §12 gains the seven 6a guardrails, §10 and the roadmap updated |
+| `docs/handoff.md` | A 6a quick-start section and the carried limits |
+
+### 6. Verification — from a clean rebuild of `api` and `web`
+
+| Check | Result |
+|---|---|
+| `make test` | **555 passed + 2 xpassed** (126 s) — **208 added by Iteration 6a** (was 347 + 2) |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| `make web-test` | **108 passed** (was 62) |
+| `make web-check` | **32/32, ALL CHECKS PASSED** (was 26) |
+| `make scenario-eval` | **29/29**, refusal classes **17/17**, warning classes **5/5** |
+| Iteration 4 and 5 surfaces | dataset view, chat beside both views, **both replay paths API-blocked** — all pass |
+| GPU | `/health` `gpu_visible:true` and a fresh-exec `torch.cuda.is_available()` `True` after the rebuild |
+
+**Iteration 6a totals:** six phases, six checkpoints, **208 backend tests and 46 web tests added**, and
+**19 real defects found by the brutal-truth reviews** — among them a path traversal, a destructive test
+that would have deleted a saved demo scenario, a Save button a user could not click, a vector-store
+leak, a derivation that produced a false no-op, and a false claim in my own handoff.
+
+**Open issues / follow-ups:**
+- 🔴 **The talk track has still never been read out loud.** Machine-checked is not rehearsed. **This is
+  the one thing left that only a person can close**, and the internship ends ~2026-08-27.
+- **The branch is not merged.** `main` still holds Iteration 5. Merging is Ishan's call with Ryan.
+- 🔴 **Ryan's question 6 remains unanswered** and is question 1 of the new packet.
+- **`POST /scenario-comparison` is still not rate limited** and is now reachable from a click. Recorded
+  in the handoff's limits; deliberately not changed here, because Phase 5's remit was regression and
+  docs, and a 429 on a recorded scenario's run is not a change to make in the last phase unasked.
+- **`llm` NVML still stale** — recreate in a window before any customer demo.
+- **An optional block cannot be switched off from Advanced** — the Simple checkbox is the way.
+- **Iteration 6b (custom dataset) is deferred, not dropped.** Carry-forward finding: the generator builds
+  entities from counts with positional IDs, so *reducing* a count deletes the **last** entity —
+  "delete `DC-002`, keep `DC-003`" needs a row-level overlay layer.
+
+
+## 2026-08-20 (Phase 4) — Iteration 6a **Phase 4**: the UI — Simple and Advanced
+**Status:** **Phase 4 COMPLETE.** The feature is now demoable in a browser: build a scenario, run it,
+read a result labelled as custom, save it, reopen it, delete it. Branch
+`feat/iteration6a-custom-scenario`. **git ref: `e185e02`** (hash backfilled in this follow-up commit).
+Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 4.
+**All 12 recorded objectives re-verified bit-identical. `NetworkMap.tsx` untouched.**
+
+### 1. What shipped
+
+| File | What it does |
+|---|---|
+| `web/src/custom/CustomScenarioPanel.tsx` (new) | The panel: name, 8 Simple controls, all 59 in Advanced, validation, change list, estimate, saved list, Save / Save & run / Delete / Clear all. |
+| `web/src/lib/customForm.ts` (new) | The pure logic — slug preview, Advanced layout, value coercion, Simple↔Advanced precedence, validation display, change annotation. **38 new Vitest tests.** |
+| `web/src/lib/customApi.ts` (new) | The six endpoints, with a typed refusal that carries the API's own sentences. |
+| `web/src/App.tsx` | The fifth dropdown entry, the saved-scenario optgroup, the custom result banner. |
+| `web/src/lib/types.ts` | The 6a payload types. |
+| `web/e2e/dataset-view.check.mjs` | **6 new browser checks** (26 → 32). |
+
+**A fifth dropdown entry** — *"Custom scenario…"* — opens the panel; saved scenarios appear in their
+own `optgroup` labelled *"Your custom scenarios"*, visibly `custom-` prefixed, so a custom result can
+never be read as one of the four (guardrail 2).
+
+### 2. 🔴 Simple and Advanced stay in sync through the server, not through duplicated logic
+
+The temptation was to reimplement the Simple→raw-settings expansion in TypeScript. Instead:
+
+- The panel holds `simple` and `overrides` and sends both to `POST /scenarios/custom/preview`.
+- The server returns `resolved_config` — the exact config it would save — and **Advanced renders that**.
+- So a Simple edit shows up in Advanced with no client-side synthesis at all, and there is one
+  definition of what an edit resolves to.
+- An Advanced edit wins over the Simple control sharing its setting (the server's own precedence), and
+  the Simple control then says **"set in advanced"** rather than showing a slider position that is a lie.
+
+Every reach label, range, group and heading comes from `GET /scenarios/custom/settings`. **If a setting
+stops being inert on the server, no front-end file needs editing** — which is the point, because the
+labels were *derived* in Phase 1 and a hand-maintained copy would rot.
+
+### 3. Both correctness guardrails are on screen (§0.6 slice 4, shipped with slice 1)
+
+**The 15 settings that cannot move the answer** appear in Advanced under the server's own heading —
+*"recorded in the dataset, not read by the optimizer"* — with a note explaining they are editable so the
+saved scenario is complete, "not because they are levers". `dc_throughput_units_per_period`, the most
+misleading control in the iteration, carries its own *"no effect on the result"* tag. The change list
+tags an inert change too. Asserted in the browser: **59 settings rendered, the heading present, that
+setting flagged.**
+
+**The capacity no-op warning** renders as an amber block *before* the run — verified by computed style
+(`rgb(253, 247, 230)`), not by eye — naming period 52, with *"Do not read an unchanged result as
+resilience."* The results banner repeats it after the run. Screenshots:
+`custom-scenario-noop-warning.png`, `custom-scenario-result.png`.
+
+### 4. 🔴 Brutal-truth review — four real defects, three of them only a browser could find
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | 🔴 **Save was unclickable.** The floating *"Ask the plan"* button is `fixed bottom-5 right-5 z-30` — exactly where the panel puts Save / Save & run — and it **intercepted the clicks outright**. Not a test artifact: a real planner could not have saved a scenario. The button now shifts clear of the panel, and the panel takes `z-40` for narrow viewports. Unmounting the chat surface instead would have lost an open transcript, and Ryan parked that feature as-is (decision 12). | Playwright reported "intercepts pointer events" and retried the click 57 times before timing out |
+| 2 | 🔴 **The GPU-free walkthrough offered a control that needs the API.** `?replay=true` blocks every `/api/` call by design, so the custom entry could only ever produce *"Failed to fetch"* — in the one demo path that exists for when the backend is unavailable. The entry is now absent in replay, with a check asserting it. | Deliberately probing replay with the API blocked, rather than assuming a new control was inert there |
+| 3 | **`onClick={runScenario}` passed the click event as the scenario name.** Caught by the real `npm run build` (`tsc -b`) and **not** by `tsc --noEmit`, which resolves a different config. Verify with the build, not a looser typecheck. | The web image build failed |
+| 4 | **The capacity warning printed twice** — once in its amber block, once as the footer summary — reading as two separate problems. Also a block-level change rendered as `lane_disruption.lane_disruption`. | Reading the committed screenshot instead of trusting that the check passing meant it looked right |
+
+**A weak assertion, fixed.** The first no-op check matched `/will not change the answer/` — but the
+*API's own message* contains that phrase, so it would have passed even if the amber block never
+rendered. It now asserts the two strings this UI writes, plus the background colour. The screenshot
+also missed the block entirely (the panel scrolls; it sat at y≈1373 on a 1080px viewport) — the exact
+Iteration 5 lesson that committed evidence omitting the label it exists to carry is worse than none.
+The shot now scrolls it into view.
+
+**One more found by a unit test:** a half-typed range `"1.5,"` became `[1.5, 0]`, because `Number("")`
+is `0`, and came back as an inverted-range refusal while the planner was still typing.
+
+### 5. Verification — all on-device
+
+| Check | Result |
+|---|---|
+| `make web-check` | **32/32, ALL CHECKS PASSED** — was 26; 5 new custom checks plus the replay guardrail |
+| `make web-test` | **100 passed** — was 62; **38 added**, all on the pure form logic |
+| `make test` | **547 passed + 2 xpassed** — unchanged, as expected: no backend code changed |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| Real browser | full loop at 1920×1080 **and** 1440×900, **0 console errors**; Save & run confirmed not covered at laptop width |
+| `NetworkMap.tsx` | **not modified.** Verified by eye that the map renders for a custom scenario — 17 locations, 30 lanes, all present |
+| Reserved name | typing `baseline` shows the API's refusal and disables Save |
+| Bundle | 631.00 → **652.09 kB** raw (+21.09), 179.46 → **185.04 kB** gzip (+5.58), **no new dependencies** |
+
+The bundle delta is the panel, the form logic and the API client. Justified: it is the whole feature,
+and it adds no library — the +5.58 kB gzipped is what a planner-facing control panel over 59 settings
+costs.
+
+**Open issues / follow-ups:**
+- **Phase 5 (regression, docs, handoff) has not started and awaits an explicit go.** It owns
+  `DEMO_GUIDE.md` **Option E**, the Iteration 6a handoff, README/`docs/handoff.md` updates, and the
+  Ryan packet with §4's four questions.
+- 🔴 **The talk track has still never been read out loud by a human.** Phase 5 makes it a DoD item, and
+  it is the one item no machine check can meet.
+- **The dataset view's own scenario dropdown lists customs flat**, not grouped like the results one.
+  Cosmetic; the `custom-` prefix still makes them obvious.
+- **`POST /scenario-comparison` is still unrate-limited** (pre-existing) and the UI can now trigger it
+  from a click. Worth a look in Phase 5.
+- **An optional block still cannot be switched off through Advanced overrides** (carried from Phase 1);
+  Simple's checkbox is the way to do it, which is how the panel is laid out anyway.
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered.**
+
+
+## 2026-08-20 (Phase 3) — Iteration 6a **Phase 3**: running a custom scenario
+**Status:** **Phase 3 COMPLETE.** Real numbers from the real pipeline, labelled as custom.
+Branch `feat/iteration6a-custom-scenario`. **git ref: `ac1c90c`** (hash backfilled in this follow-up
+commit). Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 3.
+**All 12 recorded objectives re-verified bit-identical.**
+
+### 1. 🔴 The fairness invariant holds
+
+The one that matters. A custom scenario saved with **no overrides** — baseline's values under a
+different name — run through save → generate → the real pipeline:
+
+| Approach | Custom run | Recorded `baseline` | |
+|---|---:|---:|:--:|
+| naive baseline | 88,022.760795 | 88,022.760795 | ✅ |
+| tuned classical | **81,789.359460** | **81,789.359460** | ✅ |
+
+§1.2 proved this reachable before any code was written, which is what makes it a useful test: a
+failure here is not a surprising property of the generator, it is 6a having broken something.
+
+Two companions, because reproducibility tests are easy to pass for the wrong reason:
+**the same saved scenario run twice is identical**, and **a changed setting really does move the
+objective** — without that second test, a bug that ignored the custom config entirely would satisfy
+every other assertion in the file by always returning baseline's number.
+
+### 2. Decision 8, as shipped
+
+`POST /scenario-comparison` and `GET /scenario-comparison/stream` gained `include_ppo` and
+`include_rationale`. Both default to `None`, meaning *"whatever is right for this kind of scenario"*:
+
+| Scenario kind | PPO | Written rationale | Measured |
+|---|---|---|---:|
+| The four recorded | evaluated | generated | **29.7 s** (`llm_finalized`, 5 citations) |
+| A custom scenario | `not_evaluated` | `not_generated_for_this_run` | **1.1–1.2 s** |
+| Custom, rationale opted in | `not_evaluated` | generated | **22.9 s** |
+
+An explicit `true`/`false` always wins. `resolve_run_flags` is one function used by both endpoints, so
+they cannot drift apart, and it is unit-tested against all four canonical names.
+
+**The four recorded scenarios' payload is unchanged in shape** — same keys, three approaches,
+`ppo_outcome: lost_to_classical`, rationale `llm_finalized`, objective to the digit — plus two
+additive keys (`run_settings`, `capacity_reachability`/`warnings`) that no current UI reads.
+
+**A skipped rationale is a real object, never `null`.** Verified against `web/src/types.ts`: every
+field `Rationale` declares required is present, and a test enumerates them. `ResultsView`,
+`PlanSummary` and `RationalePanel` take it as a required prop and dereference
+`advisory_rationale` and `selected_approach`, so a null would break the results screen **for the four
+shipped scenarios too**. The placeholder path is exercised on `baseline` by a test, not only by custom
+runs, and the real rationale gained a symmetric `generated: true` so a consumer branches on one field.
+
+### 3. The no-op window: warned before, explained after, and proven
+
+`GET /scenario-comparison/card` is the pre-run card — Iteration 5's confirm pattern for a scenario
+already on disk: the reading, the estimate **with a basis per component**, the seed from the saved
+config, what is excluded and why, and the reachability warning. It **omits the `generate` component
+for a saved scenario**, because charging the estimate for a step that will not happen overstates the
+wait (0.98 s for a saved custom scenario; 23.73 s for `baseline` with everything on).
+
+A disruption at periods **18–27** against a read period of **52**, end to end:
+
+| Moment | What the planner is told |
+|---|---|
+| At save | `capacity_window_misses_read_period`, `reaches_optimizer: false` |
+| On the card, before the run | the same warning, naming period 52, suggesting `duration_periods: 35` to reach it, plus *"Do not read an unchanged result as resilience."* |
+| After the run | the same warning again, and the objective comes back **81,789.359460** — identical to baseline |
+
+That last number is the point: it is the **proof the warning is telling the truth**, not a claim about
+it. A window moved to 40–52 is not warned about and does move the objective. Both are tests. The
+warning is built by one shared function used before and after, so the same measured fact cannot acquire
+two vocabularies.
+
+Also recorded deliberately: the card reports the warning for **`component-shortage-shock`** too, since
+that scenario's disruption genuinely misses its read period (§1.3). Suppressing it for the recorded
+four would be selective honesty. No UI renders it today, so nothing on screen changed.
+
+### 4. 🔴 Brutal-truth review — three real defects
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | 🔴 **A vector-store leak.** Opting into a rationale creates a per-scenario Qdrant collection `helix_sco_rag_custom-<slug>`, and **delete left it behind** — so the feature could only accumulate state in the vector store, which is exactly what guardrail 6 exists to prevent. Delete now drops it, best effort, so a delete cannot fail because Qdrant is unreachable. | Listing Qdrant collections before and after a save→run→delete cycle, rather than trusting that Phase 2's delete was still complete once Phase 3 created something new |
+| 2 | 🔴 **A destructive test.** The clear-all tests call the box-global `clear_all()`, so **`make test` would have silently deleted a scenario a human saved** — including the one built for a demo. They now skip *loudly*, naming what they would have destroyed, and a non-destructive selector test always runs. Proven by saving `custom-ryans-demo-keepme`, running the tests, and confirming it survived. | A test failed intermittently; the cause was leftover scenarios from manual probes, which meant the test was reading — and deleting — real state |
+| 3 | **"Clear all" did not clear everything.** It left orphaned `benchmark/custom-*.json` artifacts for scenarios that were gone. It now sweeps them, which is safe *only* there: every custom scenario has just been deleted, so the `custom-a` / `custom-a-b` collision that rules out globbing in `_remove` cannot apply. | The objectives-gate script flagged two unexpected artifacts |
+
+Defect 2 is the one worth remembering. It would not have shown up as a failure — it would have shown
+up as a saved scenario quietly missing before a demo.
+
+Two Iteration 5 test fakes needed the new `include_ppo` kwarg. Rather than just unbreaking them, they
+now **assert it is `true`** for a recorded scenario, which pins the "no recorded result changes shape"
+guarantee at the point where a future change would violate it.
+
+### 5. The stream stays truthful
+
+For a custom run the stages are `ingest → forecast → baseline → classical → rag/skipped`. **No `ppo`
+stages at all**, because PPO did not run, and an explicit **`rag/skipped`** rather than silence — a
+stream that just stops mentioning a stage looks like a stall. Same reasoning as Iteration 5's
+`cache/hit`. Opting PPO in adds `ppo/running` and `ppo/complete`, and the rationale stays skipped.
+Both orderings are asserted exactly.
+
+### 6. Verification — all on-device
+
+| Check | Result |
+|---|---|
+| `make test` | **547 passed + 2 xpassed** (133 s) — **36 added**, was 511 + 2 |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, and **exactly four** head-to-head artifacts |
+| `make web-test` | **62 passed** (unchanged) |
+| `make web-check` | **26/26, ALL CHECKS PASSED** — Iteration 4 and 5 surfaces intact |
+| Fairness invariant | **81,789.359460 / 88,022.760795**, to the digit |
+| Determinism | same saved scenario twice, identical |
+| Custom artifact | name-keyed `benchmark/custom-<slug>-head-to-head-comparison.json`; no canonical artifact written by a custom run |
+| End state | four configs, four data directories, four artifacts, four Qdrant collections |
+| GPU | `/health` `gpu_visible:true` after each of five rebuilds |
+
+**Open issues / follow-ups:**
+- **Phase 4 (the Simple and Advanced UI) has not started and awaits an explicit go.** Everything so far
+  is API-only: there is no way to build a custom scenario from the browser yet.
+- **`POST /scenario-comparison` still has no rate limiting** (pre-existing, not introduced here). The
+  new card endpoint uses the `light` bucket. Worth a look when the UI can trigger runs on a click.
+- **Nothing renders `warnings` or `capacity_reachability` yet.** Phase 4 owns that, and the
+  capacity warning is a slice-1 correctness guardrail (§0.6), not polish.
+- **The 6a payload keys are additive, so `web/src/types.ts` does not yet describe them.** Phase 4.
+- **An optional block still cannot be switched off through Advanced overrides** (carried from Phase 1).
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered**, and §3 above is the
+  cleanest demonstration yet of why it matters: a planner can build a ten-week supplier outage, run it,
+  and get baseline's number back.
+
+
+## 2026-08-20 (Phase 2) — Iteration 6a **Phase 2**: persistence — save, list, delete, clear-all
+**Status:** **Phase 2 COMPLETE.** A saved custom scenario is a real scenario, and can be un-saved.
+Branch `feat/iteration6a-custom-scenario`. **git ref: `d4a3ed2`** (hash backfilled in this follow-up
+commit). Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 2.
+**All 12 recorded objectives re-verified bit-identical.**
+
+### 1. What shipped
+
+| File | What it does |
+|---|---|
+| `src/scenario/store.py` (new) | Save, list, delete, clear-all. The only module in `src/scenario/` allowed to touch the disk. |
+| `src/api/pipeline.py` | Four endpoints: `POST /scenarios/custom`, `GET /scenarios/custom`, `DELETE /scenarios/custom/{slug}`, `DELETE /scenarios/custom`. |
+| `src/api/ratelimit.py` | A `save` bucket (20/60 s, `HELIX_SCENARIO_MAX_SAVES`) so a 429 on a save does not read "too many what-if runs". |
+| `.gitignore` | `data/scenarios/custom-*.yaml` and the staging dir. The carried follow-up is closed. |
+| `Dockerfile` | Copies `Makefile` and `.gitignore` into the image so the structural tests read the real files. |
+| `tests/test_iteration6a_persistence.py` (new) | **66 tests.** |
+
+**The architectural claim held.** A saved scenario is a complete YAML plus generated data, and
+*nothing* in the Iteration 4 dataset code changed: `GET /dataset/overview?scenario=custom-ryan-demo`
+returns all **13** sections, with `scenario_diff` computing the change list against `baseline` for
+free. `GET /scenarios` picked it up with no new discovery code, exactly as §0.2 predicted.
+
+### 2. Save is atomic, and the failure paths are the tested ones
+
+`known_scenarios()` unions configs **and** data directories, so a config written whose generation then
+failed would leave a permanent dropdown entry answering 409. Therefore:
+
+- Generation runs into `data/.custom-staging/<name>` — **outside** `data/generated/`, because
+  `known_scenarios()` lists every directory in there and a half-built scenario would appear in the
+  dropdown while it was still being written.
+- It is moved into place with `os.replace` only after the generator returns.
+- An overwrite moves the old data aside first and discards it only once the new data is in place.
+- Every failure restores the config to exactly what it was, and the `try` block **ends at the point of
+  no return**, so a successful save cannot be rolled back by housekeeping.
+
+Measured by injecting failures:
+
+| Injected failure | Result |
+|---|---|
+| `RuntimeError` mid-generation | Refused; no config, no data, absent from `known_scenarios()` and the list |
+| `SystemExit` from the generator (the §1.5 case) | Caught and reported; nothing left behind |
+| Failed **overwrite** of an existing scenario | Config byte-identical, data fingerprint byte-identical |
+| Config on disk with no data (the state the plan warns about) | Save refuses with "delete it first"; **delete recovers it** |
+| Data directory with no config | Listed with `config_exists: false`, and deletable |
+
+**The generator's `SystemExit` is why this needs care.** It does not inherit from `Exception`, so a
+bare `except Exception` lets it through and takes the request down in a way FastAPI cannot render. The
+real `generate()` is used — the same path `make data SCENARIO=...` takes, not a parallel
+implementation — and a test asserts there is **exactly one call site**, with the catch beside it.
+
+### 3. 🔴 Brutal-truth review — four real defects in this phase's own work
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | 🔴 **Path traversal.** `custom-../../etc/x` satisfies "starts with `custom-`" and resolves to `data/scenarios/etc/x.yaml`. The API was safe *only* because `build_preview` validates first — but `save`/`delete` are library functions Phase 3 and Phase 4 call directly. A guarantee that depends on every future caller remembering to validate is not a guarantee. Both now re-validate the slug **and** enforce resolved-path containment, modelled on `_resolve_scenario_dir`. | Firing traversal slugs straight at the store, bypassing the API |
+| 2 | **Two layers disagreeing about a legal name.** The store lower-cased the slug *before* validating, so it accepted `UPPER` while the API refused it. It now validates what the caller actually wrote. | A parametrised hostile-slug test |
+| 3 | **A misleading 404.** `DELETE /scenarios/custom/baseline` reported "no saved scenario named 'custom-baseline'" instead of refusing. `scenario_name_for("baseline")` is `custom-baseline`, which is *not* canonical, so neither the canonical list nor the prefix check caught it — **guardrail 3 rested entirely on the validation layer being called.** Now refused on the raw slug, before prefixing, with the reason. | Running the DoD's own "refused by save *and* delete" line as a real request |
+| 4 | **An unreproducible save.** A `seed` argument disagreeing with the config's `random_seed_override` would have generated data the saved config cannot reproduce — `generate()` prefers the config value. Refused now (guardrail 4). | Re-reading the seed path after writing it |
+
+Also fixed while reviewing: **artifact deletion uses an explicit suffix list, not a
+`custom-<slug>-*` glob.** Deleting `custom-a` with a glob would have taken `custom-a-b`'s artifacts
+too; there is a test for exactly that pair.
+
+### 4. The phase boundary was tightened, not deleted
+
+Phase 1 asserted *no write path exists in `src/scenario/`*. Phase 2 adds one, so the honest move is a
+narrower invariant rather than a deleted test:
+
+- The write path must live in **`store.py` and nowhere else** — asserted in **both** directions, so it
+  cannot pass vacuously if the writes migrate.
+- The no-execution assertion still covers the whole package: **running a custom scenario is Phase 3.**
+- The `SystemExit` rule went from "never call the generator" to "call it in one place, catch it there".
+
+One test was passing for the wrong reason and was fixed: it grepped for `gen.generate(` while the store
+calls `generator.generate(`.
+
+### 5. Verification — all on-device
+
+| Check | Result |
+|---|---|
+| `make test` | **511 passed + 2 xpassed** (118 s) — **66 added**, was 445 + 2 |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**; classical wins all four; four advisories `llm_finalized` |
+| `make web-test` | **62 passed** (unchanged) |
+| `make web-check` | **26/26, ALL CHECKS PASSED** — Iteration 4 and 5 surfaces intact |
+| `GET /scenarios` | **4** before a save, **5** with one saved, **4** again after clear-all |
+| Dataset view on a custom scenario | **13/13** sections, change list against `baseline`, no dataset code changed |
+| Recorded suite | `src/bench/suite.py` and both Makefile loops still iterate a **literal four** (§1.7), asserted by reading them |
+| Suite hygiene | the test run leaves **no** custom scenarios, data or artifacts behind |
+| GPU | `/health` `gpu_visible:true` and a fresh-exec `torch.cuda.is_available()` `True` after each rebuild |
+
+**Save latency, measured in process: 0.04–0.07 s** for a baseline-sized scenario (2,912 demand rows,
+nine CSVs plus `metadata.json`) and **0.06 s** at 104 periods. That is *faster* than the plan's 0.23 s,
+which was measured as a `docker compose exec` subprocess — interpreter startup and the numpy/polars
+imports dominate that figure, not the generation. Worth knowing before Phase 4 sizes a spinner.
+
+Also verified through the save path: setting `simulation.horizon_periods: 104` moved the reported
+capacity read period to **104**, so the §1.3 derivation holds end to end and not only in the preview.
+
+**Open issues / follow-ups:**
+- **Phase 3 (running a custom scenario) has not started and awaits an explicit go.**
+- **Saved files are `root:root` on the host** — the container writes as root into the bind mount, as
+  §0.2 anticipated for `data/generated/`, and it now applies to `data/scenarios/custom-*.yaml` too.
+  Every documented workflow goes through the API or `docker compose exec`, so nothing breaks;
+  host-side cleanup needs `sudo`.
+- **A sub-second window exists where a config is on disk before its data is.** Unavoidable while
+  `generate()` resolves scenarios by name from `data/scenarios/`, and harmless on a single-user box
+  (decision 14). The *failure* case — the one the plan cares about — is fully rolled back.
+- **`data/.custom-staging/` is left in place (empty) after a save.** Git-ignored; not worth the churn
+  of removing and recreating it.
+- **An optional block still cannot be switched off through Advanced overrides** (carried from Phase 1).
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered.**
+
+
+
+## 2026-08-20 (Phase 1) — Iteration 6a **Phase 1**: the settings ledger, schema & validation
+**Status:** **Phase 1 COMPLETE.** No persistence, no execution — both are asserted structurally, not
+just intended. Branch `feat/iteration6a-custom-scenario`. **git ref: `cbe257b`** (hash backfilled in this
+follow-up commit).
+Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 1.
+**All 12 recorded objectives re-verified bit-identical.**
+
+### 1. What shipped
+
+A new `src/scenario/` package, two endpoints, two test files (**98 new tests**) and two make targets.
+
+| File | What it does |
+|---|---|
+| `tables.py` | Builds a scenario's nine tables **in memory** from a config dict, via the generator's own builders in the generator's own order. No disk, so the ledger can diff two configs without a write path. |
+| `ledger.py` | The 59 settings, typed and range-checked, each with a declared `reach`; plus the derivation that reproduces `reach` from the running system. |
+| `synthesize.py` | `baseline` + edits → a **complete** config (§1.5: `load_scenario` has no defaults merge), the 8 Simple controls, and the optional-block defaults. |
+| `validate.py` | 17 refusal classes and 5 warning classes, the slug rules, the derived capacity read period, and the feasibility pre-check. |
+| `preview.py` | The read-only preview: resolved config, diff vs `baseline` in `_scenario_diff`'s own shape, the reachability verdict, and a run estimate **with a basis per component**. |
+| `api.py` | The form schema, including the explicit list of settings that cannot change the answer. |
+| `validation_eval.{py,yaml}` | A committed 29-case eval set with **7 control cases**, and coverage of every refusal/warning class as a *failure* condition. |
+| `ledger_report.py` | `make scenario-ledger` — prints the ledger for review. |
+
+Endpoints (both read-only, on the existing authenticated router, `light` rate bucket):
+`POST /scenarios/custom/preview` and `GET /scenarios/custom/settings`. The second is **beyond the
+plan's literal Phase 1 list** — Phase 4 needs the schema and it makes the labelling inspectable now.
+
+### 2. 🔴 The ledger is derived twice, and it refined the plan's numbers
+
+The plan's §1.4 hand trace said **39 unconditional · 7 conditional · 13 inert**. Two independent
+derivations, run against the live system, say:
+
+| Reach | Count | |
+|---|---:|---|
+| Changes the answer whenever it changes | **38** | |
+| Only if the window covers the capacity read period (`lane_disruption`) | **6** | |
+| Recorded in the dataset, not read by the optimizer | **14** | |
+| A name, written to no table at all | **1** | |
+| **Cannot change the answer** | **15** | *was predicted as 13* |
+
+**Both refinements are names**, which is a tidy story: *the two disruption names are labels, not levers.*
+
+- **`lane_disruption.name`** was counted among the 7 conditional settings. It writes only
+  `lane_periods.disruption_code`, which the optimizer never reads → **inert**. (The dataset view *does*
+  read it, which is exactly why the label is "recorded in the dataset, not read by the optimizer".)
+- **`demand.shock.name`** was counted among the 39. The generator reads only `start_period`,
+  `duration_periods` and `multiplier` from a shock block, so the name reaches **no table at all** →
+  a new `label_only` class.
+
+**How the derivation works, and why it is not a grep.**
+
+1. *What does the setting write?* Build the nine tables twice — as-is, and with the setting moved —
+   and diff the CSV-formatted columns. `test_in_memory_build_matches_the_generated_csvs` pins the
+   in-memory build to `generate()` for two scenarios, so this cannot drift from reality.
+2. *Does the optimizer read that column?* Perturb the column on a loaded `ScenarioState` and re-run
+   baseline + tuned classical. If an objective moves, it is read. **A textual scan cannot answer this**:
+   `capacity_units_per_period` is a column on both `nodes` (never read) and `lanes` (read), so a grep
+   for the literal answers the wrong question.
+
+A setting is inert exactly when every column it writes is unread. The test asserting *derived ==
+declared* is the one that fails when a label on the screen becomes a lie.
+
+**The derivation found a mechanism a hand trace got wrong.**
+`service_targets.days_inventory_target` reaches the optimizer by sizing
+`initial_inventory.on_hand_units` — **not** through the `service_targets` column of the same name,
+which is never read. A hand-maintained mapping would have documented it by the wrong column and, worse,
+by an unread one. There is now a test requiring every reaching setting to name a column the optimizer
+actually reads.
+
+### 3. 🔴 New measured finding — wiping a whole lane family makes the plan look CHEAPER
+
+Zeroing all 10 `inbound_raw` lanes at the capacity read period on `baseline`:
+
+| Metric | Base | All inbound zeroed |
+|---|---:|---:|
+| Objective | 81,789.36 | **77,788.55** |
+| Transport cost | 20,478.98 | **16,478.17** |
+| Backorder / holding / lost-sale / ordering | — | **identical to the cent** |
+| Fill rate | 0.8366 | **0.8366** |
+| CVaR-75 | 20,586.86 | 19,382.55 |
+
+**Only transport moves.** Service does not change, so the objective falls by roughly the cost of the
+traffic that stopped running. A planner who builds "we lose every supplier lane" and reads a cheaper
+plan with identical service has been actively misled — this is the Iteration 5 "do not read this as
+resilience" problem in a new place, and on a lever that *does* reach the optimizer.
+
+**I first shipped this as a refusal** (`all_capacity_removed`), on the assumption the objective would
+be meaningless. The review measured it, and **both halves of that assumption were false**: the run
+works fine, and the reason given was untrue. It is now a **warning** that states the measured
+mechanism, and `test_zeroing_a_whole_lane_family_lowers_the_objective_and_changes_only_transport`
+pins the numbers so nobody removes the warning without noticing the mechanism changed.
+
+### 4. The capacity read period is derived, never a constant
+
+§1.3 called this the easiest thing in the iteration to get quietly wrong. `capacity_read_period()`
+takes it from the configuration **being edited**, and a test parametrises horizons 20 / 26 / 52 / 104.
+The point, as one test:
+
+| History length | Read period | Window 18–27 reaches the optimizer? |
+|---:|---:|---|
+| 52 | 52 | **No** — warned before the run, with "extend to period 52" and the resilience caveat |
+| 27 | 27 | **Yes** |
+
+`test_capacity_read_period_equals_the_configured_history_length` pins `simulation.horizon_periods ==
+state.horizon()` against all four generated scenarios, so the identity the validator relies on cannot
+rot. `test_both_shipped_disruptions_miss_the_capacity_read_period` pins the §1.3 fact itself.
+
+### 5. Validation posture
+
+17 refusal classes, every one exercised by the committed eval set; 5 warning classes, same. **7 control
+cases** exist because a set containing only bad configurations can be passed by refusing everything.
+Refusals are returned as a **list** — someone who got three things wrong is told all three — and every
+message is required by test to be a sentence ending in a full stop, longer than 25 characters.
+
+The `network:` block is refused with the reason (it is 6b), the four canonical names are reserved, and
+`..` is refused **by name** rather than incidentally by a pattern.
+
+### 6. 🔴 Brutal-truth review — seven real defects in my own work, all fixed
+
+| # | Defect | How it was found |
+|---|---|---|
+| 1 | **The derivation itself produced a false no-op.** Probing only *upward* made both `duration_periods` settings look like they wrote nothing — because decision 4 defaults windows to run to the end of the horizon, so lengthening one extends past data that does not exist. Fixed by unioning probes in both directions. | Derived reach disagreed with declared reach for exactly two settings |
+| 2 | **A block-level change rendered with no honesty label at all.** Switching a lane disruption on is `lane_disruption: null` → a dict, so no single setting sits behind it — and it was the *only* change on the panel, unlabelled. It is also the commonest edit a planner will make. | Assuming the diff annotation was wrong and printing it |
+| 3 | **A refusal built on a false premise** (§3 above). | Measuring the thing I had asserted |
+| 4 | 🔴 **HTTP 500.** A `scale` control given a string reached `float("lots")` and the `ValueError` escaped the endpoint — the original catch was `(KeyError, TypeError)`. Guardrail 5 is *never a 500*. | Firing hostile payloads at the live API |
+| 5 | **Derived refusal noise.** `horizon_periods: true` reported both `wrong_type` *and* "the history is 1 period", because feasibility ran against a config still holding the rejected value. True, useless, and it points at the wrong problem. | The same probe run |
+| 6 | **A no-op warning about a setting the planner never touched.** Expanding a grouped control emitted the whole block including its auto-filled name, so the shock's name looked like a deliberate edit and got flagged. | Reading the first clean preview output |
+| 7 | **A misleading message.** A grouped control given a scalar was reported as "not one of the 8 simple controls" — it *is* a control; the value was wrong. | The same probe run |
+
+Defect 4's probes are now committed as a parametrised test over 14 hostile payloads. Dead code left by
+the refactors (`ScenarioValidationError`, `slug_of`, `editable_keys`, `LANE_FAMILIES` and three unused
+imports) was removed rather than left to rot.
+
+### 7. Prompt injection on the one free-text field, closed before Phase 2 opens it
+
+`description` is the only free text a custom scenario carries, and it does **not** stay inert: the chat
+layer retrieves it as the `dataset.scenario_diff.description` fact (observed in a live citation during
+Phase 0). So once Phase 2 persists a config, hostile text there reaches an LLM prompt. It is now
+scanned at validation and **flagged, never executed**, reusing `src/rag/advisory.py`'s committed
+pattern set rather than inventing a second definition of what an injection looks like. It is a warning,
+not a refusal — the guardrail is "flag it", not "reject the planner's wording".
+
+### 8. Structural guarantees (the Phase 1 DoD)
+
+| Guarantee | How it is asserted |
+|---|---|
+| No write path in `src/scenario/` | Source scan for `write_text`/`mkdir`/`shutil`/`write_csv`/`yaml.dump`/open-for-write |
+| No execution path | Source scan for `run_head_to_head`/`optimize_*`/`forecast_finished_goods`/`generate_advisory_rationale` |
+| The generator's `SystemExit`-raising entry points are never called | Source scan for `load_scenario(` and `gen.generate(` (§1.5) |
+| A preview really writes nothing | md5 fingerprint of `data/scenarios/` before/after four previews, plus "no `custom-*.yaml` exists" |
+| The four canonical configs are never modified | md5 per scenario, around a preview |
+| Synthesis does not mutate the base config | Deep-compare `baseline.yaml` after two syntheses |
+
+The optimizer-ablation derivation lives in the **test**, not in `src/scenario/`, precisely so the
+no-execution property is true rather than argued.
+
+### 9. Verification — all on-device, from a rebuilt and recreated image
+
+| Check | Result |
+|---|---|
+| `make test` | **445 passed + 2 xpassed** (117 s) — **98 tests added**, was 347 + 2 |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**; classical wins all four; all four advisories `llm_finalized` |
+| `make scenario-eval` | **29/29** (7 controls); refusal classes **17/17**, warning classes **5/5** |
+| `make web-test` | **62 passed** (unchanged) |
+| `make web-check` | **26/26, ALL CHECKS PASSED** — Iteration 4 and 5 surfaces intact |
+| `GET /scenarios` | still exactly **four** — a custom scenario cannot leak into the recorded suite |
+| Hostile payloads | 14 shapes, **zero 500s**, every one a plain-English refusal |
+| GPU | `/health` `gpu_visible:true` and a fresh-exec `torch.cuda.is_available()` `True` after each rebuild |
+
+Suite runtime moved 98 s → 117 s; the ~19 s is the ledger derivation (60 in-memory generations plus 33
+column ablations). That is the price of the labels being checked rather than asserted, and it is paid
+once per run.
+
+**Open issues / follow-ups:**
+- **Phase 2 (persistence) has not started and awaits an explicit go.** Nothing in this phase can write.
+- **`.gitignore` still needs `data/scenarios/custom-*.yaml`** — re-confirmed unignored today. It is
+  Phase 2's change, per the plan, and harmless until a save path exists.
+- **The preview uses the `light` rate bucket (60/60 s).** A Phase 4 UI that previews on every slider
+  drag will hit that. Debounce it there rather than raising the limit.
+- **An optional block cannot be switched *off* through Advanced overrides** — Simple accepts `null`,
+  Advanced has no "remove this block" verb. A Phase 4 form concern; noted so it is not discovered late.
+- **`llm` NVML still stale** (carried); **Ryan's question 6 still unanswered**, and §3 above is fresh
+  evidence for why the single-period read matters.
+
+
+## 2026-08-20 (later) — Iteration 6a **Phase 0**: green baseline verified, reference numbers captured, one shipped-doc defect fixed
+**Status:** **Phase 0 COMPLETE.** Orientation, green baseline and reference capture. **No implementation
+— no `src/`, `web/`, `data/generator/` or optimizer code was touched.** The only changes are three
+documentation fixes for a defect found during the checkpoint review. Branch
+`feat/iteration6a-custom-scenario`, cut previously from `main` @ `cd3905f`. **git ref: `9ad91e4`**
+(hash backfilled in this follow-up commit). Plan: [`Iteration6a_Plan_of_Action.md`](Iteration6a_Plan_of_Action.md) §5 Phase 0.
+
+### 1. 🔴 GPU checked FIRST, and it is genuinely healthy this time
+
+The plan's own gotcha is that compute keeps working off already-loaded CUDA contexts while every *new*
+process has no GPU — so the box looks healthy when it is not. Verified accordingly, with the
+new-process case tested explicitly:
+
+| Check | Result |
+|---|---|
+| `GET /health` | `gpu_visible:true`, `gpu_name:"NVIDIA GB10"`, `driver_version:"580.159.03"`, `cuda_version:"13.0"`, `nvcc_available:true` |
+| `nvidia-smi` inside `api` | `NVIDIA GB10, 580.159.03` |
+| **Fresh** `docker compose exec api python3` | `torch 2.13.0+cu130`, `cuda_available True`, `device_count 1`, `NVIDIA GB10`, and a real 1000×1000 CUDA matmul returning finite values |
+| `api` container age at session start | **42 minutes** — the 2026-08-20 force-recreate held |
+
+🔴 **A correction to how the last entry said to read this.** `tests/test_service_health.py::test_gpu_visible`
+and `::test_driver_version` **only call `GET /health`** — they are not independent probes, so their
+`XPASS` proves the endpoint's answer and nothing more. It happens to be sufficient, because
+[`src/api/health.py:38`](../src/api/health.py#L38) shells out to `nvidia-smi` as a **new subprocess on
+every request**, which is exactly the case NVML detachment breaks. The fresh `torch` exec above is the
+independent confirmation. **Read the `xpassed` count** as the last entry says — but the reason it is
+trustworthy is the subprocess, not the test.
+
+**`llm`'s NVML is still stale**, unchanged and deliberately not fixed: `docker compose exec llm nvidia-smi`
+→ `Failed to initialize NVML: Unknown Error` (container up 2 weeks). It serves fine — all four RAG
+advisories below came back `llm_finalized`. **Not recreated: that needs an explicit go** (~10-min
+Nemotron reload plus the documented wedge risk).
+
+### 2. The four reference numbers — all 12 objectives bit-identical
+
+`make bench-all` (seed 12345, horizon 8, ppo-timesteps 128, top-k 5), exit 0. Compared against the
+values recorded in the committed artifacts *before* the run, then re-read after:
+
+| Scenario | Baseline | **Classical (winner)** | PPO | Match |
+|---|---:|---:|---:|:--:|
+| `baseline` | 88,022.760795 | **81,789.359460** | 102,804.716650 | ✅ |
+| `component-shortage-shock` | 102,834.785064 | **95,445.445064** | 113,584.863463 | ✅ |
+| `demand-surge` | 100,734.738785 | **94,165.363245** | 115,161.538279 | ✅ |
+| `stress-large` | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 | ✅ |
+
+Classical wins all four; `ppo_outcome: lost_to_classical` on all four. **These are the numbers that must
+stay bit-identical for the whole of Iteration 6a.**
+
+**All four RAG advisories returned `advisory_text_source: llm_finalized` with 5 citations and 0
+injection flags** — *better* than the 2026-08-05 suite run, where `component-shortage-shock` fell back
+to `benchmark_template_after_short_llm_output`. Model prose remains the non-deterministic part; no
+metric depends on it.
+
+### 3. Full green baseline
+
+| Check | Expected | Got |
+|---|---|---|
+| `make test` | 347 passed + 2 xpassed | **347 passed + 2 xpassed** (98.06 s), 0 failed |
+| `make bench-all` | 4 classical objectives unchanged | **all 12 objectives bit-identical** |
+| `make web-test` | 62 | **62 passed**, 5 files, 491 ms |
+| `make web-check` | 26/26 | **26 PASS · 0 FAIL · 2 INFO — ALL CHECKS PASSED** |
+
+**Iteration 4 and 5 surfaces confirmed intact** by `web-check`, including both GPU-free replay paths
+with `**/api/**` aborted: `?view=dataset&replay=true` (badge=2, selectorLocked, 2 disrupted lanes) and
+`?replay=true&chat=true` (recorded what-if, composer locked, **`apiCallsWhileChatting=0`**). Dataset
+Level 1 fold: 793/817/817/865 px against 1080, and the same against 900 on the laptop viewport. The
+known chat-open laptop measurement is still `933px/900` — INFO, not gated, exactly as documented.
+
+### 4. 🔴 §1.3 re-verified independently, on freshly regenerated data
+
+Not restated from the plan — re-audited from the CSVs `bench-all` had just written, with the read
+period computed as `max(demand.period)` per scenario:
+
+| Scenario | Capacity read period | Disrupted lane-periods | Window | **Disrupted at the read period** |
+|---|---:|---:|---:|---:|
+| `baseline` | 52 | 0 | — | — |
+| `component-shortage-shock` | 52 | 20 | 18–27 | **0** |
+| `demand-surge` | 52 | 0 | — | — |
+| `stress-large` | 104 | 64 | 38–53 | **0** |
+
+Confirmed: **both** shipped scenarios carrying a lane disruption have one the optimizer never reads.
+The single-period read is in [`src/optimize/common.py:53`](../src/optimize/common.py#L53) and
+[`:128`](../src/optimize/common.py#L128), both filtering `period == state.horizon()`.
+
+**And the read period really is a lever:** `simulation.horizon_periods` is 52 / 52 / 52 / 104 across the
+four — identical to the observed read period in every case. Any "this window will not affect the
+result" warning **must derive it**. Never hardcode 52.
+
+### 5. The §1.4 settings ledger reconciles exactly — Phase 1 de-risked
+
+Counted from the real configs rather than trusted. Using `stress-large`, the only scenario with every
+optional block expanded: **60** editable non-`network` leaf settings; minus `random_seed_override` (the
+seed, plan decision 7) = **59 editable settings across 7 groups** — capacity 7 · costs 12 · demand 11 ·
+lane_disruption 7 · lanes 18 · service_targets 3 · simulation 1. All **13** inert settings from §1.4
+are present under their exact keys, so **59 − 13 inert − 7 conditional = 39 unconditional**. The plan's
+ledger is arithmetically correct before Phase 1 begins.
+
+### 6. 🔴 Defect found by the checkpoint review — a false claim in three shipped documents
+
+The brutal-truth pass assumed something was wrong and found it in the docs, not the code.
+
+**Claim (Iteration 5 handoff §6, `DEMO_GUIDE.md`, and the 2026-08-04 journal entry):** that
+`component-shortage-shock` differs from `baseline` because of "24 configuration deltas **plus a demand
+shock baked into `demand.csv`**".
+
+**Measured: there is no demand shock in that scenario.**
+
+| Evidence | Result |
+|---|---|
+| `data/scenarios/component-shortage-shock.yaml` | `demand.shock: null` |
+| its generated `demand.csv` | **0** of 2,912 rows have `shock_multiplier != 1.0` |
+| `GET /dataset/overview` → `demand.shock_window` | `None` |
+| Where the demand shocks actually are | `demand-surge` (periods 20–27, ×1.75) · `stress-large` (periods 42–55, ×1.55) |
+
+The "24 configuration deltas" half **is** correct — `scenario_diff.config_changes` returns
+`{shown: 24, total: 24, truncated: false}` on its grouped basis (54 differing values at leaf level,
+since cost families collapse to one entry each).
+
+🔴 **A second error, in my own first draft of the correction, caught before commit.** I initially wrote
+that the 24 deltas were settings "every one of which the optimizer *does* read". **False**, and it is
+precisely the mistake this iteration exists to prevent. Classified properly, the 54 leaf deltas are:
+**31 that reach the optimizer** · **7** the windowed `lane_disruption` (which misses the read period,
+per §4) · **13 inert** · 2 metadata (`scenario`, `description`) · 1 artifact of the `lane_disruption:
+null` placeholder becoming a block. And the sharp fact: **all 13 of the inert settings differ between
+`baseline` and `component-shortage-shock`** — so the demo's own comparison scenario changes every
+single setting that cannot change the answer. That is the strongest available argument for plan
+decision 15's labelling, and it came out of Phase 0 rather than Phase 1.
+
+🔴 **The code was never wrong — only the prose.** Asked directly, the chat layer answers *"No. [F1] says
+there is no demand shock window in this scenario."*, citing `dataset.demand.shock_window`, whose text
+reads *"There is no demand shock window in this scenario; any disruption here is on the shipping lanes,
+not on demand."* So `DEMO_GUIDE.md`'s own promise — *"the chat layer will correct you on screen if you
+ask it"* — was true about the guide's own sentence.
+
+**Why it mattered enough to fix in Phase 0 rather than defer:** the `DEMO_GUIDE.md` instance sat in the
+**"what to avoid saying"** list, i.e. in the talk track a human reads out loud to the sponsor. It would
+have put a fabricated demand shock into a live demo, in the one section written to prevent exactly that.
+
+**Fixed in this commit:**
+- `docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md` §6 — bullet corrected, with an explicit
+  dated *"Corrected 2026-08-20"* note rather than a silent rewrite. **The `stress-large` finding was
+  added to the same limits section**, closing a follow-up the plan had carried to Phase 5 ("when that
+  document is next touched").
+- `docs/DEMO_GUIDE.md` — the avoid-saying bullet corrected, plus a new bullet naming the two scenarios
+  that *do* carry a demand shock.
+- `docs/DEVELOPMENT_JOURNAL.md` 2026-08-04 entry — **original wording left intact** with a dated
+  correction appended beneath it. History is annotated, not rewritten.
+
+### 7. Plan claims spot-checked while reading (all held)
+
+- `src/bench/suite.py:18` — literal 4-tuple, so a custom scenario cannot leak into the recorded suite ✅
+- `known_scenarios()` ([`overview.py:112`](../src/dataset/overview.py#L112)) unions YAML stems with data dirs — the dropdown will populate itself ✅
+- `tests/test_phase5_api.py:130` uses `.issubset`, so extra scenarios will not break it ✅
+- `git check-ignore`: `data/generated/custom-*/` and `benchmark/custom-*.json` **already** ignored;
+  `data/scenarios/custom-*.yaml` is **not** — one `.gitignore` rule for Phase 2, as the plan says ✅
+
+**Open issues / follow-ups:**
+- **Nothing is implemented, by design.** Phase 0 is orientation only. **Phase 1 has not started and
+  awaits an explicit go.**
+- **`llm` NVML still stale** — recreate in a window before any customer demo; needs an explicit go.
+- **Ryan's seven Iteration 5 questions remain unanswered**, question 6 (the single-period capacity read)
+  most of all — plan decision 4 warns rather than widens, and that is still his call.
+- **No human has rehearsed the talk track out loud.** 6a Phase 5 makes it a DoD item — and §6 above is
+  direct evidence of why a machine-checked guide is not the same as a rehearsed one.
+
+
+## 2026-08-20 — Ryan's demo review; GPU/NVML recurrence fixed on `api`; Iteration 6a planned
+**Status:** Planning session only. **No implementation.** Branch
+`feat/iteration6a-custom-scenario` cut from `main` @ `cd3905f`; the plan committed as **`2867d8f`**
+(hash backfilled in this follow-up commit). One real change was made to the running box: the `api`
+container was force-recreated to restore GPU visibility.
+
+### 1. Ryan's review of 2026-08-19 — the first sponsor feedback on Iterations 4 and 5
+
+Ishan demoed the live stack. Outcome, recorded because it redirects the roadmap:
+
+- **Positive overall.** The dataset view landed; the **network map was named as his favourite
+  feature**. Do not touch `NetworkMap.tsx` without a reason.
+- **The chat bot is parked.** He liked it but is "not concerned about that right now" — it stays
+  exactly as shipped, `BETA` chip included, and is revisited later. He did **not** ask for the label to
+  come off.
+- **Two new asks**, which Ishan numbered:
+  - **6a — Custom Scenario.** A fifth entry in the dataset-view scenario dropdown: open with
+    baseline's values but with the scenario-building factors exposed as controls, build your own,
+    run it for real results, **name and save it** so it returns in the dropdown, and clear/delete.
+  - **6b — Custom Dataset.** Clone the current dataset and edit its core entities — *"instead of asking
+    the chat bot what would happen if a warehouse went down, why can't we just reduce a warehouse"* —
+    then save, run, and stack custom scenarios on it.
+- **Sequencing, his call:** he agreed the dataset one is hard and asked to **see the custom scenario
+  first**. So 6b is deferred, not dropped.
+- **Consequence for the packet:** `Iteration5_Ryan_Review_Packet.md` was **never sent** — the live demo
+  superseded it. **Its seven questions remain unanswered**, and question 6 (the single-period capacity
+  read) is now load-bearing, because 6a puts a control on exactly that mechanism.
+- **Deadline:** Ishan's internship ends **~2026-08-27**. Delivering 6a before then is the priority.
+
+Ishan's decisions on the open design questions, taken this session: **do not change the optimizer's
+capacity read** (warn instead); **Simple and Advanced tiers** in one form, on the analogy of a course
+-registration search with an "advanced" disclosure; **6a only**.
+
+### 2. 🔴 Real environment defect found and fixed — GPU/NVML detached again
+
+Found while measuring for the plan, not by a test. Both `api` and `llm` (up ~2 weeks) returned
+**`Failed to initialize NVML: Unknown Error`**, and `GET /health` read
+`gpu_visible:false, gpu_name:null, driver_version:null`. The host's own `nvidia-smi` was fine.
+
+**Why it was invisible:** live CUDA contexts survived the break. `vLLM` kept generating tokens and the
+`api`'s uvicorn process kept using its already-loaded `nomic-embed` model — so the 2026-08-19 demo was
+unaffected and the box looked healthy. But **every new process in either container had no GPU**, which
+silently breaks `make bench-all`, `make chat-eval`, the two GPU probes and any fresh embedding call.
+This is the third occurrence (2026-07-10, 2026-07-30, now).
+
+**Fix — the prescribed bring-up, not a workaround:** `docker compose up -d --no-deps --force-recreate api`.
+Verified after, on real runs:
+
+| Check | Result |
+|---|---|
+| `nvidia-smi` inside `api` | works — GB10, driver 580.159.03, CUDA 13.0 |
+| `GET /health` | `gpu_visible:true, gpu_name:"NVIDIA GB10", driver_version:"580.159.03"` |
+| `torch.cuda.is_available()` in a **fresh** exec | `True`, `device_count` 1 |
+| `nomic-embed` | `device: cuda:0`, dimension **768** |
+| Full RAG advisory path | **`llm_finalized`**, 5 citations, **20.1 s** |
+| `tests/test_service_health.py` | **2 passed, 2 xpassed** |
+
+**Open follow-up (unchanged from 2026-07-10):** **`llm`'s own NVML is still stale.** It serves fine — a
+live `/v1/chat/completions` was confirmed — and nothing in the app reads it, but a restart would not
+re-see the GPU. Recreate it in a window before any customer demo, accepting the ~10-minute Nemotron
+reload and the documented unified-memory wedge risk. **Read the `xpassed` count, not just "passed":** if
+`test_gpu_visible` and `test_driver_version` report `xfailed`, the fix has not taken and the suite will
+still say "passed" overall.
+
+### 3. New measured facts about the codebase (all on-device, 2026-08-20)
+
+These were gathered to make the plan accurate and several of them contradict what the docs said.
+
+- 🔴 **`stress-large`'s lane disruption is ALSO invisible to the optimizer.** Audited directly:
+  `component-shortage-shock` disrupts 20 lane-periods over periods **18–27** against a capacity read
+  period of **52**; `stress-large` disrupts 64 lane-periods over **38–53** against a read period of
+  **104**. **Neither has a single disrupted lane-period at the period the optimizer actually reads.**
+  The Iteration 5 handoff recorded this for `component-shortage-shock` only — **nobody had checked
+  `stress-large`.** So *both* shipped scenarios carrying a disruption have one the optimizer never
+  reads, and their objectives differ from `baseline` because of their other config deltas.
+- 🔴 **The capacity read period is itself a setting.** `build_lane_periods` writes capacity for
+  `1..simulation.horizon_periods`, and the optimizer reads at `max(demand.period)` — so changing
+  `horizon_periods` **moves** the read period. Any "this window will not affect the result" warning
+  must derive it, never hardcode 52.
+- 🔴 **13 of the 59 editable scenario settings cannot change the optimizer's answer.** Six of the seven
+  `capacity:` knobs land in `nodes.csv` (never read by forecast or optimizer), as do
+  `lanes.*.lead_time_std_days` and `lanes.*.co2_kg_per_unit` (columns not consumed) and
+  `service_targets.criticality_tier`. **`dc_throughput_units_per_period` is the dangerous one** — it
+  reads like "how much this warehouse can handle" and does nothing. Ledger: **39 unconditional · 7
+  conditional (`lane_disruption`) · 13 inert**.
+- **`nodes` / `bom` / `production_lines` are read by the dataset view** (`nodes` 3×) even though the
+  optimizer ignores them. So the 13 inert settings visibly change the dataset page and then fail to
+  change the answer — worse than doing nothing, and the reason the label must read *"recorded in the
+  dataset, not read by the optimizer"*.
+- **The fairness invariant is already true, proven not assumed.** The generator seeds only from the
+  numeric seed (`np.random.default_rng(effective_seed)`), not the scenario name. `baseline`'s config
+  written out as `custom-probe` and generated produced **all nine tables byte-identical** (provenance
+  `scenario` column dropped) and classical objective **81,789.359460** — the recorded value to the
+  digit. Probe removed afterwards.
+- **Latency profile for the design.** Generation **0.23 s** (`baseline`) / **0.55 s** (`stress-large`);
+  forecast **0.83 s** (32 series → 256 rows at horizon 8); baseline+classical **0.17 s** warm;
+  +PPO(128) **2.82 s**; LLM rationale **20.1 s**. The rationale is **~20× the whole numeric
+  comparison**, which is why the plan defaults it off for the lever loop.
+- **All four scenarios' recorded objectives are still bit-identical** — baseline/classical pairs
+  88,022.760795 / 81,789.359460 · 102,834.785064 / 95,445.445064 · 100,734.738785 / 94,165.363245 ·
+  2,622,335.215962 / 2,521,615.068565, classical winning all four. Read from the committed artifacts,
+  not re-run. Artifact mtimes show a UI run on 2026-08-19 rewrote `component-shortage-shock`'s
+  artifact and **reproduced its objective exactly** — determinism confirmed by accident.
+
+### 4. What shipped in `2867d8f`
+
+`docs/Iteration6a_Plan_of_Action.md`, in house style (Read-First · the findings that change the plan ·
+decisions · execution protocol · questions for Ryan · phases 0–5 with DoD and STOP checkpoints · risks
+· why it is worth building). Load-bearing content:
+
+- **The architectural bet:** the four scenarios are **data, not code** — 59 settings in
+  `data/scenarios/*.yaml`, turned into the nine CSVs by the generator. A custom scenario is a new YAML
+  file and nothing else, so **the generator, optimizer and forecast are all untouched** and the four
+  recorded objectives *cannot* move. Discovery, the dataset view, the config-delta panel and the run
+  path all already work by name.
+- **Decision 4 (Ishan):** do **not** widen the capacity read. Windows default to running to the end of
+  the horizon; narrowing one off the read period warns **before** the run, reusing Iteration 5's
+  `reaches_optimizer` / `capacity_read_period` fields and its amber wording. Widening it would move
+  every objective in every document Ryan saw on 2026-08-19. **↩︎ his question 6.**
+- **Decision 8:** default run is baseline + classical, **no PPO and no LLM rationale** — but the
+  rationale comes back as a real object with an explicit *"not generated"* marker, never `null`,
+  because `ResultsView` / `PlanSummary` / `RationalePanel` take it as a **required** prop.
+- **An explicit cut line (§0.6)** because of the deadline, with the no-op labelling and the capacity
+  warning shipping in the **first** slice as correctness guardrails, not polish.
+- **Naming:** `custom-<slug>`, config at `data/scenarios/custom-<slug>.yaml`, data at
+  `data/generated/custom-<slug>/`; the four canonical names reserved and refused.
+
+### 5. Brutal-truth review of the plan itself
+
+Reviewed before commit, on the assumption the plan was wrong. **Seven real defects in my own draft,
+all fixed:** the settings count was **61** and is **59** (two null placeholders counted as settings);
+"6 finished-good series" was the dict's key count, not 32 series; "never read downstream" was wrong
+because the dataset view **does** read those tables; the rationale opt-out would have **crashed the
+results screen** for all four shipped scenarios; save was not atomic, so a failed generation would
+leave a dropdown entry answering **409** forever; the capacity warning would have hardcoded period 52;
+and "17×" should have been ~20×. Also recorded: `data/generated/` is `root:root` on the host, so
+host-side cleanup needs `sudo` while the API (root in-container) is unaffected.
+
+Claims attacked and held: `.gitignore` already covers custom **data** and **artifacts** but **not** the
+config (one rule to add in Phase 2); `bench-all`, `demo-data` and `src/bench/suite.py` all iterate
+literal four-item lists so customs cannot leak into the recorded suite; `tests/test_phase5_api.py`
+uses `.issubset`, so extra scenarios do not break it; `MAX_SECTION_ROWS = 200` means 59 settings cannot
+truncate the config-delta panel; `_recorded_latencies` returns `{}` rather than inventing a figure; and
+no per-scenario static asset exists that a custom name would 404 on.
+
+**Open issues / follow-ups:**
+- **Nothing is implemented.** Phase 0 has not run. `make test` / `make bench-all` / `make web-check`
+  were **not** re-run this session (only `tests/test_service_health.py`); Phase 0 owns that.
+- **`llm` NVML still stale** — recreate in a window (§2).
+- **Ryan's seven Iteration 5 questions are still unanswered**, question 6 most of all.
+- **The `stress-large` disruption finding is new** and should be reflected in the Iteration 5 handoff's
+  limits section when that document is next touched.
+- **No human has rehearsed a talk track out loud.** 6a Phase 5 makes it a DoD item.
+
 
 ## 2026-08-05 — Iteration 5 (Beta), Phase 6: demo, docs, handoff & merge PREPARED
 **Status:** Phase 6 complete. **The merge to `main` is prepared and held for Ishan's explicit go; the
@@ -1065,6 +2245,15 @@ claim that *"`component-shortage-shock` does exactly this to 2 lanes and it move
 **wrong on its stated mechanism**: that scenario's disruption sits at periods 18–27, which the
 optimizer never reads. Its objective differs from baseline for other reasons (the 24 config deltas
 and the demand shock baked into `demand.csv`).
+
+> 🔴 **Correction appended 2026-08-20 (Iteration 6a Phase 0), original text left above as written.**
+> The parenthetical is wrong on one point: **`component-shortage-shock` has no demand shock.** Its
+> `demand.shock` is `null` and its generated `demand.csv` contains **0** rows with
+> `shock_multiplier != 1.0` (re-audited on regenerated data). The 24 config deltas alone — costs,
+> capacity tightness, lane costs and lead times, demand-*generation* parameters and service targets —
+> are what separate it from `baseline`. The demand shocks belong to `demand-surge` (periods 20–27,
+> ×1.75) and `stress-large` (periods 42–55, ×1.55). The error had propagated into the Iteration 5
+> handoff §6 and the `DEMO_GUIDE.md` talk track; both were fixed in the 2026-08-20 Phase 0 commit.
 
 **What I did about it, rather than working around it.** Every parse now carries a **reachability
 verdict** computed from the state — never a hardcoded 52 — and a perturbation that cannot move the

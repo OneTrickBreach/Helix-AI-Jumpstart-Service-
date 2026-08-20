@@ -4,6 +4,8 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import BetaChip from "./chat/BetaChip";
 import ChatPanel from "./chat/ChatPanel";
+import CustomScenarioPanel from "./custom/CustomScenarioPanel";
+import DeleteScenarioButton from "./custom/DeleteScenarioButton";
 import DatasetView from "./DatasetView";
 import { fetchScenarios, scenarioStreamUrl } from "./lib/api";
 import { buildMetricComparisons, winnerMessage } from "./lib/deltas";
@@ -11,6 +13,10 @@ import type { MetricComparison } from "./lib/deltas";
 import type { Benchmark, Rationale, ScenarioComparison, ScenarioSummary } from "./lib/types";
 
 const DEMO_REPLAY_URL = "/demo-replay.json";
+
+/** The fifth dropdown entry. A sentinel, not a scenario the API knows about. */
+const BUILD_YOUR_OWN = "__custom__";
+const CUSTOM_PREFIX = "custom-";
 
 const STAGES = ["ingest", "forecast", "baseline", "classical", "ppo", "rag", "done"];
 
@@ -79,6 +85,13 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [view, setView] = useState<View>(() => readViewFromUrl().view);
   const [chatOpen, setChatOpen] = useState<boolean>(() => readViewFromUrl().chat);
+  const [customOpen, setCustomOpen] = useState(false);
+  // Decision 8: a custom run defaults to the fast path, because the written
+  // rationale alone is ~20x the whole numeric comparison. These make that a
+  // visible choice rather than something the panel does silently — and they stop
+  // "PPO timesteps" and "Top K" being controls a custom run quietly ignores.
+  const [includePpo, setIncludePpo] = useState(false);
+  const [includeRationale, setIncludeRationale] = useState(false);
   const streamRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -124,6 +137,47 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
+  /**
+   * Re-read the scenario list after a custom scenario is saved or deleted.
+   *
+   * `GET /scenarios` unions the configs on disk with the generated data
+   * directories, so a saved custom scenario appears here with no new discovery
+   * code — the same list the four recorded scenarios come from.
+   */
+  const refreshScenarios = useCallback(() => {
+    fetchScenarios()
+      .then(setScenarios)
+      .catch(() => undefined);
+  }, []);
+
+  /**
+   * After deleting whatever is selected, fall back to a scenario that still
+   * exists and drop the result — leaving a deleted scenario's numbers on screen
+   * under a name that no longer resolves would be the worst of both.
+   */
+  const handleDeleted = useCallback(
+    (deleted: string) => {
+      setResult((current) =>
+        current && current.benchmark.scenario === deleted ? null : current,
+      );
+      setStages([]);
+      // Computed outside the updaters on purpose: a setState updater has to be
+      // pure, and React invokes it twice in StrictMode. Nesting setScenario
+      // inside setScenarios happened to be idempotent, which is luck, not design.
+      const remaining = scenarios.filter((item) => item.scenario !== deleted);
+      setScenarios(remaining);
+      setScenario((selected) =>
+        selected === deleted
+          ? remaining.find((item) => !item.scenario.startsWith(CUSTOM_PREFIX))?.scenario ??
+            remaining[0]?.scenario ??
+            ""
+          : selected,
+      );
+      refreshScenarios();
+    },
+    [scenarios, refreshScenarios],
+  );
+
   const toggleChat = useCallback((open: boolean) => {
     setChatOpen(open);
     writeChatToUrl(open);
@@ -149,6 +203,10 @@ export default function App() {
   }, []);
 
   const selectedScenario = scenarios.find((item) => item.scenario === scenario);
+  // Grouped in the dropdown so a custom result can never be mistaken for one of
+  // the four recorded ones (guardrail 2). The `custom-` prefix does the work.
+  const recordedScenarios = scenarios.filter((item) => !item.scenario.startsWith(CUSTOM_PREFIX));
+  const customScenarios = scenarios.filter((item) => item.scenario.startsWith(CUSTOM_PREFIX));
 
   const loadReplay = useCallback(async () => {
     if (running) return;
@@ -184,16 +242,34 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function runScenario() {
-    if (!scenario || running) {
+  function runScenario(target?: string) {
+    const runFor = target ?? scenario;
+    const isCustom = runFor.startsWith(CUSTOM_PREFIX);
+    if (!runFor || running) {
       return;
+    }
+    if (target && target !== scenario) {
+      // Saving and running in one action: select it too, so the header, the
+      // dataset button and the chat panel all agree with what just ran.
+      setScenario(target);
     }
     streamRef.current?.close();
     setRunning(true);
     setError(null);
     setResult(null);
     setStages([]);
-    const stream = new EventSource(scenarioStreamUrl({ scenario, horizon, ppoTimesteps, topK }));
+    const stream = new EventSource(
+      scenarioStreamUrl({
+        scenario: runFor,
+        horizon,
+        ppoTimesteps,
+        topK,
+        // Left undefined for the four so they keep exactly their recorded
+        // behaviour: the server default is "everything" for a recorded scenario.
+        includePpo: isCustom ? includePpo : undefined,
+        includeRationale: isCustom ? includeRationale : undefined,
+      }),
+    );
     streamRef.current = stream;
 
     stream.addEventListener("stage", (event) => {
@@ -232,10 +308,29 @@ export default function App() {
   const withChat = (body: JSX.Element) => (
     <div className="flex min-h-screen flex-col lg:flex-row">
       <div className="min-w-0 flex-1">{body}</div>
+      {customOpen && !isReplayMode() ? (
+        <CustomScenarioPanel
+          onClose={() => setCustomOpen(false)}
+          onSavedSetChanged={refreshScenarios}
+          includePpo={includePpo}
+          includeRationale={includeRationale}
+          onIncludePpoChange={setIncludePpo}
+          onIncludeRationaleChange={setIncludeRationale}
+          onRun={(target) => {
+            setCustomOpen(false);
+            runScenario(target);
+          }}
+        />
+      ) : null}
       {chatOpen ? (
         <ChatPanel scenario={scenario} replay={isReplayMode()} onClose={() => toggleChat(false)} />
       ) : (
-        <AskThePlanButton onClick={() => toggleChat(true)} />
+        // The floating button is fixed to the bottom-right, which is exactly where
+        // the custom panel puts its Save / Save & run bar — it was intercepting
+        // those clicks outright. Shift it clear of the panel rather than hiding it:
+        // unmounting the chat surface would lose an open transcript, and Ryan
+        // parked that feature as-is (decision 12).
+        <AskThePlanButton onClick={() => toggleChat(true)} shifted={customOpen} />
       )}
     </div>
   );
@@ -248,6 +343,21 @@ export default function App() {
         onScenarioChange={changeDatasetScenario}
         onBack={openResults}
         replay={isReplayMode()}
+        // Reachable from this screen too. It is the screen a planner is looking at
+        // when they decide they want different conditions — and the one Ryan
+        // singled out. Omitted in replay, where every API call is blocked.
+        onOpenCustom={isReplayMode() ? undefined : () => setCustomOpen(true)}
+        customOpen={customOpen}
+        onDeleteScenario={
+          isReplayMode()
+            ? undefined
+            : (deleted) => {
+                handleDeleted(deleted);
+                // The dataset view is showing the scenario that just went away,
+                // so send the viewer back to a result that still exists.
+                openResults();
+              }
+        }
       />,
     );
   }
@@ -267,7 +377,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={runScenario}
+                onClick={() => runScenario()}
                 disabled={running || !scenario}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -284,6 +394,7 @@ export default function App() {
                 <Table2 className="h-4 w-4" />
                 View the dataset
               </button>
+              <DeleteScenarioButton scenario={scenario} onDeleted={handleDeleted} />
               <button
                 type="button"
                 onClick={loadReplay}
@@ -299,25 +410,95 @@ export default function App() {
           <div className="grid gap-3 md:grid-cols-[minmax(220px,1.2fr)_repeat(3,minmax(140px,0.5fr))]">
             <label className="control-label">
               Scenario
-              <select value={scenario} onChange={(event) => setScenario(event.target.value)} className="control">
-                {scenarios.map((item) => (
-                  <option value={item.scenario} key={item.scenario}>
-                    {item.scenario}
-                  </option>
-                ))}
+              <select
+                value={customOpen ? BUILD_YOUR_OWN : scenario}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (next === BUILD_YOUR_OWN) {
+                    setCustomOpen(true);
+                    return;
+                  }
+                  setCustomOpen(false);
+                  setScenario(next);
+                }}
+                className="control"
+                data-testid="scenario-select"
+              >
+                <optgroup label="Recorded benchmark scenarios">
+                  {recordedScenarios.map((item) => (
+                    <option value={item.scenario} key={item.scenario}>
+                      {item.scenario}
+                    </option>
+                  ))}
+                </optgroup>
+                {customScenarios.length ? (
+                  <optgroup label="Your custom scenarios">
+                    {customScenarios.map((item) => (
+                      <option value={item.scenario} key={item.scenario}>
+                        {item.scenario}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                {/* Not offered in replay: `?replay=true` is the walkthrough that needs
+                    no backend at all, and every /api/ call is blocked. Building a
+                    scenario requires the API, so offering the control there would
+                    hand a viewer a panel that can only say "Failed to fetch". */}
+                {isReplayMode() ? null : <option value={BUILD_YOUR_OWN}>Custom scenario…</option>}
               </select>
             </label>
             <NumberControl label="Horizon" min={1} max={52} value={horizon} onChange={setHorizon} />
             <NumberControl label="PPO timesteps" min={16} max={4096} value={ppoTimesteps} onChange={setPpoTimesteps} />
             <NumberControl label="Top K" min={1} max={10} value={topK} onChange={setTopK} />
           </div>
+          {/* Without this, "PPO timesteps" and "Top K" are controls a custom run
+              silently ignores — the exact kind of no-op this iteration forbids.
+              The recorded four always run everything, so they need no switches. */}
+          {customOpen || scenario.startsWith(CUSTOM_PREFIX) ? (
+            <div
+              className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-line bg-field px-3 py-2 text-sm text-[#4d5c51]"
+              data-testid="custom-run-options"
+            >
+              <span className="font-medium">A custom run will include:</span>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={includePpo}
+                  onChange={(event) => setIncludePpo(event.target.checked)}
+                  data-testid="run-include-ppo"
+                />
+                PPO candidate <span className="text-xs text-[#6b7a70]">(+~2.7 s)</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={includeRationale}
+                  onChange={(event) => setIncludeRationale(event.target.checked)}
+                  data-testid="run-include-rationale"
+                />
+                Written rationale <span className="text-xs text-[#6b7a70]">(+~20 s)</span>
+              </label>
+              <span className="text-xs text-[#6b7a70]">
+                Both are off by default so the loop stays about a second. Baseline and tuned classical
+                always run. <strong>PPO timesteps</strong> and <strong>Top K</strong> above only apply
+                when the matching box is ticked.
+              </span>
+            </div>
+          ) : null}
         </div>
       </section>
 
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:px-8">
         {error ? <ErrorBanner message={error} /> : null}
         <StageStepper stages={stages} running={running} />
-        {result ? <ResultsView benchmark={result.benchmark} rationale={result.rationale} /> : <EmptyState running={running} />}
+        {result ? (
+          <>
+            {result.benchmark.scenario.startsWith(CUSTOM_PREFIX) ? <CustomResultBanner result={result} /> : null}
+            <ResultsView benchmark={result.benchmark} rationale={result.rationale} />
+          </>
+        ) : (
+          <EmptyState running={running} />
+        )}
       </div>
     </main>,
   );
@@ -330,13 +511,54 @@ export default function App() {
  * header and does not need to know the panel exists. The `BETA` chip rides along
  * here too, so the label is visible before the panel is even opened.
  */
-function AskThePlanButton({ onClick }: { onClick: () => void }) {
+/**
+ * A custom result must never be quotable as one of the four recorded benchmark
+ * results (guardrail 2). The scenario name already carries `custom-`; this states
+ * it in words, and repeats the no-op warning if the run carried one — an
+ * unchanged objective has to be explained *after* the run as well as before it.
+ */
+function CustomResultBanner({ result }: { result: ScenarioComparison }) {
+  const warning = (result.warnings ?? []).find(
+    (item) => item.code === "capacity_window_misses_read_period",
+  );
+  const settings = result.run_settings;
+  return (
+    <section className="grid gap-3" data-testid="custom-result-banner">
+      <div className="rounded-md border border-[#c8d6cb] bg-[#eef5ef] p-3">
+        <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#2f6d4f]">
+          Custom scenario · not a recorded benchmark result
+        </p>
+        <p className="mt-1 text-sm leading-6 text-[#4d5c51]">
+          <strong className="font-mono">{result.benchmark.scenario}</strong> was built on this box and
+          run on the real pipeline. The four recorded benchmark results are unchanged; do not quote
+          this figure as one of them.
+          {settings?.excluded.length
+            ? ` Excluded from this run: ${settings.excluded.join(", ")}.`
+            : ""}
+        </p>
+      </div>
+      {warning ? (
+        <div className="rounded-md border border-[#d9b45f] bg-[#fdf7e6] p-3" data-testid="custom-result-noop">
+          <p className="flex items-start gap-2 text-sm font-semibold text-[#7a5b12]">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            Do not read this as resilience
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[#6b5a2a]">{warning.message}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function AskThePlanButton({ onClick, shifted = false }: { onClick: () => void; shifted?: boolean }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title="Ask a grounded question about this dataset or this run (beta)"
-      className="fixed bottom-5 right-5 z-30 inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink shadow-soft transition hover:bg-field focus:outline-none focus:ring-2 focus:ring-[#b8cfbd]"
+      className={`fixed bottom-5 z-30 inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white px-4 text-sm font-semibold text-ink shadow-soft transition hover:bg-field focus:outline-none focus:ring-2 focus:ring-[#b8cfbd] ${
+        shifted ? "right-5 lg:right-[31.5rem]" : "right-5"
+      }`}
     >
       <MessageSquare className="h-4 w-4 text-[#2f6f4e]" />
       Ask the plan

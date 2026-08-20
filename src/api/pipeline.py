@@ -33,7 +33,25 @@ from src.ingest.state import load_scenario_state, summarize_state
 from src.optimize.baseline.policy import optimize_baseline
 from src.pipeline.bench import run_head_to_head
 from src.pipeline.run import run_baseline_pipeline
-from src.rag.advisory import generate_advisory_rationale
+from src.rag.advisory import generate_advisory_rationale, not_generated_rationale
+from src.scenario.api import custom_settings_payload
+from src.scenario.preview import build_preview
+from src.scenario.run_card import (
+    ScenarioMissing,
+    build_run_card,
+    load_config_for,
+    reachability_warnings,
+)
+from src.scenario.store import (
+    is_custom as is_custom_scenario,
+    StoreError,
+    clear_all as clear_custom_scenarios,
+    delete as delete_custom_scenario,
+    list_custom as list_custom_scenarios,
+    save as save_custom_scenario,
+)
+from src.scenario.synthesize import CANONICAL_SCENARIOS
+from src.scenario.validate import capacity_reachability
 
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -68,7 +86,19 @@ class RAGRationaleRequest(BenchmarkRequest):
 
 
 class ScenarioComparisonRequest(RAGRationaleRequest):
-    pass
+    """Iteration 6a Phase 3 — decision 8's two opt-outs.
+
+    Both default to ``None``, meaning *"whatever is right for this kind of
+    scenario"*: the four recorded scenarios keep their existing full behaviour
+    (PPO evaluated, rationale written) so no recorded result changes shape, while
+    a custom scenario takes the fast path, because the lever loop has to be
+    drag-run-read and the rationale alone is ~20x the numeric comparison.
+
+    An explicit ``true``/``false`` always wins over the default.
+    """
+
+    include_ppo: bool | None = None
+    include_rationale: bool | None = None
 
 
 class ChatParseRequest(BaseModel):
@@ -113,6 +143,37 @@ class ChatAskRequest(BaseModel):
     # cannot be used to smuggle a large payload into the prompt path.
     question: str = Field(min_length=1, max_length=600)
     use_llm: bool = True
+
+
+class CustomScenarioPreviewRequest(BaseModel):
+    """Iteration 6a Phase 1 — preview a custom scenario. Writes nothing, runs nothing.
+
+    ``name`` deliberately carries no regex here. Decision 11 is validate-then-refuse
+    in plain English, and a pydantic pattern mismatch would surface as a 422 with a
+    regex in it. ``validate_slug`` produces a sentence a planner can act on instead;
+    the length bound is all that is needed to stop an oversized payload.
+    """
+
+    name: str = Field(min_length=1, max_length=64)
+    overrides: dict[str, Any] = Field(default_factory=dict, max_length=200)
+    simple: dict[str, Any] = Field(default_factory=dict, max_length=32)
+    seed: int = Field(default=12345, ge=0, le=2_147_483_647)
+    description: str | None = Field(default=None, max_length=280)
+    horizon: int = Field(default=8, ge=1, le=52)
+    include_ppo: bool = False
+    include_rationale: bool = False
+
+
+class CustomScenarioSaveRequest(CustomScenarioPreviewRequest):
+    """Iteration 6a Phase 2 — save a custom scenario.
+
+    Same body as the preview, so what a planner previewed is exactly what gets
+    saved, plus ``overwrite``. Overwriting is explicit rather than implied: a
+    silent overwrite of a scenario someone else on the box built is not a
+    behaviour worth defaulting to (decision 14 — storage is box-global).
+    """
+
+    overwrite: bool = False
 
 
 class GenericResponse(BaseModel):
@@ -180,31 +241,84 @@ def _recorded_latencies(scenario: str) -> dict[str, float]:
     }
 
 
+def resolve_run_flags(scenario: str, include_ppo: bool | None,
+                     include_rationale: bool | None) -> tuple[bool, bool]:
+    """Decision 8's defaults, in one place so both endpoints cannot drift apart.
+
+    A custom scenario defaults to the fast path; the four recorded scenarios
+    default to exactly what they did before Phase 3 existed.
+    """
+    custom = is_custom_scenario(scenario)
+    return (
+        (not custom) if include_ppo is None else bool(include_ppo),
+        (not custom) if include_rationale is None else bool(include_rationale),
+    )
+
+
 def _run_scenario_comparison(
     req: ScenarioComparisonRequest,
     progress_callback: Callable[[str, str], None] | None = None,
 ) -> dict[str, Any]:
+    include_ppo, include_rationale = resolve_run_flags(
+        req.scenario, req.include_ppo, req.include_rationale
+    )
     benchmark_result = run_head_to_head(
         req.scenario,
         horizon=req.horizon,
         ppo_timesteps=req.ppo_timesteps,
         progress_callback=progress_callback,
+        include_ppo=include_ppo,
     )
-    if progress_callback is not None:
-        progress_callback("rag", "running")
-    rationale = generate_advisory_rationale(
-        benchmark_result=benchmark_result,
-        top_k=req.top_k,
-        extra_documents=[
-            doc.model_dump() if hasattr(doc, "model_dump") else doc.dict()
-            for doc in req.corpus_documents
-        ],
-    )
-    if progress_callback is not None:
-        progress_callback("rag", "complete")
+    if include_rationale:
+        if progress_callback is not None:
+            progress_callback("rag", "running")
+        rationale = generate_advisory_rationale(
+            benchmark_result=benchmark_result,
+            top_k=req.top_k,
+            extra_documents=[
+                doc.model_dump() if hasattr(doc, "model_dump") else doc.dict()
+                for doc in req.corpus_documents
+            ],
+        )
+        if progress_callback is not None:
+            progress_callback("rag", "complete")
+    else:
+        # Emit a truthful stage rather than silently dropping one: a stream that
+        # just stops mentioning the rationale looks like a stall. Same reasoning
+        # as Iteration 5's `cache/hit` stage.
+        if progress_callback is not None:
+            progress_callback("rag", "skipped")
+        rationale = not_generated_rationale(benchmark_result)
+    # Explain it *after* the run too, not only on the pre-run card. A planner who
+    # ran anyway has to be told why the numbers look untouched, or an unchanged
+    # objective reads as resilience — the Iteration 5 no-op lesson.
+    reachability: dict[str, Any] | None = None
+    warnings: list[dict[str, Any]] = []
+    try:
+        config = load_config_for(req.scenario)
+    except (ScenarioMissing, StoreError, OSError):
+        config = None
+    if config is not None:
+        reachability = capacity_reachability(config)
+        warnings = reachability_warnings(config, reachability=reachability)
+
     return {
         "benchmark": benchmark_result,
         "rationale": rationale,
+        "capacity_reachability": reachability,
+        "warnings": warnings,
+        # What actually ran, stated in the payload. A reader should never have to
+        # infer from a missing key whether PPO was excluded or merely lost.
+        "run_settings": {
+            "include_ppo": include_ppo,
+            "include_rationale": include_rationale,
+            "is_custom": is_custom_scenario(req.scenario),
+            "horizon": req.horizon,
+            "excluded": [
+                stage for stage, on in (("ppo", include_ppo), ("rationale", include_rationale))
+                if not on
+            ],
+        },
     }
 
 
@@ -215,6 +329,131 @@ def _sse_event(event: str, data: dict[str, Any]) -> str:
 @router.get("/scenarios", response_model=GenericResponse)
 def list_scenarios():
     return GenericResponse(status="ok", data={"scenarios": _scenario_configs()})
+
+
+@router.get("/scenarios/custom/settings", response_model=GenericResponse)
+def custom_scenario_settings():
+    """The settings ledger: every editable setting, its range, and what it can change.
+
+    Read-only. This is the honest-labelling surface — each setting carries the
+    reach it *earned* from the two derivations in :mod:`src.scenario.ledger`, so
+    the Advanced tier can show the 13 + 1 settings that cannot move the answer
+    under decision 15's heading rather than as live controls.
+    """
+    return GenericResponse(status="ok", data=custom_settings_payload())
+
+
+@router.post("/scenarios/custom/preview", response_model=GenericResponse)
+def custom_scenario_preview(req: CustomScenarioPreviewRequest, request: Request):
+    """Resolve a custom scenario and report on it **without writing or running anything**.
+
+    Returns the complete config the edits resolve to, the diff against ``baseline``,
+    the ``reaches_optimizer`` verdict for any lane disruption, and a run estimate
+    with its basis. Persistence is Phase 2; execution is Phase 3.
+    """
+    enforce(request, bucket="light")
+    payload = build_preview(
+        req.name,
+        overrides=req.overrides or None,
+        simple=req.simple or None,
+        seed=req.seed,
+        description=req.description,
+        run_horizon=req.horizon,
+        include_ppo=req.include_ppo,
+        include_rationale=req.include_rationale,
+    )
+    return GenericResponse(scenario=payload["scenario"], status="ok", data=payload)
+
+
+def _store_error(exc: StoreError) -> HTTPException:
+    """Turn a store refusal into the status code the posture already uses."""
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"code": exc.code, "message": exc.message},
+    )
+
+
+@router.post("/scenarios/custom", response_model=GenericResponse)
+def custom_scenario_save(req: CustomScenarioSaveRequest, request: Request):
+    """Validate, write the config, generate the data, and report what was saved.
+
+    Decision 11 is validate-then-refuse-then-write: an infeasible configuration is
+    turned down in plain English *before* anything reaches the disk. The config
+    that gets written is the one ``build_preview`` resolved, so the preview and the
+    saved file cannot disagree.
+    """
+    enforce(request, bucket="save")
+    preview = build_preview(
+        req.name,
+        overrides=req.overrides or None,
+        simple=req.simple or None,
+        seed=req.seed,
+        description=req.description,
+        run_horizon=req.horizon,
+        include_ppo=req.include_ppo,
+        include_rationale=req.include_rationale,
+    )
+    if not preview["validation"]["ok"]:
+        # 422 with the whole preview: the caller gets every refusal at once, plus
+        # the resolved config it would have saved, which is what makes the message
+        # actionable rather than just negative.
+        raise HTTPException(status_code=422, detail=preview)
+    try:
+        saved = save_custom_scenario(
+            req.name,
+            preview["resolved_config"],
+            seed=req.seed,
+            overwrite=req.overwrite,
+        )
+    except StoreError as exc:
+        raise _store_error(exc) from exc
+    return GenericResponse(
+        scenario=saved["scenario"],
+        status="ok",
+        data={
+            "saved": saved,
+            "validation": preview["validation"],
+            "config_changes": preview["config_changes"],
+            "config_changes_count": preview["config_changes_count"],
+            "capacity_reachability": preview["capacity_reachability"],
+            "run_estimate": preview["run_estimate"],
+            "label": preview["label"],
+        },
+    )
+
+
+@router.get("/scenarios/custom", response_model=GenericResponse)
+def custom_scenario_list(request: Request):
+    """Every custom scenario saved on this box (decision 14: box-global)."""
+    enforce(request, bucket="light")
+    scenarios = list_custom_scenarios()
+    return GenericResponse(
+        status="ok",
+        data={
+            "scenarios": scenarios,
+            "count": len(scenarios),
+            "protected": list(CANONICAL_SCENARIOS),
+            "storage": "This box. Saved scenarios are visible to anyone who can reach it.",
+        },
+    )
+
+
+@router.delete("/scenarios/custom", response_model=GenericResponse)
+def custom_scenario_clear_all(request: Request):
+    """Delete every custom scenario. Selects on the ``custom-`` prefix only."""
+    enforce(request, bucket="save")
+    return GenericResponse(status="ok", data=clear_custom_scenarios())
+
+
+@router.delete("/scenarios/custom/{slug}", response_model=GenericResponse)
+def custom_scenario_delete(slug: str, request: Request):
+    """Delete one custom scenario: its config, its data and its artifacts."""
+    enforce(request, bucket="save")
+    try:
+        removed = delete_custom_scenario(slug)
+    except StoreError as exc:
+        raise _store_error(exc) from exc
+    return GenericResponse(scenario=removed["scenario"], status="ok", data=removed)
 
 
 @router.get("/dataset/overview", response_model=GenericResponse)
@@ -595,6 +834,39 @@ def rag_rationale(req: RAGRationaleRequest):
         raise HTTPException(status_code=503, detail=f"RAG rationale failed: {exc}")
 
 
+@router.get("/scenario-comparison/card", response_model=GenericResponse)
+def scenario_comparison_card(
+    request: Request,
+    scenario: str = Query(min_length=1, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$"),
+    horizon: int = Query(default=8, ge=1, le=52),
+    include_ppo: bool | None = Query(default=None),
+    include_rationale: bool | None = Query(default=None),
+):
+    """What a run will do, before it does it. Runs nothing.
+
+    Iteration 5's confirm-card pattern: the reading, the estimate **with its
+    basis**, the seed, what is excluded, and the ``reaches_optimizer`` warning
+    when a lane-disruption window misses the period the optimizer actually reads.
+    """
+    enforce(request, bucket="light")
+    resolved_ppo, resolved_rationale = resolve_run_flags(scenario, include_ppo, include_rationale)
+    try:
+        return GenericResponse(
+            scenario=scenario,
+            status="ok",
+            data=build_run_card(
+                scenario,
+                include_ppo=resolved_ppo,
+                include_rationale=resolved_rationale,
+                horizon=horizon,
+            ),
+        )
+    except ScenarioMissing as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except StoreError as exc:
+        raise _store_error(exc) from exc
+
+
 @router.post("/scenario-comparison", response_model=GenericResponse)
 def scenario_comparison(req: ScenarioComparisonRequest):
     try:
@@ -615,12 +887,16 @@ def scenario_comparison_stream(
     horizon: int = Query(default=8, ge=1, le=52),
     ppo_timesteps: int = Query(default=128, ge=16, le=4096),
     top_k: int = Query(default=5, ge=1, le=10),
+    include_ppo: bool | None = Query(default=None),
+    include_rationale: bool | None = Query(default=None),
 ):
     req = ScenarioComparisonRequest(
         scenario=scenario,
         horizon=horizon,
         ppo_timesteps=ppo_timesteps,
         top_k=top_k,
+        include_ppo=include_ppo,
+        include_rationale=include_rationale,
     )
 
     def events():

@@ -137,9 +137,13 @@ def test_scenario_comparison_post_reuses_single_benchmark_result(monkeypatch):
     monkeypatch.setenv("HELIX_API_KEY", API_KEY)
     calls = {"benchmark": 0, "rationale": 0}
 
-    def fake_benchmark(scenario: str, horizon: int, ppo_timesteps: int, progress_callback=None):
+    def fake_benchmark(scenario: str, horizon: int, ppo_timesteps: int,
+                       progress_callback=None, include_ppo: bool = True):
         calls["benchmark"] += 1
         assert (scenario, horizon, ppo_timesteps) == ("baseline", 4, 16)
+        # Iteration 6a decision 8: a recorded scenario keeps its existing full
+        # behaviour, so PPO is still evaluated unless the caller opts out.
+        assert include_ppo is True
         return _benchmark_result()
 
     def fake_rationale(benchmark_result: dict, top_k: int, extra_documents: list[dict]):
@@ -178,8 +182,10 @@ def test_scenario_comparison_sse_emits_stage_events_and_final_payload(monkeypatc
     monkeypatch.setenv("HELIX_API_KEY", API_KEY)
     calls = {"benchmark": 0}
 
-    def fake_benchmark(scenario: str, horizon: int, ppo_timesteps: int, progress_callback=None):
+    def fake_benchmark(scenario: str, horizon: int, ppo_timesteps: int,
+                       progress_callback=None, include_ppo: bool = True):
         calls["benchmark"] += 1
+        assert include_ppo is True, "a recorded scenario still evaluates PPO by default"
         # The SSE endpoint must drive real per-stage progress through this
         # callback, not fake it up front, so exercise it here.
         if progress_callback is not None:

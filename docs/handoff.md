@@ -2,11 +2,13 @@
 
 > **Status:** Iteration 4 (dataset transparency) merged to `main` 2026-08-03. **Iteration 5 (Beta) —
 > the conversational analyst — is complete on `feat/iteration5-beta-conversational-analyst`
-> (2026-08-05) and MERGED to `main` (`bc42bb3`).** `make test` → **347 passed + 2 xpassed** (349 total); web
-> **62 Vitest**, **26/26** browser checks. Tuned classical still wins all four scenarios, bit-identical.
+> (2026-08-05) and MERGED to `main` (`bc42bb3`). **Iteration 6a** (custom scenario panel) is complete
+> and verified on `feat/iteration6a-custom-scenario` (2026-08-20).** `make test` → **558 passed + 2
+> xpassed** (560 total); web
+> **108 Vitest**, **38/38** browser checks. Tuned classical still wins all four scenarios, bit-identical.
 > 🔴 Ryan has not reviewed Iteration 4 or 5 — the chat surface carries a visible `BETA` chip.
 
-_Last updated: **2026-08-05** (Iteration 5 Phase 6)_
+_Last updated: **2026-08-20** (Iteration 6a Phase 5)_
 
 ## Quick start
 
@@ -16,7 +18,7 @@ make test                     # full regression suite (349 tests on-device)
 make demo                     # generate data, rebuild web, print every demo URL
 make bench-all                # all four scenarios → benchmark/suite-summary.{json,md}
 make run SCENARIO=baseline    # single scenario end-to-end plan + metrics
-make web-test                 # 62 Vitest tests, run from the committed lockfile
+make web-test                 # 108 Vitest tests, run from the committed lockfile
 make web-check                # 26 headless-Chromium checks against the running stack
 ```
 
@@ -36,6 +38,36 @@ measured objective. Signed deltas are computed from those returned values. The r
 
 For the full demo walkthrough with talk tracks: [`docs/DEMO_GUIDE.md`](DEMO_GUIDE.md) — Option D is
 the chat panel.
+
+## Iteration 6a — the custom scenario panel
+
+Open `http://localhost:8081`, pick **"Custom scenario…"** (the fifth entry in the Scenario dropdown,
+available on the results screen and the dataset view).
+Move the controls, name it, **Save & run**. A default custom run is **~1.2 s**; the save is
+**0.04–0.07 s**.
+
+```bash
+make scenario-ledger        # print what each of the 59 settings can and cannot change
+make scenario-eval          # 29 validation cases, 7 of them controls
+```
+
+**Two things to state, not gloss:**
+
+- **15 of the 59 settings cannot change the optimizer's answer.** They are shown in Advanced under
+  *"recorded in the dataset, not read by the optimizer"*. `capacity.dc_throughput_units_per_period` is
+  the one that reads most like a real lever and is not one.
+- **Lane capacity reaches the optimizer at one period** (`max(demand.period)` — 52, or 104 on
+  `stress-large`). A disruption window that misses it is a measured no-op; the panel warns before the
+  run and explains after. **Do not silently widen a window to manufacture a difference.**
+
+Saved scenarios are **box-global and single-user**: anyone who can reach the box sees them. Custom
+configs, data and artifacts are all git-ignored; host-side cleanup needs `sudo`, because the container
+writes them as root into the bind mount. `make bench-all` and `make demo-data` iterate a literal list
+of four, so a custom scenario cannot leak into the recorded suite.
+
+Full detail:
+[`iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md).
+Demo script: `DEMO_GUIDE.md` **Option E**.
 
 ## Iteration 5 (BETA) — the conversational analyst
 
@@ -82,7 +114,7 @@ forecasting, hospital/clinical service-level claims, "make the numbers look bett
 requests, and prompt injection in the user's own message. Every refusal states what it *can* do and
 contains no numbers.
 
-## Current results (2026-08-05, seed 12345 — bit-identical since Iteration 4 Phase 0)
+## Current results (re-verified 2026-08-20, seed 12345 — bit-identical since Iteration 4 Phase 0)
 
 | Scenario | Baseline obj | Classical obj | Improvement | PPO | Winner |
 |---|---:|---:|---:|---|---|
@@ -145,6 +177,13 @@ narrates, the deterministic pipeline computes, and a numeric validator enforces 
 
 ## Known limits carried forward (state these; do not quietly fix them)
 
+**Iteration 6a:** the panel edits the scenario layer only — no adding or removing suppliers, plants,
+warehouses, customers or products (that is 6b) · 15 of 59 settings cannot change the answer and are
+labelled · lane capacity is read at one period, so a narrow disruption window is a real no-op ·
+saved scenarios are box-global and single-user · `POST /scenario-comparison` is still not rate limited
+and is now reachable from a click · **no human has read the Option E talk track out loud yet.**
+
+
 - 🔴 **Lane capacity reaches the optimizer at exactly one period** — `state.horizon()` =
   `max(demand.period)` = 52 (104 on `stress-large`). A capacity perturbation whose window excludes it
   is a measured no-op, and the chat layer reports it as one *with the mechanism*. Whether the
@@ -168,9 +207,10 @@ narrates, the deterministic pipeline computes, and a numeric validator enforces 
 
 ## Key documents
 
-- [`DEMO_GUIDE.md`](DEMO_GUIDE.md) — full demo walkthrough with talk tracks (Options A–D)
+- [`DEMO_GUIDE.md`](DEMO_GUIDE.md) — full demo walkthrough with talk tracks (Options A–E)
 - [`DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) — chronological truth ledger
-- [`iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md) — **Iteration 5 (Beta) handoff — current**
+- [`iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md) — **Iteration 6a handoff — current**
+- [`iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md) — Iteration 5 (Beta) handoff
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md) — Iteration 4 handoff
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md) — Iteration 3 handoff
 - [`Iteration5_Plan_of_Action.md`](Iteration5_Plan_of_Action.md) — the current phase-by-phase blueprint

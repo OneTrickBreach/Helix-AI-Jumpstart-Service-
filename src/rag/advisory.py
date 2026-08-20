@@ -117,6 +117,60 @@ def _scan_retrieved_citations(citations: list[dict[str, Any]]) -> list[dict[str,
     return findings
 
 
+#: The marker a skipped rationale carries. Decision 8: the written rationale is
+#: ~20x the cost of the entire numeric comparison, so it is off by default for a
+#: custom scenario's drag-run-read loop.
+NOT_GENERATED_SOURCE = "not_generated_for_this_run"
+
+
+def not_generated_rationale(
+    benchmark_result: dict[str, Any],
+    reason: str | None = None,
+) -> dict[str, Any]:
+    """A real rationale object saying, explicitly, that no rationale was written.
+
+    **Never return ``None`` here, and never omit the key.** ``ResultsView``,
+    ``PlanSummary`` and ``RationalePanel`` in ``web/src/App.tsx`` take
+    ``rationale`` as a *required* prop and dereference ``advisory_rationale`` and
+    ``selected_approach`` directly, so a null would break the results screen for
+    the four shipped scenarios as well as for a custom one.
+
+    The numbers in the payload are real and unaffected — the LLM never computes
+    them — so this keeps the provenance fields and drops only the prose.
+    """
+    winner = benchmark_result.get("winner") or {}
+    selected_approach = str(winner.get("approach", "classical"))
+    plans = benchmark_result.get("plans") or {}
+    selected_plan = plans.get(selected_approach) or {}
+    explanation = reason or (
+        "No written rationale was generated for this run. The numbers below come from "
+        "the optimizer exactly as they always do; only the narration was skipped, "
+        "because generating it takes about 20 times as long as the comparison itself. "
+        "Re-run with the rationale enabled to have it written."
+    )
+    return {
+        "advisory": True,
+        "label": f"{ADVISORY_LABEL} — NOT GENERATED FOR THIS RUN",
+        "scenario": str(benchmark_result.get("scenario", "")),
+        "selected_approach": selected_approach,
+        # The metrics and their provenance are untouched: skipping the narration
+        # does not make the measured result any less traceable.
+        "numeric_metrics_source": NUMERIC_METRICS_SOURCE,
+        "numeric_metrics_generated_by": "optimizer_benchmark_not_llm",
+        "chosen_plan_metrics": selected_plan.get("metrics", {}),
+        "benchmark_winner": winner,
+        "benchmark_comparison": benchmark_result.get("comparison", []),
+        "advisory_rationale": explanation,
+        "advisory_text_source": NOT_GENERATED_SOURCE,
+        "generated": False,
+        "citations": [],
+        "prompt_injection_flags": [],
+        "retrieval": {"backend": None, "reason": NOT_GENERATED_SOURCE},
+        "llm_profile": {"model": None, "reason": NOT_GENERATED_SOURCE},
+        "llm_usage": {},
+    }
+
+
 def generate_advisory_rationale(
     benchmark_result: dict[str, Any],
     top_k: int = 5,
@@ -196,6 +250,9 @@ def generate_advisory_rationale(
         "benchmark_comparison": benchmark_result["comparison"],
         "advisory_rationale": advisory_text,
         "advisory_text_source": advisory_text_source,
+        # Symmetric with not_generated_rationale, so a consumer branches on one
+        # field rather than on the absence of a key.
+        "generated": True,
         "citations": retrieved,
         "retrieval": {
             "backend": "qdrant",
@@ -485,6 +542,28 @@ def chunk_documents(documents: list[CorpusDocument], max_chars: int = 1400) -> l
 def collection_name(scenario: str) -> str:
     safe = re.sub(r"[^a-zA-Z0-9_-]+", "_", scenario).strip("_").lower()
     return f"{COLLECTION_PREFIX}_{safe}"
+
+
+def delete_scenario_collection(scenario: str) -> dict[str, Any]:
+    """Drop a scenario's Qdrant collection. Best effort, and never raises.
+
+    Iteration 6a guardrail 6: deleting is as first-class as saving. A custom
+    scenario that had a written rationale generated for it owns a collection here,
+    and leaving it behind would make the feature one that can only accumulate
+    state. Deleting a scenario must not *fail* because the vector store is down,
+    though, so every error is reported rather than raised.
+    """
+    collection = collection_name(scenario)
+    try:
+        with httpx.Client(base_url=QDRANT_URL, timeout=15.0) as client:
+            response = client.delete(f"/collections/{collection}")
+        return {
+            "collection": collection,
+            "deleted": response.status_code < 400,
+            "status_code": response.status_code,
+        }
+    except Exception as exc:  # noqa: BLE001 - a cleanup path must be total
+        return {"collection": collection, "deleted": False, "error": f"{type(exc).__name__}: {exc}"}
 
 
 def strip_reasoning_scratchpad(text: str) -> str:

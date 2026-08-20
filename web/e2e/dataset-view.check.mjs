@@ -526,6 +526,345 @@ async function askStarter(page, question, timeout = 90000) {
   await context.close();
 }
 
+// --- Iteration 6a Phase 4: build your own scenario ---------------------------
+// The full loop a planner does, in a real browser: open the panel from the fifth
+// dropdown entry, move controls, read the change list, save, run, read a result
+// that is labelled as custom, then delete it. Plus the two things that are
+// correctness rather than feature (plan §0.6): the inert-settings labelling and
+// the capacity no-op warning.
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+
+  const SLUG = `webcheck-${Date.now().toString(36)}`;
+  const PANEL = '[data-testid="custom-panel"]';
+
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+  // The fifth dropdown entry, grouped away from the recorded four.
+  const optionGroups = await page.locator("[data-testid='scenario-select'] optgroup").allInnerTexts();
+  const hasBuildEntry = await page.locator("[data-testid='scenario-select'] option[value='__custom__']").count();
+  await page.selectOption("[data-testid='scenario-select']", "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 15000 });
+
+  // Pre-filled from baseline, and it says so.
+  const panelIntro = await page.locator(PANEL).innerText();
+
+  // Delete has to be findable WITHOUT scrolling, measured the moment the panel
+  // opens and before anything else scrolls it. It previously sat at the bottom of
+  // the panel's scroll area as a bare icon, and a reviewer could not find it.
+  // The bound is two-sided on purpose: a negative y would mean the section had
+  // been scrolled off the top, which a `y < height` check alone would let pass.
+  const savedBox = await page.locator('[data-testid="custom-saved"]').boundingBox();
+  const savedText = await page.locator('[data-testid="custom-saved"]').innerText();
+  const deleteVisible =
+    Boolean(savedBox) && savedBox.y >= 0 && savedBox.y < VIEWPORTS.desktop.height;
+  const deleteNamed = /delete/i.test(savedText);
+  if (!(deleteVisible && deleteNamed)) failures++;
+  console.log(
+    `${deleteVisible && deleteNamed ? "PASS" : "FAIL"} delete is discoverable without scrolling ` +
+    `sectionY=${savedBox ? Math.round(savedBox.y) : "none"}/${VIEWPORTS.desktop.height} ` +
+    `namesDelete=${deleteNamed}`
+  );
+
+  await page.fill('[data-testid="custom-name"]', SLUG);
+  const targetName = await page.locator('[data-testid="custom-target-name"]').innerText();
+
+  // A Simple-tier control that reaches the optimizer.
+  await page.fill('[data-testid="simple-demand_level"] input', "52");
+  await page.waitForSelector('[data-testid="custom-changes"]', { timeout: 15000 });
+  const changesText = await page.locator('[data-testid="custom-changes"]').innerText();
+  const estimateText = await page.locator('[data-testid="custom-estimate"]').innerText();
+
+  // Advanced: all settings, with the inert ones under their own heading.
+  await page.click('[data-testid="custom-advanced-toggle"]');
+  await page.waitForSelector('[data-testid="custom-inert-settings"]', { timeout: 15000 });
+  const inertHeading = await page.locator('[data-testid="custom-inert-heading"]').innerText();
+  const inertBlock = await page.locator('[data-testid="custom-inert-settings"]').innerText();
+  // The single most misleading control in the iteration, explicitly labelled.
+  const dcThroughputLabelled =
+    (await page.locator('[data-testid="reach-capacity.dc_throughput_units_per_period"]').count()) > 0;
+  const advancedSettingCount = await page.locator('[data-testid^="setting-"]').count();
+
+  const labellingOk =
+    /not read by the optimizer/i.test(inertHeading) &&
+    dcThroughputLabelled &&
+    advancedSettingCount === 59;
+  if (!labellingOk) failures++;
+  console.log(
+    `${labellingOk ? "PASS" : "FAIL"} custom advanced labelling settings=${advancedSettingCount} ` +
+    `inertHeading="${inertHeading.slice(0, 48)}" dcThroughputFlagged=${dcThroughputLabelled}`
+  );
+
+  // Decision 8's opt-ins have to be visible, or "PPO timesteps" and "Top K" are
+  // controls a custom run silently ignores.
+  const runOptions = await page.locator('[data-testid="custom-run-options"]').innerText();
+  const ppoBox = await page.locator('[data-testid="run-include-ppo"]').count();
+  const ratBox = await page.locator('[data-testid="run-include-rationale"]').count();
+  const optionsOk = ppoBox === 1 && ratBox === 1 && /off by default/i.test(runOptions);
+  if (!optionsOk) failures++;
+  console.log(
+    `${optionsOk ? "PASS" : "FAIL"} custom run opt-ins are visible and explained ` +
+    `ppoBox=${ppoBox} rationaleBox=${ratBox} explains=${/off by default/i.test(runOptions)}`
+  );
+
+  // Save and run it for real.
+  await page.click('[data-testid="custom-save-run"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 120000 });
+  const banner = await page.locator('[data-testid="custom-result-banner"]').innerText();
+  const winner = await page.locator("text=Winner:").first().innerText().catch(() => "");
+  const selectValue = await page.locator("[data-testid='scenario-select']").inputValue();
+
+  const runOk =
+    /not a recorded benchmark result/i.test(banner) &&
+    banner.includes(`custom-${SLUG}`) &&
+    /Winner:/.test(winner) &&
+    selectValue === `custom-${SLUG}` &&
+    errs.length === 0;
+  if (!runOk) failures++;
+  console.log(
+    `${runOk ? "PASS" : "FAIL"} custom created -> run -> results name=custom-${SLUG} ` +
+    `labelled=${/not a recorded benchmark result/i.test(banner)} winner="${winner}" ` +
+    `dropdownFollowed=${selectValue === `custom-${SLUG}`} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  const createOk =
+    hasBuildEntry === 1 &&
+    optionGroups.length >= 1 &&
+    /Starts from/.test(panelIntro) &&
+    targetName.includes(`custom-${SLUG}`) &&
+    /demand/i.test(changesText) &&
+    /A run should take/.test(estimateText);
+  if (!createOk) failures++;
+  console.log(
+    `${createOk ? "PASS" : "FAIL"} custom panel opens from the dropdown fifthEntry=${hasBuildEntry === 1} ` +
+    `groups=${optionGroups.length} targetName="${targetName.replace(/\s+/g, " ").slice(0, 40)}" ` +
+    `changeListed=${/demand/i.test(changesText)} estimateShown=${/A run should take/.test(estimateText)}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/custom-scenario-result.png` });
+
+  // --- the capacity no-op warning, before the run ---------------------------
+  await page.selectOption("[data-testid='scenario-select']", "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 15000 });
+  await page.fill('[data-testid="custom-name"]', `${SLUG}-noop`);
+  await page.click('[data-testid="simple-lane_disruption"] input[type="checkbox"]');
+  const fields = page.locator('[data-testid="simple-lane_disruption"] input.control');
+  await fields.nth(0).fill("inbound_raw");
+  await fields.nth(1).fill("2");
+  await fields.nth(2).fill("18");
+  await fields.nth(3).fill("10");
+  await fields.nth(4).fill("0");
+  await page.waitForSelector('[data-testid="custom-capacity-warning"]', { timeout: 20000 });
+  const warningBlock = page.locator('[data-testid="custom-capacity-warning"]');
+  const warning = await warningBlock.innerText();
+  // Assert on the strings *this UI* renders, not just on the API's sentence: the
+  // API message already contains "not change the answer", so a looser match would
+  // pass even if the amber block and its resilience caveat never rendered.
+  const heading = await warningBlock.locator("text=This disruption will not change the answer").count();
+  const caveat = await warningBlock.locator("text=Do not read an unchanged result as resilience").count();
+  const amber = await warningBlock.evaluate((el) => getComputedStyle(el).backgroundColor);
+
+  const noopOk =
+    heading === 1 &&
+    caveat === 1 &&
+    /period 52/.test(warning) &&
+    amber !== "rgba(0, 0, 0, 0)";
+  if (!noopOk) failures++;
+  console.log(
+    `${noopOk ? "PASS" : "FAIL"} custom no-op window warned BEFORE the run heading=${heading === 1} ` +
+    `namesReadPeriod=${/period 52/.test(warning)} resilienceCaveat=${caveat === 1} amber="${amber}"`
+  );
+  // The Iteration 5 screenshot lesson: committed evidence that omits the label it
+  // exists to carry is worse than no screenshot. The panel scrolls, so the warning
+  // sits below a 1080px fold — scroll it into view before shooting.
+  await warningBlock.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${SHOT_DIR}/custom-scenario-noop-warning.png` });
+
+  // The opt-ins must NOT appear for a recorded scenario: those always run
+  // everything, so a switch there would be a lie.
+  await page.selectOption("[data-testid='scenario-select']", "baseline");
+  const optionsOnRecorded = await page.locator('[data-testid="custom-run-options"]').count();
+  if (optionsOnRecorded !== 0) failures++;
+  console.log(
+    `${optionsOnRecorded === 0 ? "PASS" : "FAIL"} run opt-ins are hidden for a recorded scenario ` +
+    `count=${optionsOnRecorded}`
+  );
+
+  // Delete has to be reachable from the scenario you are LOOKING AT, not only from
+  // inside the panel. A reviewer with custom-test selected reported no delete
+  // option at all, because finding it meant switching the dropdown away from it.
+  await page.selectOption("[data-testid='scenario-select']", `custom-${SLUG}`);
+  const headerDelete = await page.locator('[data-testid="delete-selected-scenario"]').count();
+  await page.selectOption("[data-testid='scenario-select']", "baseline");
+  const deleteOnRecorded = await page.locator('[data-testid="delete-selected-scenario"]').count();
+
+  // Two-step: deleting is not undoable, so it must not happen on one stray click.
+  await page.selectOption("[data-testid='scenario-select']", `custom-${SLUG}`);
+  await page.click('[data-testid="delete-selected-scenario"]');
+  const confirmShown = await page.locator('[data-testid="delete-confirm-yes"]').count();
+  await page.click('[data-testid="delete-confirm-no"]');
+  const cancelled = await page.locator('[data-testid="delete-selected-scenario"]').count();
+
+  const headerDeleteOk =
+    headerDelete === 1 && deleteOnRecorded === 0 && confirmShown === 1 && cancelled === 1;
+  if (!headerDeleteOk) failures++;
+  console.log(
+    `${headerDeleteOk ? "PASS" : "FAIL"} delete is on the selected scenario's own header ` +
+    `presentForCustom=${headerDelete === 1} hiddenForRecorded=${deleteOnRecorded === 0} ` +
+    `twoStep=${confirmShown === 1} cancellable=${cancelled === 1}`
+  );
+
+  // --- delete, and confirm it leaves the dropdown ---------------------------
+  await page.selectOption("[data-testid='scenario-select']", "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 15000 });
+  const savedBefore = await page.locator('[data-testid="custom-saved-list"] li').count();
+  await page.click(`[aria-label="Delete custom-${SLUG}"]`);
+  await page.waitForFunction(
+    (expected) =>
+      document.querySelectorAll('[data-testid="custom-saved-list"] li').length < expected ||
+      document.querySelectorAll('[data-testid="custom-saved-list"]').length === 0,
+    savedBefore,
+    { timeout: 20000 },
+  );
+  const notice = await page.locator('[data-testid="custom-notice"]').innerText().catch(() => "");
+  await page.click(`${PANEL} [aria-label="Close custom scenario panel"]`);
+  const optionsAfter = await page.locator("[data-testid='scenario-select'] option").allInnerTexts();
+
+  const deleteOk =
+    /Deleted/.test(notice) &&
+    !optionsAfter.some((text) => text.includes(SLUG)) &&
+    optionsAfter.some((text) => text.trim() === "baseline");
+  if (!deleteOk) failures++;
+  console.log(
+    `${deleteOk ? "PASS" : "FAIL"} custom deleted and gone from the dropdown ` +
+    `notice="${notice.slice(0, 40)}" stillListed=${optionsAfter.some((t) => t.includes(SLUG))} ` +
+    `recordedFourIntact=${optionsAfter.filter((t) => !t.includes("custom")).length >= 4}`
+  );
+
+  await context.close();
+}
+
+// --- Iteration 6a: the recorded walkthrough must not offer a control that needs
+// the API. `?replay=true` blocks every /api/ call by design, so a "Custom
+// scenario…" entry there could only ever produce "Failed to fetch".
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  await page.route("**/api/**", (route) => route.abort());
+  await page.goto(`${BASE}/?replay=true`, { waitUntil: "networkidle" });
+  await page.waitForSelector("text=Why this plan", { timeout: 25000 }).catch(() => {});
+
+  const offered = await page
+    .locator("[data-testid='scenario-select'] option[value='__custom__']")
+    .count();
+  const noPanel = (await page.locator('[data-testid="custom-panel"]').count()) === 0;
+  const replayOk = offered === 0 && noPanel && errs.length === 0;
+  if (!replayOk) failures++;
+  console.log(
+    `${replayOk ? "PASS" : "FAIL"} replay offers no custom-scenario control ` +
+    `entryOffered=${offered} panelAbsent=${noPanel} errors=${errs.length}`
+  );
+
+  await context.close();
+}
+
+// --- Iteration 6a: the entry has to be on the dataset view too -----------------
+// The plan's Phase 4 objective is "the control panel Ryan asked for, ON THE SCREEN
+// HE LIKED" — and the screen he singled out is the dataset view, not the results
+// screen. It was initially wired only into the results dropdown, and a reviewer
+// looking at the dataset view could not find it at all.
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+
+  await page.goto(`${BASE}/?view=dataset&scenario=baseline`, { waitUntil: "networkidle" });
+  await page.waitForSelector("text=How the network is laid out", { timeout: 20000 }).catch(() => {});
+
+  const SELECT = "[data-testid='dataset-scenario-select']";
+  const offered = await page.locator(`${SELECT} option[value='__custom__']`).count();
+  const grouped = await page
+    .locator(`${SELECT} optgroup`)
+    .evaluateAll((groups) => groups.map((group) => group.label));
+
+  await page.selectOption(SELECT, "__custom__");
+  const panelOpened = await page
+    .waitForSelector('[data-testid="custom-panel"]', { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  // Beside, not over: the map Ryan likes has to stay on screen.
+  const mapStillVisible = await page.locator("text=How the network is laid out").isVisible();
+
+  // The same control on this screen, since this is where a planner is looking.
+  await page.goto(`${BASE}/?view=dataset&scenario=baseline`, { waitUntil: "networkidle" });
+  const datasetDeleteOnRecorded = await page
+    .locator('[data-testid="delete-selected-scenario"]')
+    .count();
+
+  const datasetOk =
+    datasetDeleteOnRecorded === 0 &&
+    offered === 1 &&
+    grouped.includes("Recorded benchmark scenarios") &&
+    panelOpened &&
+    mapStillVisible &&
+    errs.length === 0;
+  if (!datasetOk) failures++;
+  console.log(
+    `${datasetOk ? "PASS" : "FAIL"} custom panel opens from the DATASET view ` +
+    `entryOffered=${offered === 1} grouped=${grouped.length} panelOpened=${panelOpened} ` +
+    `mapStillVisible=${mapStillVisible} deleteHiddenForRecorded=${datasetDeleteOnRecorded === 0} ` +
+    `errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  await context.close();
+}
+
+// --- Iteration 6a: a new build must actually reach a returning viewer ----------
+// index.html is not fingerprinted — it is the file that names the current asset
+// hashes — so if it is cacheable, someone who has visited before keeps loading the
+// previous build and simply does not see new features. That happened during Phase 5
+// review: the panel was live in the container and invisible in the browser.
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop });
+  const page = await context.newPage();
+
+  const indexResponse = await page.goto(`${BASE}/`, { waitUntil: "domcontentloaded" });
+  const indexCache = (indexResponse?.headers()["cache-control"] ?? "").toLowerCase();
+
+  const assetHref = await page.evaluate(() => {
+    const script = Array.from(document.querySelectorAll("script[src]")).find((s) =>
+      s.getAttribute("src")?.includes("/assets/"),
+    );
+    return script?.getAttribute("src") ?? null;
+  });
+  let assetCache = "";
+  if (assetHref) {
+    const assetResponse = await page.request.get(new URL(assetHref, `${BASE}/`).toString());
+    assetCache = (assetResponse.headers()["cache-control"] ?? "").toLowerCase();
+  }
+
+  const cacheOk =
+    /no-store/.test(indexCache) &&
+    /immutable/.test(assetCache) &&
+    Boolean(assetHref);
+  if (!cacheOk) failures++;
+  console.log(
+    `${cacheOk ? "PASS" : "FAIL"} a new build reaches a returning viewer ` +
+    `indexCacheControl="${indexCache}" assetCacheControl="${assetCache}"`
+  );
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

@@ -207,21 +207,27 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 
 ---
 
-## 9. Current Status — Iteration 5 (Beta) complete on the branch
+## 9. Current Status — Iteration 6a (custom scenario) complete on the branch
 
 **Iteration 3** (demo/pilot-ready) merged 2026-07-27. **Iteration 4** (dataset transparency layer)
 merged to `main` 2026-08-03. **Iteration 5 (Beta)** — the conversational scenario/what-if analyst —
-is **complete, verified on-device and merged to `main`** (2026-08-05, `bc42bb3`). Iteration 6 is the
-production track (see §13).
+merged to `main` 2026-08-05 (`bc42bb3`). **Iteration 6a — the custom scenario panel** — is
+**complete and verified on-device** on `feat/iteration6a-custom-scenario` (2026-08-20). Iteration 6b
+(custom dataset) is deferred on the sponsor's own sequencing; the production track is Iteration 7 in
+effect (see §13).
 
-🔴 **Ryan has not yet reviewed Iteration 4 or 5** (PTO). Iteration 5 therefore ships behind a visible
-**`BETA`** chip on every chat surface and in every screenshot. That label is a guardrail, not styling:
-it comes off when the sponsor has seen it, not when the code is finished.
+**Ryan reviewed the live demo on 2026-08-19** — his first look at Iterations 4 and 5. Outcome positive;
+the dataset view's **network map** was his favourite feature; the **chat bot is parked as-is**, so
+Iteration 5 keeps its visible **`BETA`** chip until he says otherwise. He asked for two things — a
+**custom scenario** and a **custom dataset** — and, told the dataset one looked hard, asked to see the
+scenario one first. **Iteration 6a is that ask, delivered in the week it was made.**
 
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
 - `make demo` generates data, rebuilds the web UI, and prints the demo URLs (results, dataset, chat).
-- `make test` — **347 passed, 2 xpassed** (349 total). Web: **62 Vitest** (`make web-test`),
-  **26/26** browser checks (`make web-check`).
+- `make test` — **558 passed, 2 xpassed** (560 total). Web: **108 Vitest** (`make web-test`),
+  **38/38** browser checks (`make web-check`).
+- `make scenario-eval` — **29/29** validation cases (7 controls); `make scenario-ledger` prints what
+  each of the 59 settings can and cannot change.
 - `make bench-all` runs all four scenarios through baseline, classical, PPO, and advisory RAG/LLM.
 - `make chat-eval` / `make redteam` / `make parse-eval` — the committed chat, red-team and parser
   evaluation sets (**31/31**, **27/27**, **35/35** against the real on-device model).
@@ -301,6 +307,42 @@ types are supported — `node_outage`, `lane_disruption`, `demand_multiplier` �
 refused **by name, with the reason**. Nothing is ever written to disk by a what-if. See
 [`docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](docs/iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md).
 
+**"Build your own scenario" — Iteration 6a.** A fifth entry in the scenario dropdown — **"Custom
+scenario…"**, on the results screen and the dataset view — opens a control panel over the settings that actually define a scenario, pre-filled from
+`baseline`: **8 grouped Simple controls** and **all 59 settings** in Advanced. Name it, run the real
+pipeline on it (**~1.2 s**), save it so it returns in the dropdown, delete it, or clear all.
+
+> ### The architectural bet: the four scenarios were already data, not code.
+> `data/scenarios/*.yaml` is a complete declarative description — 59 editable settings across 7 groups
+> — and the generator turns one plus a seed into the nine CSVs the pipeline reads. **So a custom
+> scenario is a new YAML file and nothing else:** the generator, the optimizer and the forecast are all
+> untouched, which is why the four recorded objectives *cannot* move. A custom scenario built with no
+> changes reproduces `baseline` to the digit (**81,789.359460**).
+
+Two guardrails matter more than the feature:
+
+- 🔴 **15 of the 59 settings cannot change the optimizer's answer** and are shown in Advanced under an
+  explicit *"recorded in the dataset, not read by the optimizer"* heading — never as live Simple
+  controls. The labels are **derived** from the running system by two independent probes (generate-and-
+  diff for what a setting writes, column ablation for what the optimizer reads), and a committed test
+  fails if a label stops being true. `capacity.dc_throughput_units_per_period` is the dangerous one: it
+  reads like the most intuitive control on the panel and does nothing.
+- 🔴 **A lane-disruption window that misses the capacity read period is a measured no-op**, warned about
+  *before* the run with the mechanism and *"Do not read an unchanged result as resilience"*, and
+  explained again after. The read period is **derived from the config being edited**, never hardcoded —
+  `simulation.horizon_periods` moves it.
+
+Backed by `GET /scenarios/custom/settings`, `POST /scenarios/custom/preview` (writes nothing, runs
+nothing), `POST /scenarios/custom`, `GET /scenarios/custom`, `DELETE /scenarios/custom/{slug}`,
+`DELETE /scenarios/custom` and `GET /scenario-comparison/card`. A custom run writes its own name-keyed
+artifact and **cannot** leak into the recorded suite. See
+[`docs/iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md`](docs/iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md)
+and `DEMO_GUIDE.md` **Option E**.
+
+```
+http://localhost:8081                                    # pick "Custom scenario…" in the dropdown
+```
+
 See [`docs/handoff.md`](docs/handoff.md), [`docs/containerization.md`](docs/containerization.md),
 [`docs/iteration-docs/`](docs/iteration-docs/) (the per-iteration handoff deliverables), and the
 generated `benchmark/suite-summary.md` (regenerate with `make bench-all`) for the measured results.
@@ -331,6 +373,8 @@ docs/
     AI_Jumpstart_MVP_Iteration3_handoff.md           # Iteration 3 — demo/pilot-ready handoff
     AI_Jumpstart_MVP_Iteration4_handoff.md           # Iteration 4 — dataset transparency layer
     AI_Jumpstart_MVP_Iteration5_handoff.md           # Iteration 5 (Beta) — conversational analyst
+    AI_Jumpstart_MVP_Iteration6a_handoff.md          # Iteration 6a — the custom scenario panel
+    Iteration6a_Ryan_Review_Packet.md                # Iteration 6a review packet (four open questions)
     Iteration5_Ryan_Review_Packet.md                 # draft review packet for Ryan (NOT sent)
     screenshots/iteration4/, screenshots/iteration5/ # committed UI evidence
   Iteration2_Plan_of_Action.md                       # Iteration 2 build blueprint (phases 0–6)
@@ -338,7 +382,8 @@ docs/
   Iteration3_Plan_of_Action.md                       # Iteration 3 build blueprint (phases 0–7)
   Iteration4_Plan_of_Action.md                       # Iteration 4 build blueprint
   Iteration5_Plan_of_Action.md                       # Iteration 5 build blueprint (phases 0–6)
-  DEMO_GUIDE.md                                      # step-by-step demo walkthrough (Options A–D)
+  Iteration6a_Plan_of_Action.md                      # Iteration 6a build blueprint (phases 0–5)
+  DEMO_GUIDE.md                                      # step-by-step demo walkthrough (Options A–E)
   containerization.md                                # current arm64/four-service stack notes
   handoff.md                                         # quick-start commands and on-device caveats
   environment.md                                     # live GB10 device specs
@@ -428,6 +473,25 @@ An agent continuing this work MUST preserve these — they are the difference be
 - **Evidence basis:** the paper is shareable, but it's single-benchmark/single-seed evidence — use it for internal grounding, prefer v2's public benchmarks for external pitches.
 - **Improvement percentages are vs. the naive baseline**, not vs. a customer's actual costs. This caveat is stated on the results screen (Iteration 4 Phase 6 found it missing and added it) — do not regress it.
 
+**Added by Iteration 6a (the custom scenario panel):**
+- 🔴 **No no-op controls.** A setting that cannot change the optimizer's answer must never be presented
+  as if it can. 15 of the 59 are labelled *"recorded in the dataset, not read by the optimizer"* and
+  excluded from the Simple tier. The labels are **derived** from the running system, and the test that
+  compares derived against declared is what fails when a label becomes a lie — do not weaken it.
+- 🔴 **A custom result is labelled as custom, everywhere** — the `custom-` prefix in the name, the
+  payload, the artifact filename and the URL, plus a banner on the results screen. It must never be
+  quotable as one of the four recorded benchmark results.
+- **The four canonical scenarios are immutable.** Their names are reserved and refused by save *and*
+  delete; their configs, data and artifacts are never written by any 6a code path; asserted by tests.
+- **Reproducible or it does not ship.** The seed is part of the saved config, not ambient, and a
+  re-run must return the same objective to the cent.
+- **Validate → refuse in plain English → only then write.** An infeasible configuration is turned down
+  before anything reaches the disk. Never a 500, and never a partial write: a save is atomic.
+- **Deleting is as first-class as saving** — delete-one and clear-all both remove the config, the data,
+  the benchmark artifact and the vector-store collection.
+- **The `network:` block stays out of the scenario panel.** Changing entity counts is a custom
+  *dataset* (Iteration 6b), not a custom scenario.
+
 **Added by Iteration 5 (the conversational surface):**
 - **No un-grounded numbers.** Every numeric token in a model-written answer must trace to the structured context; a violation discards the model's wording and serves a deterministic template. Never relax this into a prompt instruction.
 - **A what-if number must never be mistakable for a benchmark number** — in the UI or in a screenshot. Six labelling cues exist on the card and three survive any crop tight enough to include the figures.
@@ -445,14 +509,14 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ```bash
 make up                        # build + start all four arm64 services
-make test                      # 347 passed + 2 xpassed (349 total)
+make test                      # 558 passed + 2 xpassed (560 total)
 make demo                      # generate data, rebuild web, print every demo URL
 ```
 
 Then open **`http://localhost:8081`** for the live planner UI, **`http://localhost:8081?replay=true`**
 for a pre-recorded real run, or **`http://localhost:8081?chat=true`** for the Iteration 5 chat panel.
 See [`docs/DEMO_GUIDE.md`](docs/DEMO_GUIDE.md) for the full demo walkthrough including talk tracks
-(Options A–D).
+(Options A–E).
 
 **Other useful commands:**
 ```bash
@@ -461,7 +525,7 @@ make run SCENARIO=baseline     # single scenario end-to-end
 make scale-study               # run the 6-level scale study
 make rag SCENARIO=...          # RAG advisory for a single scenario
 make cli SCENARIO=...          # thin CLI over the same API
-make web-test                  # 62 Vitest tests from the committed lockfile
+make web-test                  # 108 Vitest tests from the committed lockfile
 make web-check                 # 26 headless-Chromium checks (needs the stack up)
 ```
 
@@ -481,23 +545,28 @@ Rate limits are environment-configurable on the `api` service: `HELIX_CHAT_MAX_A
 runaway-load guard for a single-user demo, not an anti-abuse control — see §12 and the Iteration 5
 handoff.
 
-**Roadmap (current numbering).** Ryan's demo feedback (2026-07-29) inserted two iterations ahead of
-the production track, so what earlier docs called "Iteration 4 = production" is now **Iteration 6**:
+**Roadmap (current numbering).** Ryan's demo feedback inserted iterations ahead of the production
+track twice — 2026-07-29 (4 and 5) and again after his 2026-08-19 review (6a and 6b) — so what earlier
+docs called "Iteration 4 = production" is now **Iteration 7** in effect:
 
 | Iteration | Content | State |
 |---|---|---|
 | 1 | Use cases / value prop; data elements & pipeline | ✅ Done |
 | 2 | SCO scaffolding + synthetic dataset (working on-device prototype) | ✅ Done (`main`, 2026-07-10) |
 | 3 | Productization, demo polish, honest RL fair-shot | ✅ Done (`main`, 2026-07-27) |
-| 4 | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | ✅ Done (`main`, 2026-08-03) — **not yet reviewed by Ryan** |
-| **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Done (`main`, 2026-08-05) — **BETA, not yet reviewed by Ryan** |
-| 6 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, a saved scenario library and persistent transcripts. | ⏳ Not started |
+| 4 | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | ✅ Done (`main`, 2026-08-03) — **reviewed 2026-08-19; the network map was Ryan's favourite feature** |
+| **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Done (`main`, 2026-08-05) — **reviewed 2026-08-19 and parked as-is; the `BETA` chip stays until Ryan says otherwise** |
+| **6a** | **Custom scenario** — a control panel over the 59 settings that define a scenario (8 grouped Simple controls, all 59 in Advanced), a real run on whatever you build, and save / load / delete / clear-all | ✅ Done (`feat/iteration6a-custom-scenario`, 2026-08-20) — **merge is Ryan's call** |
+| 6b | **Custom dataset** — the `network:` block as controls plus row-level entity editing ("just remove a warehouse"), cascade and feasibility validation | ⏳ Deferred on Ryan's own sequencing, **not dropped** |
+| 7 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, cross-scenario comparison and persistent transcripts. | ⏳ Not started |
 
-**If continuing development:** read [`docs/Iteration5_Plan_of_Action.md`](docs/Iteration5_Plan_of_Action.md)
+**If continuing development:** read [`docs/Iteration6a_Plan_of_Action.md`](docs/Iteration6a_Plan_of_Action.md)
 for the current build and [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4
-for the honest gap between this demo/pilot-ready prototype and a shippable product. The production
-track (Iteration 6) is where real customer-data onboarding, hardening, multi-tenant isolation,
-licensing, and packaging land.
+for the honest gap between this demo/pilot-ready prototype and a shippable product. **Iteration 6b**
+(custom dataset) is the next feature; the production track is where real customer-data onboarding,
+hardening, multi-tenant isolation, licensing, and packaging land. Start from
+[`docs/DEVELOPMENT_JOURNAL.md`](docs/DEVELOPMENT_JOURNAL.md) — the snapshot at the top says exactly
+where things stand, and each phase entry records the defects found and how.
 
 **Definition of done (achieved):** one command (`make demo`) regenerates data and produces an
 optimized plan, fully on-device within the 121 GiB envelope, beating the naive baseline in all four

@@ -16,11 +16,12 @@
 | **Dataset view (recorded)** | `http://localhost:8081?view=dataset&replay=true` |
 | **Chat panel — "Ask the plan" (BETA)** | `http://localhost:8081?chat=true` |
 | **Chat panel (recorded, no GPU)** | `http://localhost:8081?replay=true&chat=true` |
+| **Build your own scenario** | Scenario dropdown → **"Custom scenario…"**, on the results screen *or* the dataset view (live only) |
 | **API (direct)** | `http://localhost:8080` |
 | **One-command setup** | `make demo` |
 | **Hardware** | NVIDIA GB10 (arm64, Grace Blackwell, ~121 GiB unified memory) |
 | **Stack** | 4 containers: `web` (nginx), `api` (FastAPI), `llm` (vLLM/Nemotron 30B), `vectordb` (Qdrant) |
-| **Test suite** | 347 passed + 2 xpassed (349 total); web 62 Vitest (`make web-test`); `make web-check` 26/26 for the UI |
+| **Test suite** | 558 passed + 2 xpassed (560 total); web 108 Vitest (`make web-test`); `make web-check` 38/38 for the UI |
 | **Full demo guide** | This file |
 
 ---
@@ -122,7 +123,7 @@ Generates data, rebuilds the web UI, and prints the demo URLs.
 ### 4. Optional: run the test suite
 
 ```bash
-make test          # 347 passed, 2 xpassed (349 total)
+make test          # 558 passed, 2 xpassed (560 total)
 ```
 
 The 2 xpassed tests are GPU-probe tests for a known NVML initialization issue after container
@@ -334,7 +335,9 @@ what-if, re-runs the **real optimizer** on a perturbed copy and reports what act
 
 Added in Iteration 5. It ships behind a visible **BETA** chip on every surface, because a
 conversational layer is the riskiest thing in this repo for saying something wrong in front of a
-customer and the project sponsor has not reviewed it yet. **Leave the label on.**
+customer. Ryan reviewed it on **2026-08-19** and **parked it as-is** — he did not ask for the label to
+come off, so the rule stands: it comes off when he says so, not when the code is finished.
+**Leave the label on.**
 
 ### Opening it
 
@@ -590,8 +593,13 @@ A **real captured transcript** (2026-08-05, on this GB10 — the on-device Nemot
 - Do **not** say "the AI decided" or "the AI calculated". The optimizer computes; the model narrates.
 - Do **not** describe the shortage scenario's periods 18–27 lane disruption as the reason its
   objective differs from baseline. **It is not** — the optimizer reads lane capacity at period 52
-  only. That scenario differs from `baseline` in 24 configuration settings plus a demand shock baked
-  into `demand.csv`. The chat layer will correct you on screen if you ask it.
+  only. That scenario differs from `baseline` in its **24 configuration settings** (costs, capacity
+  tightness, lane costs and lead times, demand-generation parameters, service targets). The chat
+  layer will correct you on screen if you ask it.
+- Do **not** say `component-shortage-shock` has a demand shock. **It does not** — corrected
+  2026-08-20, when an on-device re-audit found `demand.shock: null` and **0** shocked rows in its
+  `demand.csv`. The demand shocks are in **`demand-surge`** (periods 20–27, ×1.75) and
+  **`stress-large`** (periods 42–55, ×1.55). Earlier drafts of this guide said otherwise.
 - Do **not** promise "sub-second answers". Sub-second is the deterministic paths and a warm what-if;
   a model-written sentence is seconds.
 - Do **not** remove or crop out the **BETA** chip, and do not say the feature is production-ready.
@@ -607,6 +615,190 @@ A **real captured transcript** (2026-08-05, on this GB10 — the on-device Nemot
   open it afterwards.
 
 ---
+
+## Option E — "Build your own scenario": the custom scenario panel
+
+**This is the ask from Ryan's 2026-08-19 demo review, delivered in the week it was asked for.** His
+original complaint was that the four scenarios "aren't intuitive". Option C showed what the data *is*;
+Option D let a planner *ask* about it. Both still leave the viewer inside four scenarios somebody else
+chose. **This one hands over the controls.**
+
+Added in Iteration 6a. It is not behind a BETA chip — but every result it produces is labelled
+**CUSTOM SCENARIO · NOT A RECORDED BENCHMARK RESULT**, and that labelling is the point. **Do not quote
+a custom number as one of the four.**
+
+### Opening it
+
+Open the **Scenario** dropdown — **on either the results screen or the dataset view**. It now has
+three parts:
+
+```
+Recorded benchmark scenarios     baseline, component-shortage-shock, demand-surge, stress-large
+Your custom scenarios            (appears once you have saved one, all named custom-…)
+                                 Custom scenario…          <- the fifth entry
+```
+
+Pick **"Custom scenario…"**. A panel opens *beside* whichever view you are on — never over it, the same
+rule the chat panel follows. Opening it from the dataset view keeps the network map on screen, which is
+the natural place to decide you want different conditions.
+
+⚠️ **The entry is deliberately absent in `?replay=true`.** The recorded walkthrough blocks every API
+call by design, and building a scenario needs the API. Use the live stack for this option.
+
+### 🔴 Two things to know before you start talking
+
+1. **It starts from `baseline`, and it says so.** Every control left blank means "same as baseline".
+   That is why the change list is short and readable — it only ever shows what *you* moved.
+2. **Two of the eight controls are honesty features, not features.** The panel will tell you when a
+   setting cannot change the answer, and when a disruption window cannot reach the optimizer. Those are
+   the moments worth slowing down for — see steps 4 and 6.
+
+### The five-step talk track, in pointing order
+
+**1. "Here are the eight things a planner would actually say."** Point at **THE CONTROLS**:
+
+| Control | What it is |
+|---|---|
+| Demand level | Units each customer orders per period, before seasonality and noise |
+| Demand spike | A temporary surge — *"1.75x for 8 weeks from week 20"* is one thing a planner says |
+| Capacity tightness | Scales lane capacity at every period. Lower is tighter |
+| Lane disruption | Lanes losing capacity for a window |
+| Inventory holding cost | A multiplier on baseline's per-tier holding costs |
+| Missed-order penalty (lost sales) | A multiplier on baseline's per-tier lost-sale penalties |
+| Transport cost | A multiplier on baseline's per-lane-family cost per unit |
+| Fill-rate target | The service promise the plan is measured against |
+
+Say: *"Grouped means one control per idea. 'A spike of 1.6x for eight weeks from week 30' is one thing
+a human says, so it is one control — not three sliders."*
+
+**2. Name it and change one thing.** Type `q3-surge` into **Name this scenario**. The panel shows
+**"Will be saved as `custom-q3-surge`"** — the prefix is not decoration, it is what keeps a custom
+result out of the recorded benchmark namespace.
+
+Set **Demand level** to `52` (baseline is 44). Watch **WHAT YOU CHANGED (1)** appear underneath with
+`demand.base_units_per_customer_period 44 → 52`, and an estimate that states its basis:
+
+> **A run should take about 1.2 seconds**
+> generate 0.23s — measured on this device on 2026-08-20 for a baseline-sized network …
+> forecast 0.8s — 32 finished-good series x ~25 ms/series, the measured forecast ceiling from the
+> Iteration 3 scale study
+> optimize 0.19s — no run on record for this scenario, so baseline's recorded latencies are used instead
+
+Say: *"That is an estimate built from measured components, each of which says where it came from —
+including the fact that this scenario has never been run, so it is borrowing baseline's timings. Not a
+spinner with a guess behind it."*
+
+(Once the scenario is saved, the `generate` line disappears from the estimate: the data already exists,
+so charging for a step that will not happen would overstate the wait.)
+
+**3. Save and run it.** Click **Save & run**. On this device the save is **0.04–0.07 s** and the run is
+**1.1–1.2 s**, so the whole thing lands in about a second and a half. The results screen appears with:
+
+- a **CUSTOM SCENARIO · NOT A RECORDED BENCHMARK RESULT** banner naming `custom-q3-surge`;
+- `Winner: Classical`, the Before-vs-After cards, the cost breakdown — the same screen the four
+  recorded scenarios use, because it *is* the same screen;
+- **Ppo** and **Rag** greyed out in the stepper, and `PPO outcome: not_evaluated`.
+
+Say: *"PPO and the written rationale are off by default. The rationale alone is about twenty times the
+cost of the entire numeric comparison — twenty seconds against one — and this loop has to be
+drag, run, read."*
+
+Then point at the **"A custom run will include:"** row above the results, with its two tick boxes —
+**PPO candidate (+~2.7 s)** and **Written rationale (+~20 s)**. Tick the rationale and re-run to show
+a custom scenario producing the full narrated result, identical in shape to one of the four.
+
+⚠️ Those boxes are also why **PPO timesteps** and **Top K** in the header are honest: they only apply
+when the matching box is ticked, and the row says so. They appear only for a custom scenario — the four
+recorded ones always run everything.
+
+**4. 🔴 The first honesty beat — a control that cannot change the answer.** Click
+**"Show all 59 settings"**. Scroll to the bottom of the Advanced list, to the boxed section headed:
+
+> **recorded in the dataset, not read by the optimizer**
+>
+> These 15 settings are part of the dataset and show up on the dataset page, but the forecast and the
+> optimizer never read them — so changing one cannot change the result. They are editable so the saved
+> scenario is complete and honest, not because they are levers.
+
+Point at **`capacity.dc_throughput_units_per_period`**, tagged **"no effect on the result"**.
+
+Say: *"This reads like the most intuitive control on the whole panel — how much this warehouse can
+handle. It does nothing. It lands in `nodes.csv`, which the optimizer never reads. We found that by
+generating the data twice and re-running the optimizer for every one of the 59 settings, not by reading
+the code — and a test fails if that ever stops being true."*
+
+**5. 🔴 The second honesty beat — a disruption the optimizer cannot see.** Reopen the panel
+(**Custom scenario…**), tick **Lane disruption**, and set:
+
+```
+lane type inbound_raw   affected lane count 2
+start period 18         duration periods 10        capacity multiplier 0
+```
+
+An amber block appears **before you run anything**:
+
+> ⚠ **This disruption will not change the answer**
+> The optimizer reads lane capacity at period 52 only, and this disruption runs from period 18 to 27.
+> It will therefore not change the answer at all. … Extend the window to period 52 (or to the end of
+> the horizon) to make it bite.
+>
+> **Do not read an unchanged result as resilience.**
+
+Say: *"Two supplier lanes go to zero for ten weeks and the answer does not move. That is not the
+network absorbing a shock — the optimizer reads lane capacity at one period, and this window misses
+it. If you run it anyway, the objective comes back at 81,789.36, exactly baseline's number, and the
+banner repeats the warning. Whether the optimizer **should** read capacity across the whole horizon is
+an open question for you — it would move every number in every document you have seen, so we did not
+change it."*
+
+**6. Save, reopen, delete.** There are two ways to delete, on purpose:
+
+- **The scenario you are looking at.** With a custom scenario selected, a **Delete** button sits beside
+  the dropdown — on the results screen *and* on the dataset view. It asks once (*"Delete custom-… and
+  its data?"*) before doing it.
+- **Any of them, from the panel.** **YOUR SAVED SCENARIOS (n)** is the first block in the panel: click
+  a name to run it again, **Delete** beside it, or **Delete all**.
+
+Either way it removes the config, the generated data, the recorded benchmark artifact and the
+vector-store collection — a deleted scenario leaves nothing behind. The four recorded scenarios have no
+Delete button at all; their names are refused by the API as well.
+
+Say: *"Saved scenarios live on this box, in the dropdown, and come back next time. They are visible to
+anyone who can reach the box — this is a single-user prototype, not multi-tenant."*
+
+### Also worth showing: a custom scenario on the dataset view
+
+With `custom-q3-surge` selected, click **View the dataset**. The whole Iteration 4 view works on it —
+the network map, the products, the demand history — and **"What makes this scenario different"** lists
+your change against `baseline`. **Nothing in the dataset code was modified to make that work**: a
+saved custom scenario is an ordinary scenario as far as the rest of the system is concerned.
+
+### What to avoid saying
+
+- Do **not** call a custom result a benchmark result. The four recorded objectives are
+  81,789.36 / 95,445.45 / 94,165.36 / 2,521,615.07 and nothing built in this panel is one of them.
+- Do **not** say the panel can change the network. It cannot add or remove a supplier, plant,
+  warehouse or customer — the `network:` block is deliberately excluded, and that is **Iteration 6b**.
+- Do **not** describe the 15 no-effect settings as "not implemented". They are implemented, written to
+  the dataset, and visible on the dataset page. They are not read by the optimizer. That is a
+  modelling fact about this prototype, not a gap in the form.
+- Do **not** promise "instant". A default custom run is about a second and a half. Tick the written
+  rationale and it is **~23 seconds**, almost all of it the language model.
+- Do **not** say PPO or the rationale are "not available" for a custom scenario. They are **off by
+  default and one tick away** — the row above the results says so.
+- Do **not** say a scenario is private. Box-global, single-user (§ decision 14).
+- Do **not** offer to edit one of the four. Their names are reserved and refused, by design — typing
+  `baseline` shows the refusal and disables Save.
+
+### If something goes wrong
+
+| Symptom | Cause and fix |
+|---|---|
+| "Custom scenario…" is missing from the dropdown | Either you are in `?replay=true` (use the live URL), or your browser is showing a cached build — **hard-reload** (Ctrl/Cmd+Shift+R). `index.html` is now served `no-store` so this should not recur. |
+| The panel says "Failed to fetch" | The API is down. `docker compose ps`, then `make up`. |
+| Save is greyed out | Either the name is empty, or there is a refusal listed above the button. The refusal says what to fix in a sentence. |
+| "A scenario named … already exists" | Delete it first, or pick another name. This also happens if a save failed halfway once — delete clears it. |
+| A saved scenario shows "no data generated" | It should be impossible: a save is atomic. If you see it, delete and re-save, and it is worth a bug report. |
 
 ## Suggested Talk Track
 
@@ -680,15 +872,21 @@ Use these answers when follow-up questions come up.
 
 ### "What's next?"
 
-> "Three iterations are on the box already. Iteration 3 made it demo/pilot-ready. Iteration 4 made
+> "Four iterations are on the box already. Iteration 3 made it demo/pilot-ready. Iteration 4 made
 > the *input* dataset visible — the 'Know Your Data' page showing the network, products, demand and
-> lanes the result ran on. Iteration 5, which is the chat panel you just saw, lets you interrogate
-> that dataset in your own words and run real what-ifs on the optimizer; it is labelled BETA because
-> the project sponsor hasn't reviewed it yet. Next is Iteration 6: production — real customer-data
-> onboarding (ETL, schema mapping, access control), hardening, multi-tenant isolation, and packaging
-> as a shippable appliance. That is also where the remaining perturbation types, compound what-ifs, a
-> saved scenario library and persistent transcripts land. cuOpt is available for this platform and
-> ready for future fleet-routing use cases with 100+ stops, if a customer needs it."
+> lanes the result ran on. Iteration 5, the chat panel, lets you interrogate that dataset in your own
+> words and run real what-ifs on the optimizer; it is labelled BETA because the sponsor had not
+> reviewed it at the time. Iteration 6a — the one you just built a scenario in — hands over the
+> controls: the settings that define a scenario become a control panel, you run the real pipeline on
+> whatever you build, and you can name and save it.
+>
+> Next is **Iteration 6b, the custom dataset** — changing the network itself rather than the conditions
+> applied to it, so 'just remove a warehouse' becomes possible. That needs row-level entity editing and
+> cascade validation, which is the expensive part. After that, production: real customer-data
+> onboarding (ETL, schema mapping, access control), hardening, multi-tenant isolation, and packaging as
+> a shippable appliance — along with the remaining perturbation types, compound what-ifs and persistent
+> transcripts. cuOpt is available for this platform and ready for future fleet-routing use cases with
+> 100+ stops, if a customer needs it."
 
 ---
 

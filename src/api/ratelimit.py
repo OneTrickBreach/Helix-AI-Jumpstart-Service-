@@ -86,6 +86,7 @@ def limits() -> dict[str, Limit]:
         "ask": Limit("ask", _int_env("HELIX_CHAT_MAX_ASKS", 30), window),
         "light": Limit("light", _int_env("HELIX_CHAT_MAX_LIGHT", 60), window),
         "run": Limit("run", _int_env("HELIX_CHAT_MAX_RUNS", 10), window),
+        "save": Limit("save", _int_env("HELIX_SCENARIO_MAX_SAVES", 20), window),
     }
 
 
@@ -99,6 +100,9 @@ BUCKET_LABELS = {
     "ask": "questions",
     "light": "requests",
     "run": "what-if runs",
+    # Iteration 6a: saving or deleting a custom scenario is a mutation, not a
+    # what-if. It gets its own bucket so a refusal names what was refused.
+    "save": "scenario saves",
 }
 
 
