@@ -52,7 +52,7 @@ reproduces `baseline` to the digit — 81,789.359460.** Same generator, same see
 | **Advanced tier** | All **59** settings by group, behind one disclosure |
 | **Run** | The real pipeline — same code path, same screens as the four recorded scenarios |
 | **Save / load** | A saved scenario is an ordinary scenario: it appears in the dropdown, renders in the dataset view, and comes back next time |
-| **Delete / clear all** | Removes the config, the generated data, the recorded artifact and the vector-store collection |
+| **Delete / clear all** | **YOUR SAVED SCENARIOS** is the first block in the panel: a labelled **Delete** per scenario and **Delete all**. Removes the config, the generated data, the recorded artifact and the vector-store collection |
 | **Honest labelling** | Every control says whether it can change the answer, and every result says it is not a benchmark result |
 
 **Simple and Advanced are two views of one form.** The panel sends your edits to a preview endpoint;
@@ -139,6 +139,13 @@ credential reaches the browser.
 default to *"whatever is right for this kind of scenario"*: **the four recorded scenarios keep exactly
 their previous behaviour**, and a custom scenario takes the fast path.
 
+**Both are one tick away in the UI.** A *"A custom run will include:"* row appears above the results
+whenever a custom scenario is selected, with **PPO candidate (+~2.7 s)** and **Written rationale
+(+~20 s)**. That row exists for a second reason: without it, the header's **PPO timesteps** and
+**Top K** controls were things a custom run silently ignored — a no-op control, which guardrail 1
+forbids. The row states that they apply only when the matching box is ticked, and it is absent for the
+four recorded scenarios, which always run everything.
+
 ### Measured latency, on this device
 
 | Path | Time |
@@ -161,7 +168,7 @@ Every number in this document came from a run on this device on 2026-08-20.
 
 | Check | Result |
 |---|---|
-| `make test` | **555 passed + 2 xpassed** — **208 tests added by this iteration** (was 347 + 2) |
+| `make test` | **555 passed + 2 xpassed** — **208 tests added by this iteration** (was 347 + 2). On a box that already has a saved custom scenario it reads **551 passed + 4 skipped + 2 xpassed**: the four clear-all tests refuse to run rather than delete someone's saved work |
 | `make bench-all` | **all 12 objectives bit-identical**, exactly four artifacts |
 | `make web-test` | **108 Vitest** (was 62) |
 | `make web-check` | **32/32** headless-Chromium checks (was 26) |

@@ -606,8 +606,16 @@ def test_a_preview_writes_nothing_anywhere(monkeypatch):
         assert client.post(
             "/scenarios/custom/preview", headers=_headers(), json=payload
         ).status_code == 200
-    assert _tree_fingerprint(SCENARIO_ROOT) == before_configs, "a preview touched data/scenarios"
-    assert not list(SCENARIO_ROOT.glob("custom-*.yaml")), "a preview created a config"
+    # The fingerprint comparison is the whole assertion. An absolute
+    # "no custom-*.yaml exists" check was wrong from the moment Phase 2 shipped
+    # saving: it fails on any box that has a saved scenario — a developer's, or the
+    # demo box — even though the preview wrote nothing. What matters is that a
+    # preview leaves data/scenarios exactly as it found it.
+    after_configs = _tree_fingerprint(SCENARIO_ROOT)
+    assert after_configs == before_configs, "a preview touched data/scenarios"
+    # And specifically: it did not create a config for any name it was handed.
+    for name in ("custom-probe-one", "custom-probe-two", "custom-baseline"):
+        assert not (SCENARIO_ROOT / f"{name}.yaml").exists(), f"a preview created {name}.yaml"
 
 
 @pytest.mark.parametrize("scenario", CANONICAL_SCENARIOS)

@@ -64,9 +64,25 @@ type Props = {
   onClose: () => void;
   /** Called after any change to the saved set, so the dropdown can refresh. */
   onSavedSetChanged: () => void;
+  /**
+   * Decision 8's two opt-ins, owned by the parent so the panel and the results
+   * header cannot disagree about what the next run will do.
+   */
+  includePpo: boolean;
+  includeRationale: boolean;
+  onIncludePpoChange: (value: boolean) => void;
+  onIncludeRationaleChange: (value: boolean) => void;
 };
 
-export default function CustomScenarioPanel({ onRun, onClose, onSavedSetChanged }: Props) {
+export default function CustomScenarioPanel({
+  onRun,
+  onClose,
+  onSavedSetChanged,
+  includePpo,
+  includeRationale,
+  onIncludePpoChange,
+  onIncludeRationaleChange,
+}: Props) {
   const [schema, setSchema] = useState<CustomSettingsPayload | null>(null);
   const [saved, setSaved] = useState<SavedScenario[]>([]);
   const [name, setName] = useState("");
@@ -110,6 +126,8 @@ export default function CustomScenarioPanel({ onRun, onClose, onSavedSetChanged 
         overrides,
         seed,
         description: description.trim() || null,
+        include_ppo: includePpo,
+        include_rationale: includeRationale,
       })
         .then((payload) => {
           setPreview(payload);
@@ -128,7 +146,7 @@ export default function CustomScenarioPanel({ onRun, onClose, onSavedSetChanged 
     return () => {
       if (debounce.current) window.clearTimeout(debounce.current);
     };
-  }, [schema, name, description, simple, overrides, seed]);
+  }, [schema, name, description, simple, overrides, seed, includePpo, includeRationale]);
 
   const validation = validationDisplay(preview?.validation ?? null);
   const capacity = capacityWarning(validation.warnings);
@@ -147,6 +165,8 @@ export default function CustomScenarioPanel({ onRun, onClose, onSavedSetChanged 
     overrides,
     seed,
     description: description.trim() || null,
+    include_ppo: includePpo,
+    include_rationale: includeRationale,
   });
 
   async function handleSave(runAfter: boolean) {
@@ -237,6 +257,67 @@ export default function CustomScenarioPanel({ onRun, onClose, onSavedSetChanged 
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        {/* --- saved scenarios: load, delete, clear all ---------------------- */}
+        {/* Deliberately FIRST. Ryan asked for save *and* delete on 2026-08-19, and
+            when this sat at the bottom of the panel's scroll area — behind the
+            change list and the estimate, as a bare icon — a reviewer could not
+            find it at all. Load/delete is also the first thing you want on a
+            second visit, before building anything new. */}
+        <section className="rounded-md border border-line bg-field p-3" data-testid="custom-saved">
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#587060]">
+              Your saved scenarios ({saved.length})
+            </h3>
+            {saved.length ? (
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={busy}
+                className="rounded border border-[#d8b4a0] px-2 py-1 text-xs font-semibold text-[#8a4b2a] transition hover:bg-[#fdf6f1] disabled:opacity-50"
+                data-testid="custom-clear-all"
+              >
+                Delete all
+              </button>
+            ) : null}
+          </div>
+          {saved.length ? (
+            <ul className="mt-2 space-y-1" data-testid="custom-saved-list">
+              {saved.map((item) => (
+                <li
+                  key={item.scenario}
+                  className="flex items-center justify-between gap-2 rounded border border-line bg-white px-2 py-1.5"
+                >
+                  <button
+                    type="button"
+                    className="min-w-0 flex-1 truncate text-left font-mono text-xs text-[#2f6d4f] underline"
+                    onClick={() => onRun(item.scenario)}
+                    title="Run this scenario again"
+                  >
+                    {item.scenario}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(item.slug)}
+                    disabled={busy}
+                    className="inline-flex shrink-0 items-center gap-1 rounded border border-[#d8b4a0] px-2 py-0.5 text-xs font-semibold text-[#8a4b2a] transition hover:bg-[#fdf6f1] disabled:opacity-50"
+                    aria-label={`Delete ${item.scenario}`}
+                    data-testid={`custom-delete-${item.slug}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-1 text-xs leading-5 text-[#6b7a70]">
+              Nothing saved yet. Build one below and click <strong>Save</strong>; it will appear here
+              and in the scenario dropdown, with a <strong>Delete</strong> button beside it. Saved
+              scenarios live on this box and are visible to anyone who can reach it.
+            </p>
+          )}
+        </section>
+
         {/* --- name and seed ------------------------------------------------ */}
         <label className="control-label">
           Name this scenario
@@ -447,54 +528,6 @@ export default function CustomScenarioPanel({ onRun, onClose, onSavedSetChanged 
           </div>
         ) : null}
 
-        {/* --- saved scenarios ---------------------------------------------- */}
-        <div className="mt-5">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#587060]">
-              Saved on this box ({saved.length})
-            </h3>
-            {saved.length ? (
-              <button
-                type="button"
-                onClick={handleClearAll}
-                disabled={busy}
-                className="text-xs font-semibold text-[#8a4b2a] underline disabled:opacity-50"
-                data-testid="custom-clear-all"
-              >
-                Clear all
-              </button>
-            ) : null}
-          </div>
-          {saved.length ? (
-            <ul className="mt-2 space-y-1" data-testid="custom-saved-list">
-              {saved.map((item) => (
-                <li key={item.scenario} className="flex items-center justify-between gap-2 text-xs">
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 truncate text-left font-mono text-[#2f6d4f] underline"
-                    onClick={() => onRun(item.scenario)}
-                  >
-                    {item.scenario}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item.slug)}
-                    disabled={busy}
-                    className="shrink-0 text-[#8a4b2a] disabled:opacity-50"
-                    aria-label={`Delete ${item.scenario}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-1 text-xs text-[#6b7a70]">
-              Nothing saved yet. Saved scenarios live on this box and are visible to anyone who can
-              reach it.
-            </p>
-          )}
-        </div>
       </div>
 
       {/* --- actions -------------------------------------------------------- */}

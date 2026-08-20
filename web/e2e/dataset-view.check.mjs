@@ -553,6 +553,23 @@ async function askStarter(page, question, timeout = 90000) {
   // Pre-filled from baseline, and it says so.
   const panelIntro = await page.locator(PANEL).innerText();
 
+  // Delete has to be findable WITHOUT scrolling, measured the moment the panel
+  // opens and before anything else scrolls it. It previously sat at the bottom of
+  // the panel's scroll area as a bare icon, and a reviewer could not find it.
+  // The bound is two-sided on purpose: a negative y would mean the section had
+  // been scrolled off the top, which a `y < height` check alone would let pass.
+  const savedBox = await page.locator('[data-testid="custom-saved"]').boundingBox();
+  const savedText = await page.locator('[data-testid="custom-saved"]').innerText();
+  const deleteVisible =
+    Boolean(savedBox) && savedBox.y >= 0 && savedBox.y < VIEWPORTS.desktop.height;
+  const deleteNamed = /delete/i.test(savedText);
+  if (!(deleteVisible && deleteNamed)) failures++;
+  console.log(
+    `${deleteVisible && deleteNamed ? "PASS" : "FAIL"} delete is discoverable without scrolling ` +
+    `sectionY=${savedBox ? Math.round(savedBox.y) : "none"}/${VIEWPORTS.desktop.height} ` +
+    `namesDelete=${deleteNamed}`
+  );
+
   await page.fill('[data-testid="custom-name"]', SLUG);
   const targetName = await page.locator('[data-testid="custom-target-name"]').innerText();
 
@@ -580,6 +597,18 @@ async function askStarter(page, question, timeout = 90000) {
   console.log(
     `${labellingOk ? "PASS" : "FAIL"} custom advanced labelling settings=${advancedSettingCount} ` +
     `inertHeading="${inertHeading.slice(0, 48)}" dcThroughputFlagged=${dcThroughputLabelled}`
+  );
+
+  // Decision 8's opt-ins have to be visible, or "PPO timesteps" and "Top K" are
+  // controls a custom run silently ignores.
+  const runOptions = await page.locator('[data-testid="custom-run-options"]').innerText();
+  const ppoBox = await page.locator('[data-testid="run-include-ppo"]').count();
+  const ratBox = await page.locator('[data-testid="run-include-rationale"]').count();
+  const optionsOk = ppoBox === 1 && ratBox === 1 && /off by default/i.test(runOptions);
+  if (!optionsOk) failures++;
+  console.log(
+    `${optionsOk ? "PASS" : "FAIL"} custom run opt-ins are visible and explained ` +
+    `ppoBox=${ppoBox} rationaleBox=${ratBox} explains=${/off by default/i.test(runOptions)}`
   );
 
   // Save and run it for real.
@@ -655,7 +684,19 @@ async function askStarter(page, question, timeout = 90000) {
   await warningBlock.scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOT_DIR}/custom-scenario-noop-warning.png` });
 
+  // The opt-ins must NOT appear for a recorded scenario: those always run
+  // everything, so a switch there would be a lie.
+  await page.selectOption("[data-testid='scenario-select']", "baseline");
+  const optionsOnRecorded = await page.locator('[data-testid="custom-run-options"]').count();
+  if (optionsOnRecorded !== 0) failures++;
+  console.log(
+    `${optionsOnRecorded === 0 ? "PASS" : "FAIL"} run opt-ins are hidden for a recorded scenario ` +
+    `count=${optionsOnRecorded}`
+  );
+
   // --- delete, and confirm it leaves the dropdown ---------------------------
+  await page.selectOption("[data-testid='scenario-select']", "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 15000 });
   const savedBefore = await page.locator('[data-testid="custom-saved-list"] li').count();
   await page.click(`[aria-label="Delete custom-${SLUG}"]`);
   await page.waitForFunction(

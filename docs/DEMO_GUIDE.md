@@ -703,6 +703,14 @@ Say: *"PPO and the written rationale are off by default. The rationale alone is 
 cost of the entire numeric comparison — twenty seconds against one — and this loop has to be
 drag, run, read."*
 
+Then point at the **"A custom run will include:"** row above the results, with its two tick boxes —
+**PPO candidate (+~2.7 s)** and **Written rationale (+~20 s)**. Tick the rationale and re-run to show
+a custom scenario producing the full narrated result, identical in shape to one of the four.
+
+⚠️ Those boxes are also why **PPO timesteps** and **Top K** in the header are honest: they only apply
+when the matching box is ticked, and the row says so. They appear only for a custom scenario — the four
+recorded ones always run everything.
+
 **4. 🔴 The first honesty beat — a control that cannot change the answer.** Click
 **"Show all 59 settings"**. Scroll to the bottom of the Advanced list, to the boxed section headed:
 
@@ -743,9 +751,10 @@ banner repeats the warning. Whether the optimizer **should** read capacity acros
 an open question for you — it would move every number in every document you have seen, so we did not
 change it."*
 
-**6. Save, reopen, delete.** Point at **Saved on this box (n)**: click a name to run it again, the bin
-icon to delete it, **Clear all** to remove every custom scenario. Deleting removes the config, the
-generated data, the recorded artifact and the vector-store collection.
+**6. Save, reopen, delete.** **YOUR SAVED SCENARIOS (n)** is the first thing in the panel: click a
+name to run it again, **Delete** beside it to remove one, **Delete all** to clear the lot. Deleting
+removes the config, the generated data, the recorded benchmark artifact and the vector-store
+collection — a saved scenario leaves nothing behind.
 
 Say: *"Saved scenarios live on this box, in the dropdown, and come back next time. They are visible to
 anyone who can reach the box — this is a single-user prototype, not multi-tenant."*
@@ -766,8 +775,10 @@ saved custom scenario is an ordinary scenario as far as the rest of the system i
 - Do **not** describe the 15 no-effect settings as "not implemented". They are implemented, written to
   the dataset, and visible on the dataset page. They are not read by the optimizer. That is a
   modelling fact about this prototype, not a gap in the form.
-- Do **not** promise "instant". A default custom run is about a second and a half. Turn the written
-  rationale on and it is **~23 seconds**, almost all of it the language model.
+- Do **not** promise "instant". A default custom run is about a second and a half. Tick the written
+  rationale and it is **~23 seconds**, almost all of it the language model.
+- Do **not** say PPO or the rationale are "not available" for a custom scenario. They are **off by
+  default and one tick away** — the row above the results says so.
 - Do **not** say a scenario is private. Box-global, single-user (§ decision 14).
 - Do **not** offer to edit one of the four. Their names are reserved and refused, by design — typing
   `baseline` shows the refusal and disables Save.

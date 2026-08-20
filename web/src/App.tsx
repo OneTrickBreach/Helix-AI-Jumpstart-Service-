@@ -85,6 +85,12 @@ export default function App() {
   const [view, setView] = useState<View>(() => readViewFromUrl().view);
   const [chatOpen, setChatOpen] = useState<boolean>(() => readViewFromUrl().chat);
   const [customOpen, setCustomOpen] = useState(false);
+  // Decision 8: a custom run defaults to the fast path, because the written
+  // rationale alone is ~20x the whole numeric comparison. These make that a
+  // visible choice rather than something the panel does silently — and they stop
+  // "PPO timesteps" and "Top K" being controls a custom run quietly ignores.
+  const [includePpo, setIncludePpo] = useState(false);
+  const [includeRationale, setIncludeRationale] = useState(false);
   const streamRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
@@ -209,6 +215,7 @@ export default function App() {
 
   function runScenario(target?: string) {
     const runFor = target ?? scenario;
+    const isCustom = runFor.startsWith(CUSTOM_PREFIX);
     if (!runFor || running) {
       return;
     }
@@ -223,7 +230,16 @@ export default function App() {
     setResult(null);
     setStages([]);
     const stream = new EventSource(
-      scenarioStreamUrl({ scenario: runFor, horizon, ppoTimesteps, topK }),
+      scenarioStreamUrl({
+        scenario: runFor,
+        horizon,
+        ppoTimesteps,
+        topK,
+        // Left undefined for the four so they keep exactly their recorded
+        // behaviour: the server default is "everything" for a recorded scenario.
+        includePpo: isCustom ? includePpo : undefined,
+        includeRationale: isCustom ? includeRationale : undefined,
+      }),
     );
     streamRef.current = stream;
 
@@ -267,6 +283,10 @@ export default function App() {
         <CustomScenarioPanel
           onClose={() => setCustomOpen(false)}
           onSavedSetChanged={refreshScenarios}
+          includePpo={includePpo}
+          includeRationale={includeRationale}
+          onIncludePpoChange={setIncludePpo}
+          onIncludeRationaleChange={setIncludeRationale}
           onRun={(target) => {
             setCustomOpen(false);
             runScenario(target);
@@ -391,6 +411,40 @@ export default function App() {
             <NumberControl label="PPO timesteps" min={16} max={4096} value={ppoTimesteps} onChange={setPpoTimesteps} />
             <NumberControl label="Top K" min={1} max={10} value={topK} onChange={setTopK} />
           </div>
+          {/* Without this, "PPO timesteps" and "Top K" are controls a custom run
+              silently ignores — the exact kind of no-op this iteration forbids.
+              The recorded four always run everything, so they need no switches. */}
+          {customOpen || scenario.startsWith(CUSTOM_PREFIX) ? (
+            <div
+              className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-md border border-line bg-field px-3 py-2 text-sm text-[#4d5c51]"
+              data-testid="custom-run-options"
+            >
+              <span className="font-medium">A custom run will include:</span>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={includePpo}
+                  onChange={(event) => setIncludePpo(event.target.checked)}
+                  data-testid="run-include-ppo"
+                />
+                PPO candidate <span className="text-xs text-[#6b7a70]">(+~2.7 s)</span>
+              </label>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={includeRationale}
+                  onChange={(event) => setIncludeRationale(event.target.checked)}
+                  data-testid="run-include-rationale"
+                />
+                Written rationale <span className="text-xs text-[#6b7a70]">(+~20 s)</span>
+              </label>
+              <span className="text-xs text-[#6b7a70]">
+                Both are off by default so the loop stays about a second. Baseline and tuned classical
+                always run. <strong>PPO timesteps</strong> and <strong>Top K</strong> above only apply
+                when the matching box is ticked.
+              </span>
+            </div>
+          ) : null}
         </div>
       </section>
 

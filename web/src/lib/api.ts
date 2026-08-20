@@ -68,6 +68,13 @@ export function scenarioStreamUrl(params: {
   horizon: number;
   ppoTimesteps: number;
   topK: number;
+  /**
+   * Iteration 6a: omit both to get the server's default for the scenario kind —
+   * full behaviour for the four recorded scenarios, the fast path for a custom
+   * one. Only send them when the caller is deliberately choosing.
+   */
+  includePpo?: boolean;
+  includeRationale?: boolean;
 }): string {
   const query = new URLSearchParams({
     scenario: params.scenario,
@@ -75,6 +82,10 @@ export function scenarioStreamUrl(params: {
     ppo_timesteps: String(params.ppoTimesteps),
     top_k: String(params.topK),
   });
+  if (params.includePpo !== undefined) query.set("include_ppo", String(params.includePpo));
+  if (params.includeRationale !== undefined) {
+    query.set("include_rationale", String(params.includeRationale));
+  }
   return `${API_PREFIX}/scenario-comparison/stream?${query.toString()}`;
 }
 
