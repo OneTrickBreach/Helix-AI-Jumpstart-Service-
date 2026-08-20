@@ -17,10 +17,13 @@
 ---
 
 ## Project snapshot (current state)
-- **Branch:** **`feat/iteration6a-custom-scenario`**, cut from **`main` @ `cd3905f`** on
-  2026-08-20. It carries **the whole of Iteration 6a — plan, implementation, tests and docs, phases
-  0–5 complete. NOT MERGED**; that is Ishan's call with Ryan, as the Iteration 5 merge was.
-  `main` still holds
+- **Branch:** **Iteration 6a is MERGED to `main`** as **`ad17cc5`** (`--no-ff`, so the iteration
+  boundary stays visible in history), on Ishan's explicit go, 2026-08-20. `main` was `cd3905f`.
+  **Re-verified on `main` itself after the merge, from a clean rebuild of `api` and `web`:**
+  `make test` **558 passed + 2 xpassed**, `make bench-all` **all 12 objectives bit-identical**,
+  `make web-test` **108**, `make web-check` **38/38**.
+  `feat/iteration6a-custom-scenario` is kept, not deleted. Before this,
+  `main` held
   Iteration 5 (Beta), MERGED 2026-08-05 as `bc42bb3` (`--no-ff`, pushed; `main` was `7c8d0e2` =
   Iteration 4), with `make test` re-run green on `main` after the merge.
   `feat/iteration5-beta-conversational-analyst` is kept, not deleted.
@@ -156,6 +159,55 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-20 (merge) — Iteration 6a MERGED to `main` as `ad17cc5`
+**Status:** **Merged on Ishan's explicit go.** `--no-ff`, matching the Iteration 5 convention so the
+iteration boundary stays visible in history. `main` was `cd3905f`;
+`feat/iteration6a-custom-scenario` (`7e089e8`) is kept, not deleted.
+
+### Post-merge verification, on `main` itself
+
+Run after a clean rebuild of `api` and `web` from `main`'s checkout — the same discipline as the
+Iteration 5 merge, because a green branch is not the same as a green `main`.
+
+| Check | Result |
+|---|---|
+| `make test` | **558 passed + 2 xpassed** |
+| `make bench-all` | **all 12 objectives BIT-IDENTICAL**, exactly four artifacts |
+| `make web-test` | **108 passed** |
+| `make web-check` | **38/38, ALL CHECKS PASSED** |
+| `GET /health` | `gpu_visible:true`, GB10, driver 580.159.03 |
+
+Recorded classical objectives on `main`: **81,789.359460 · 95,445.445064 · 94,165.363245 ·
+2,521,615.068565** — unchanged across the whole of Iterations 4, 5 and 6a.
+
+### What is now on `main`
+
+The custom-scenario panel, reachable from the results screen **and** the dataset view: 8 grouped
+Simple controls, all 59 settings in Advanced, a real run in ~1.2 s, save / load / delete / clear-all,
+and a result labelled as custom everywhere. Plus the two guardrails that matter more than the feature —
+the 15 settings that cannot change the answer, labelled as such, and the capacity-window no-op warned
+before a run and explained after.
+
+### Sent to Ryan
+
+A short Teams message (not a document — he has no time for one) with the live tailnet URL, what to
+click, and the two honesty beats to poke at, including the new evidence that **both** shipped
+scenarios' lane disruptions are invisible to the optimizer. The tailnet address was deliberately
+**not** committed: the docs keep a `<gb10-tailscale-ip>` placeholder rather than a private address.
+
+**Open issues / follow-ups:**
+- 🔴 **Nobody has read the `DEMO_GUIDE.md` Option E talk track out loud.** Carried since Iteration 3,
+  and the only definition-of-done item in this repo that no machine check can close.
+- 🔴 **Ryan's question about the single-period capacity read is unanswered**, and is question 1 of
+  [`Iteration6a_Ryan_Review_Packet.md`](iteration-docs/Iteration6a_Ryan_Review_Packet.md) (**drafted,
+  not sent** — the Teams message went instead).
+- **Iteration 6b (custom dataset) is the next feature**, deferred on Ryan's own sequencing.
+- **`POST /scenario-comparison` is still not rate limited** and is reachable from a click.
+- **`llm` NVML still stale** — recreate in a window before any customer demo.
+- **Container logs die with the container**, so the new save/delete audit line does not survive a
+  recreate. A log driver or file sink is ops work, deliberately not done.
+
 
 ## 2026-08-20 (final review) — Iteration 6a: the UI defects a reviewer found, and the last brutal-truth pass
 **Status:** **Iteration 6a COMPLETE and reviewed.** Everything below was found *after* Phase 5 was
