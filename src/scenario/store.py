@@ -479,6 +479,16 @@ def _remove(scenario: str) -> dict[str, Any]:
     if data_path.exists():
         shutil.rmtree(data_path)
         removed.append(str(data_path.relative_to(REPO_ROOT)))
+    # A rationale run creates a per-scenario Qdrant collection. Guardrail 6: if
+    # saving can create it, deleting has to remove it, or clear-all quietly leaves
+    # a vector store full of scenarios that no longer exist. Best effort by design
+    # — a delete must not fail because the vector store is unreachable.
+    from src.rag.advisory import delete_scenario_collection
+
+    vector_store = delete_scenario_collection(scenario)
+    if vector_store.get("deleted"):
+        removed.append(f"qdrant:{vector_store['collection']}")
+
     for artifact in benchmark_artifacts(scenario):
         if artifact.exists():
             artifact.unlink()
@@ -489,7 +499,12 @@ def _remove(scenario: str) -> dict[str, Any]:
                 # does exactly that, which is why it cannot clobber the demo's
                 # recorded artifacts).
                 removed.append(str(artifact))
-    return {"scenario": scenario, "removed": removed, "removed_count": len(removed)}
+    return {
+        "scenario": scenario,
+        "removed": removed,
+        "removed_count": len(removed),
+        "vector_store": vector_store,
+    }
 
 
 def clear_all() -> dict[str, Any]:
@@ -501,9 +516,38 @@ def clear_all() -> dict[str, Any]:
     """
     scenarios = [entry["scenario"] for entry in list_custom()]
     results = [_remove(scenario) for scenario in scenarios]
+    removed = [path for result in results for path in result["removed"]]
+
+    # Sweep orphaned artifacts: a run writes benchmark/custom-<slug>-*.json, and a
+    # scenario removed by some other route (or by a test whose artifact directory
+    # was redirected) can leave those behind. A prefix glob is safe *here* and
+    # nowhere else, because every custom scenario has just been deleted — so the
+    # custom-a / custom-a-b collision that rules out globbing in `_remove` cannot
+    # apply. Without this, "clear all" would not actually clear everything.
+    removed.extend(_sweep_orphaned_artifacts())
     return {
         "deleted": [result["scenario"] for result in results],
         "deleted_count": len(results),
-        "removed": [path for result in results for path in result["removed"]],
+        "removed": removed,
         "protected": list(CANONICAL_SCENARIOS),
     }
+
+
+def _sweep_orphaned_artifacts() -> list[str]:
+    """Delete every ``custom-*`` benchmark artifact. Only safe once nothing custom exists."""
+    from src.bench.profiler import benchmark_dir
+
+    swept: list[str] = []
+    root = benchmark_dir()
+    if not root.is_dir():
+        return swept
+    for path in sorted(root.glob(f"{CUSTOM_PREFIX}*.json")):
+        try:
+            path.unlink()
+        except OSError:  # pragma: no cover - best effort
+            continue
+        try:
+            swept.append(str(path.relative_to(REPO_ROOT)))
+        except ValueError:
+            swept.append(str(path))
+    return swept

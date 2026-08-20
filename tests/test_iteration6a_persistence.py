@@ -63,6 +63,28 @@ def _config(slug: str, level: int = 40) -> dict:
     )
 
 
+def _foreign_custom_scenarios() -> list[str]:
+    """Custom scenarios on this box that these tests did not create.
+
+    ``clear_all()`` is box-global by design (decision 14), so a test that calls it
+    would delete a scenario a human saved — losing the one built for a demo. Any
+    test that calls it therefore skips, loudly, when it would destroy real state.
+    """
+    return [
+        entry["scenario"] for entry in store.list_custom()
+        if TEST_MARKER not in entry["scenario"]
+    ]
+
+
+def _skip_if_it_would_destroy_real_scenarios() -> None:
+    foreign = _foreign_custom_scenarios()
+    if foreign:
+        pytest.skip(
+            "clear-all is box-global and would delete saved scenarios that these tests "
+            f"did not create: {', '.join(foreign)}. Delete them first to run this test."
+        )
+
+
 def _purge() -> None:
     for entry in store.list_custom():
         if TEST_MARKER in entry["scenario"]:
@@ -373,7 +395,81 @@ def test_deleting_a_slug_does_not_remove_a_longer_slugs_artifacts():
     assert store.exists(f"custom-{long}")
 
 
+def test_delete_also_drops_the_scenarios_vector_store_collection(monkeypatch):
+    """Found in Phase 3, fixed here: guardrail 6 in the place it had a hole.
+
+    Opting into a written rationale creates a per-scenario Qdrant collection. Save
+    could create it and delete could not remove it, so the feature accumulated
+    state in the vector store that clear-all left behind for ever.
+    """
+    calls: list[str] = []
+    import src.rag.advisory as advisory
+
+    monkeypatch.setattr(
+        advisory, "delete_scenario_collection",
+        lambda scenario: calls.append(scenario) or {
+            "collection": f"helix_sco_rag_{scenario}", "deleted": True, "status_code": 200
+        },
+    )
+    slug = _slug("vectorstore")
+    store.save(slug, _config(slug))
+    result = store.delete(slug)
+    assert calls == [f"custom-{slug}"]
+    assert f"qdrant:helix_sco_rag_custom-{slug}" in result["removed"]
+    assert result["vector_store"]["deleted"] is True
+
+
+def test_a_delete_still_succeeds_when_the_vector_store_is_unreachable(monkeypatch):
+    """Cleanup is best effort: a delete must not fail because Qdrant is down."""
+    import src.rag.advisory as advisory
+
+    monkeypatch.setattr(
+        advisory, "delete_scenario_collection",
+        lambda scenario: {"collection": "x", "deleted": False, "error": "ConnectError: down"},
+    )
+    slug = _slug("qdrantdown")
+    store.save(slug, _config(slug))
+    result = store.delete(slug)
+    assert not store.exists(f"custom-{slug}")
+    assert result["vector_store"]["deleted"] is False
+    assert not any(path.startswith("qdrant:") for path in result["removed"])
+
+
+def test_clear_all_never_targets_a_canonical_vector_store_collection(monkeypatch):
+    _skip_if_it_would_destroy_real_scenarios()
+    calls: list[str] = []
+    import src.rag.advisory as advisory
+
+    monkeypatch.setattr(
+        advisory, "delete_scenario_collection",
+        lambda scenario: calls.append(scenario) or {"collection": scenario, "deleted": False},
+    )
+    slugs = [_slug("vs1"), _slug("vs2")]
+    for slug in slugs:
+        store.save(slug, _config(slug))
+    store.clear_all()
+    assert sorted(calls) == sorted(f"custom-{slug}" for slug in slugs)
+    for canonical in CANONICAL_SCENARIOS:
+        assert canonical not in calls
+
+
+def test_clear_all_selects_only_the_custom_namespace_without_deleting_anything():
+    """The selector, asserted non-destructively so it always runs.
+
+    This is the half that matters for safety: clear-all's target list is exactly
+    what ``list_custom()`` reports, and never one of the four.
+    """
+    slug = _slug("selector")
+    store.save(slug, _config(slug))
+    targets = [entry["scenario"] for entry in store.list_custom()]
+    assert f"custom-{slug}" in targets
+    assert all(name.startswith("custom-") for name in targets)
+    for canonical in CANONICAL_SCENARIOS:
+        assert canonical not in targets
+
+
 def test_clear_all_removes_every_custom_scenario_and_nothing_else():
+    _skip_if_it_would_destroy_real_scenarios()
     slugs = [_slug("clear1"), _slug("clear2")]
     for slug in slugs:
         store.save(slug, _config(slug))
@@ -391,6 +487,26 @@ def test_clear_all_removes_every_custom_scenario_and_nothing_else():
             _dir_fingerprint(store.data_dir(name)),
         ) == canonical_before[name]
     assert set(result["protected"]) == set(CANONICAL_SCENARIOS)
+
+
+def test_clear_all_sweeps_an_orphaned_artifact_left_by_a_deleted_scenario():
+    """Without this, "clear all" would leave artifacts for scenarios that are gone.
+
+    A prefix glob is safe only here — every custom scenario has just been deleted,
+    so the ``custom-a`` / ``custom-a-b`` collision that rules it out in ``_remove``
+    cannot apply.
+    """
+    _skip_if_it_would_destroy_real_scenarios()
+    orphan = benchmark_dir() / f"custom-{_slug('orphaned')}-head-to-head-comparison.json"
+    orphan.parent.mkdir(parents=True, exist_ok=True)
+    orphan.write_text("{}", encoding="utf-8")
+    canonical_artifact = benchmark_dir() / "baseline-head-to-head-comparison.json"
+    canonical_artifact.write_text("{}", encoding="utf-8")
+
+    result = store.clear_all()
+    assert not orphan.exists()
+    assert canonical_artifact.exists(), "the sweep must only touch custom- artifacts"
+    assert any("orphaned" in path for path in result["removed"])
 
 
 def test_deleting_something_that_does_not_exist_is_a_not_found():
@@ -573,6 +689,7 @@ def test_the_api_refuses_to_save_or_delete_a_canonical_scenario(monkeypatch, nam
 
 
 def test_the_clear_all_endpoint_only_touches_custom_scenarios(monkeypatch):
+    _skip_if_it_would_destroy_real_scenarios()
     monkeypatch.setenv("HELIX_API_KEY", API_KEY)
     client = TestClient(app)
     slug = _slug("clearapi")

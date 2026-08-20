@@ -150,22 +150,30 @@ def estimate_run(
     include_ppo: bool = False,
     include_rationale: bool = False,
     base_scenario: str = BASE_SCENARIO,
+    include_generate: bool = True,
 ) -> dict[str, Any]:
-    """What a run would cost, component by component, each with its basis."""
+    """What a run would cost, component by component, each with its basis.
+
+    ``include_generate`` is ``False`` for a scenario that is already saved: its
+    data exists, so charging the estimate for a generation step that will not
+    happen would overstate the wait.
+    """
     recorded = recorded_latencies(scenario_name)
     basis_scenario = scenario_name
     if not recorded:
         recorded = recorded_latencies(base_scenario)
         basis_scenario = base_scenario
 
-    components: list[dict[str, Any]] = [
-        {
+    components: list[dict[str, Any]] = []
+    if include_generate:
+        components.append({
             "stage": "generate",
             "seconds": MEASURED_GENERATE_SECONDS,
             "basis": "measured on this device on 2026-08-20 for a baseline-sized network "
-                     "(0.23 s; 0.55 s at stress-large's 42 locations)",
-        }
-    ]
+                     "(0.23 s; 0.55 s at stress-large's 42 locations). In-process generation "
+                     "measured 0.04-0.07 s on 2026-08-20; the CLI figure includes interpreter "
+                     "startup, so this is the conservative one",
+        })
     series = series_count(config)
     components.append({
         "stage": "forecast",
