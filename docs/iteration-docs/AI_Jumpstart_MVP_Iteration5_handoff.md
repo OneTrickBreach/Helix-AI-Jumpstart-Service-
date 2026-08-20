@@ -6,6 +6,15 @@
 **Branch:** `feat/iteration5-beta-conversational-analyst` → **merged to `main` 2026-08-05 (`bc42bb3`)**
 **Predecessor:** Iteration 4 (dataset transparency), merged to `main` 2026-08-03 — **not yet reviewed by you**
 
+> 🔴 **Superseded in part, 2026-08-20.** You reviewed both Iteration 4 and this one on **2026-08-19**,
+> so the "unreviewed" framing throughout this document is out of date — it was accurate when written.
+> Outcome of that review: positive, the dataset view's **network map** was your favourite feature, and
+> this conversational layer is **parked as-is** (you did not ask for the `BETA` chip to come off, so it
+> stays). The §9 questions below are **still unanswered**, and question 6 — the single-period capacity
+> read — is now load-bearing: see
+> [`AI_Jumpstart_MVP_Iteration6a_handoff.md`](AI_Jumpstart_MVP_Iteration6a_handoff.md) §2.2 for new
+> evidence, and [`Iteration6a_Ryan_Review_Packet.md`](Iteration6a_Ryan_Review_Packet.md) for the ask.
+
 ---
 
 ## TL;DR
