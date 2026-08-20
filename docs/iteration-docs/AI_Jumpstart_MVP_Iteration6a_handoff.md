@@ -52,7 +52,7 @@ reproduces `baseline` to the digit — 81,789.359460.** Same generator, same see
 | **Advanced tier** | All **59** settings by group, behind one disclosure |
 | **Run** | The real pipeline — same code path, same screens as the four recorded scenarios |
 | **Save / load** | A saved scenario is an ordinary scenario: it appears in the dropdown, renders in the dataset view, and comes back next time |
-| **Delete / clear all** | **YOUR SAVED SCENARIOS** is the first block in the panel: a labelled **Delete** per scenario and **Delete all**. Removes the config, the generated data, the recorded artifact and the vector-store collection |
+| **Delete / clear all** | Two ways: a **Delete** button beside the dropdown for the scenario you are looking at (both screens, two-step confirm), and **YOUR SAVED SCENARIOS** — the first block in the panel — with a labelled **Delete** per scenario plus **Delete all**. Removes the config, the generated data, the recorded artifact and the vector-store collection |
 | **Honest labelling** | Every control says whether it can change the answer, and every result says it is not a benchmark result |
 
 **Simple and Advanced are two views of one form.** The panel sends your edits to a preview endpoint;

@@ -694,6 +694,30 @@ async function askStarter(page, question, timeout = 90000) {
     `count=${optionsOnRecorded}`
   );
 
+  // Delete has to be reachable from the scenario you are LOOKING AT, not only from
+  // inside the panel. A reviewer with custom-test selected reported no delete
+  // option at all, because finding it meant switching the dropdown away from it.
+  await page.selectOption("[data-testid='scenario-select']", `custom-${SLUG}`);
+  const headerDelete = await page.locator('[data-testid="delete-selected-scenario"]').count();
+  await page.selectOption("[data-testid='scenario-select']", "baseline");
+  const deleteOnRecorded = await page.locator('[data-testid="delete-selected-scenario"]').count();
+
+  // Two-step: deleting is not undoable, so it must not happen on one stray click.
+  await page.selectOption("[data-testid='scenario-select']", `custom-${SLUG}`);
+  await page.click('[data-testid="delete-selected-scenario"]');
+  const confirmShown = await page.locator('[data-testid="delete-confirm-yes"]').count();
+  await page.click('[data-testid="delete-confirm-no"]');
+  const cancelled = await page.locator('[data-testid="delete-selected-scenario"]').count();
+
+  const headerDeleteOk =
+    headerDelete === 1 && deleteOnRecorded === 0 && confirmShown === 1 && cancelled === 1;
+  if (!headerDeleteOk) failures++;
+  console.log(
+    `${headerDeleteOk ? "PASS" : "FAIL"} delete is on the selected scenario's own header ` +
+    `presentForCustom=${headerDelete === 1} hiddenForRecorded=${deleteOnRecorded === 0} ` +
+    `twoStep=${confirmShown === 1} cancellable=${cancelled === 1}`
+  );
+
   // --- delete, and confirm it leaves the dropdown ---------------------------
   await page.selectOption("[data-testid='scenario-select']", "__custom__");
   await page.waitForSelector(PANEL, { timeout: 15000 });
@@ -779,7 +803,14 @@ async function askStarter(page, question, timeout = 90000) {
   // Beside, not over: the map Ryan likes has to stay on screen.
   const mapStillVisible = await page.locator("text=How the network is laid out").isVisible();
 
+  // The same control on this screen, since this is where a planner is looking.
+  await page.goto(`${BASE}/?view=dataset&scenario=baseline`, { waitUntil: "networkidle" });
+  const datasetDeleteOnRecorded = await page
+    .locator('[data-testid="delete-selected-scenario"]')
+    .count();
+
   const datasetOk =
+    datasetDeleteOnRecorded === 0 &&
     offered === 1 &&
     grouped.includes("Recorded benchmark scenarios") &&
     panelOpened &&
@@ -789,7 +820,8 @@ async function askStarter(page, question, timeout = 90000) {
   console.log(
     `${datasetOk ? "PASS" : "FAIL"} custom panel opens from the DATASET view ` +
     `entryOffered=${offered === 1} grouped=${grouped.length} panelOpened=${panelOpened} ` +
-    `mapStillVisible=${mapStillVisible} errors=${errs.length}`
+    `mapStillVisible=${mapStillVisible} deleteHiddenForRecorded=${datasetDeleteOnRecorded === 0} ` +
+    `errors=${errs.length}`
   );
   if (errs.length) console.log("   errors:", errs.slice(0, 3));
 

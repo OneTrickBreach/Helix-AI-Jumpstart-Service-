@@ -751,10 +751,17 @@ banner repeats the warning. Whether the optimizer **should** read capacity acros
 an open question for you — it would move every number in every document you have seen, so we did not
 change it."*
 
-**6. Save, reopen, delete.** **YOUR SAVED SCENARIOS (n)** is the first thing in the panel: click a
-name to run it again, **Delete** beside it to remove one, **Delete all** to clear the lot. Deleting
-removes the config, the generated data, the recorded benchmark artifact and the vector-store
-collection — a saved scenario leaves nothing behind.
+**6. Save, reopen, delete.** There are two ways to delete, on purpose:
+
+- **The scenario you are looking at.** With a custom scenario selected, a **Delete** button sits beside
+  the dropdown — on the results screen *and* on the dataset view. It asks once (*"Delete custom-… and
+  its data?"*) before doing it.
+- **Any of them, from the panel.** **YOUR SAVED SCENARIOS (n)** is the first block in the panel: click
+  a name to run it again, **Delete** beside it, or **Delete all**.
+
+Either way it removes the config, the generated data, the recorded benchmark artifact and the
+vector-store collection — a deleted scenario leaves nothing behind. The four recorded scenarios have no
+Delete button at all; their names are refused by the API as well.
 
 Say: *"Saved scenarios live on this box, in the dropdown, and come back next time. They are visible to
 anyone who can reach the box — this is a single-user prototype, not multi-tenant."*

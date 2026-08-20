@@ -50,6 +50,7 @@ import {
   valueRange,
 } from "./lib/datasetFormat";
 import type { DatasetOverview, ScenarioSummary } from "./lib/types";
+import DeleteScenarioButton from "./custom/DeleteScenarioButton";
 
 /** Kept in step with App.tsx: the sentinel for the "build your own" entry. */
 const BUILD_YOUR_OWN = "__custom__";
@@ -65,6 +66,8 @@ type Props = {
   /** Open the custom-scenario panel. Omit to hide the entry entirely. */
   onOpenCustom?: () => void;
   customOpen?: boolean;
+  /** Delete the selected custom scenario. Omit to hide the control. */
+  onDeleteScenario?: (deleted: string) => void;
 };
 
 type LoadState =
@@ -81,6 +84,7 @@ export default function DatasetView({
   replay = false,
   onOpenCustom,
   customOpen = false,
+  onDeleteScenario,
 }: Props) {
   const [state, setState] = useState<LoadState>({ status: "loading" });
 
@@ -128,6 +132,7 @@ export default function DatasetView({
         replay={replay}
         onOpenCustom={onOpenCustom}
         customOpen={customOpen}
+        onDeleteScenario={onDeleteScenario}
       />
 
       <div className="mx-auto grid max-w-7xl gap-5 px-4 py-5 sm:px-6 lg:px-8">
@@ -158,6 +163,7 @@ function StickyHeader({
   replay,
   onOpenCustom,
   customOpen,
+  onDeleteScenario,
 }: {
   scenario: string;
   scenarios: ScenarioSummary[];
@@ -167,6 +173,7 @@ function StickyHeader({
   replay?: boolean;
   onOpenCustom?: () => void;
   customOpen?: boolean;
+  onDeleteScenario?: (deleted: string) => void;
 }) {
   // Grouped so a custom scenario can never be read as one of the four recorded
   // ones — the same split the results screen uses.
@@ -253,6 +260,13 @@ function StickyHeader({
               ) : null}
             </select>
           </label>
+          {onDeleteScenario && !customOpen ? (
+            <DeleteScenarioButton
+              scenario={scenario}
+              onDeleted={onDeleteScenario}
+              compact
+            />
+          ) : null}
         </div>
       </div>
     </header>

@@ -5,6 +5,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import BetaChip from "./chat/BetaChip";
 import ChatPanel from "./chat/ChatPanel";
 import CustomScenarioPanel from "./custom/CustomScenarioPanel";
+import DeleteScenarioButton from "./custom/DeleteScenarioButton";
 import DatasetView from "./DatasetView";
 import { fetchScenarios, scenarioStreamUrl } from "./lib/api";
 import { buildMetricComparisons, winnerMessage } from "./lib/deltas";
@@ -148,6 +149,33 @@ export default function App() {
       .then(setScenarios)
       .catch(() => undefined);
   }, []);
+
+  /**
+   * After deleting whatever is selected, fall back to a scenario that still
+   * exists and drop the result — leaving a deleted scenario's numbers on screen
+   * under a name that no longer resolves would be the worst of both.
+   */
+  const handleDeleted = useCallback(
+    (deleted: string) => {
+      setResult((current) =>
+        current && current.benchmark.scenario === deleted ? null : current,
+      );
+      setStages([]);
+      setScenarios((current) => {
+        const remaining = current.filter((item) => item.scenario !== deleted);
+        setScenario((selected) =>
+          selected === deleted
+            ? remaining.find((item) => !item.scenario.startsWith(CUSTOM_PREFIX))?.scenario ??
+              remaining[0]?.scenario ??
+              ""
+            : selected,
+        );
+        return remaining;
+      });
+      refreshScenarios();
+    },
+    [refreshScenarios],
+  );
 
   const toggleChat = useCallback((open: boolean) => {
     setChatOpen(open);
@@ -319,6 +347,16 @@ export default function App() {
         // singled out. Omitted in replay, where every API call is blocked.
         onOpenCustom={isReplayMode() ? undefined : () => setCustomOpen(true)}
         customOpen={customOpen}
+        onDeleteScenario={
+          isReplayMode()
+            ? undefined
+            : (deleted) => {
+                handleDeleted(deleted);
+                // The dataset view is showing the scenario that just went away,
+                // so send the viewer back to a result that still exists.
+                openResults();
+              }
+        }
       />,
     );
   }
@@ -355,6 +393,7 @@ export default function App() {
                 <Table2 className="h-4 w-4" />
                 View the dataset
               </button>
+              <DeleteScenarioButton scenario={scenario} onDeleted={handleDeleted} />
               <button
                 type="button"
                 onClick={loadReplay}
