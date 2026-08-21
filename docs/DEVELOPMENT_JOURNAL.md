@@ -373,6 +373,15 @@ advisory — the thing behind Option E's "Written rationale" tick and Option D's
 🔴 **The stale-NVML follow-up carried since 2026-08-20 is CLOSED.** Both `api` and `llm` now have
 healthy NVML handles for the first time since 2026-07-30.
 
+**And the checkpoint guardrail was re-run after the infra change rather than assumed.** Recreating
+`llm` should not be able to move an objective — the LLM narrates and never calculates — but "should
+not" is not a verification:
+
+| Re-run after recreating `llm` | Result |
+|---|---|
+| `make bench-all` | ✅ **all 12 objectives bit-identical**, checked programmatically against the recorded table — **0 mismatches** |
+| `make test` | ✅ **558 passed, 2 xpassed** (125.91s), both GPU probes `XPASS` |
+
 ### Verified results summary
 
 | Item | Result |
