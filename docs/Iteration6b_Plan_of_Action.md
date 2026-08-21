@@ -48,10 +48,11 @@ worse than hiding it.
 
 But NVML has now detached from these containers **four times** (2026-07-10, 2026-07-30, 2026-08-20,
 and 🔴 **again on 2026-08-21, found at the start of Phase 0** — `/health` read `gpu_visible:false`
-after the `api` container had been up only **19 hours** since the 2026-08-20 fix). `llm`'s handle is
-**still stale**. The cadence has gone from ~2 weeks to under a day, so the failure mode is not
-theoretical: the box wobbles on Wednesday morning, and the one thing Ryan came to see cannot be shown
-at all.
+after the `api` container had been up only **19 hours** since the 2026-08-20 fix). ✅ `llm`'s stale
+handle was **cleared in Phase 0** by recreating the container (7m13s, no wedge), so both handles are
+healthy for the first time since 2026-07-30 — but the `api` cadence has gone from ~2 weeks to under a
+day, so the failure mode is not theoretical: the box wobbles on Wednesday morning, and the one thing
+Ryan came to see cannot be shown at all.
 
 **Phase 0 closes that** — with a screen recording rather than a replay implementation, for the reasons
 in Phase 0. It is not polish.

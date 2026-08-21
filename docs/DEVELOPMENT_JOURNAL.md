@@ -25,7 +25,8 @@
   🔴 **Two Phase 0 items remain open and only a person can close them: the Option E screen recording,
   and reading the Option E talk track out loud** — both specified in
   [`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md).
-  🔴 **The `llm` container has NOT been recreated** — it needs an explicit go (§ entry below).
+  ✅ **The `llm` container WAS recreated on an explicit go and its NVML is now clean** — the
+  stale-NVML follow-up carried since 2026-08-20 is **CLOSED** (§ entry below).
   **Ryan demo: Wednesday 2026-08-26. Internship ends Friday 2026-08-28.**
 - **Branch:** **Iteration 6a is MERGED to `main`** as **`ad17cc5`** (`--no-ff`, so the iteration
   boundary stays visible in history), on Ishan's explicit go, 2026-08-20. `main` was `cd3905f`.
@@ -137,8 +138,8 @@
   exactly the case NVML detachment breaks), plus a **fresh** `docker compose exec` confirming
   `torch.cuda.is_available()` `True` on `NVIDIA GB10` with a real CUDA matmul. Note the two
   `xfail`-marked probes only read `/health`, so their `XPASS` is not an independent check — the fresh
-  exec is. **`llm` remains stale** (`Failed to initialize NVML`), serves fine, not recreated (needs an
-  explicit go). Detail below.
+  exec is. ~~**`llm` remains stale**~~ → ✅ **superseded 2026-08-21: `llm` was recreated and its NVML
+  is clean.** Detail below.
 - 🔴 **GPU/NVML: recurred 2026-08-20 and is PARTLY fixed.** After ~2 weeks up, **both** `api` and
   `llm` returned `Failed to initialize NVML: Unknown Error` and `/health` read `gpu_visible:false` —
   while compute kept working off already-loaded CUDA contexts, so it looked healthy and the 2026-08-19
@@ -148,9 +149,10 @@
   in-container `nvidia-smi`, `/health` `gpu_visible:true, gpu_name:"NVIDIA GB10",
   driver_version:"580.159.03"`, `torch.cuda.is_available()` `True`, `nomic-embed` on `cuda:0` at 768
   dim, and the full RAG advisory path `llm_finalized` with 5 citations in 20.1 s.
-  **`llm`'s own NVML is still stale** — it serves fine (live completion confirmed) and nothing reads
-  it, but a restart would not re-see the GPU. Recreate it in a window, accepting the ~10-min Nemotron
-  reload and the documented wedge risk. **Check `/health` before trusting any GPU-dependent result.**
+  ~~**`llm`'s own NVML is still stale**~~ → ✅ **CLOSED 2026-08-21**: recreated in a quiet window on an
+  explicit go — 7m13s to healthy, no unified-memory wedge, `nvidia-smi` clean inside the container.
+  **Check `/health` before trusting any GPU-dependent result**, and note the `api` handle has since
+  detached a fourth time (2026-08-21), now on a sub-daily cadence.
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
@@ -201,6 +203,12 @@ detachments has gone from ~2 weeks to under a day.
 🔴 **Read the `xpassed` count, not "passed".** Those two probes are `xfail`-marked, so if the GPU fix
 had *not* taken they would report `xfailed` and the suite would still say "passed" overall. **558
 passed + 2 xpassed** is the signal; "558 passed" alone is not.
+
+**But heeding the 2026-08-20 correction below:** those two probes only read `/health`, so their `XPASS`
+is *not* independent of it. The independent check is a fresh exec, and it was run: `docker compose exec
+api python3 -c "import torch..."` → `torch.cuda.is_available()` **True** on `NVIDIA GB10` with a real
+512×512 CUDA matmul, plus `/embeddings/health` reporting `nomic-embed-text-v1.5` on **`cuda:0`** at
+768 dim.
 
 **This directly raises the Wednesday risk**, and is now recorded in the plan's §0.2: Option E — the
 custom scenario, the entire subject of the meeting — is the one demo option with **no** GPU-free
@@ -303,10 +311,8 @@ fix and is not done** — noted, not silently left.
 
 ### 6. Deliberately NOT done
 
-- 🔴 **The `llm` container was NOT recreated.** Its NVML is still stale (carried since 2026-08-20). The
-  plan schedules it for a quiet window in Phase 0, but it costs a ~10-minute Nemotron reload and
-  carries a documented unified-memory wedge risk, so it **needs an explicit go** and did not get one in
-  this session. It serves fine; nothing reads its NVML.
+- ✅ **The `llm` container WAS recreated** — see §8 below. It was flagged for an explicit go, the go
+  was given, and it succeeded.
 - 🔴 **The two human Phase 0 items are handed over, not done** — see
   [`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md),
   written this session with a full shot list and a read-aloud checklist. An agent cannot legitimately
@@ -328,11 +334,50 @@ reasoning). A video file has no API dependency, so the equivalent check is *play
 stack down, on a machine that cannot reach the box*. Flagging the difference rather than quietly
 reinterpreting the DoD.
 
+### 8. ✅ The `llm` container recreated — stale NVML CLOSED, no wedge
+
+I recommended **deferring** this until after the demo, on the grounds that `llm` served fine, nothing
+reads its NVML, and recreating it risked breaking the LLM five days before the meeting for ~zero
+functional gain. **Ishan's call was to do it now, in the quiet window** — Friday afternoon, everything
+green and committed, five clear days to recover if it wedged. Recorded because the reasoning matters
+more than the outcome: doing it now traded a small risk taken deliberately for the same risk arriving
+unmanaged on Wednesday morning.
+
+**Before:** `docker compose exec llm nvidia-smi` → **`Failed to initialize NVML: Unknown Error`**,
+container up **3 weeks**. A live completion was captured first, to have parity to compare against.
+
+**Recreated** with `docker compose up -d --no-deps --force-recreate llm` at 16:00:52. Healthy and
+serving at **16:08:05 — 7m13s**, faster than the ~10 minutes budgeted. **The unified-memory wedge risk
+did not materialise.**
+
+| Check | Before | After |
+|---|---|---|
+| `nvidia-smi` inside `llm` | 🔴 `Failed to initialize NVML: Unknown Error` | ✅ **`NVIDIA GB10, 580.159.03, 55C`** |
+| Live chat completion | ✅ 0.55 s, 49 total tokens | ✅ **1.06 s, 49 total tokens** — identical usage |
+| `GET /v1/models` | Nemotron-3-Nano-30B-A3B-FP8 | same model, reloaded |
+| `api` `/health` | `gpu_visible:true` | ✅ still `gpu_visible:true` |
+| All four containers | healthy | ✅ all healthy |
+| Host memory | — | 67 GB used / 121, **53 GB available** — no wedge |
+
+**The demo path was then verified end-to-end, not just the container.** `make rag` (the Phase 4 RAG
+advisory — the thing behind Option E's "Written rationale" tick and Option D's chat) ran clean:
+
+- `advisory_text_source: **llm_finalized**` — real model output, not a fallback
+- `llm_usage`: 1,993 prompt + **769 completion** tokens
+- 🔴 `numeric_metrics_generated_by: **optimizer_benchmark_not_llm**` — the narrate-never-calculate
+  guardrail holds
+- `prompt_injection_flags: []`
+- and the generated text quotes **81,789 / 0.8366 fill / 4.67 days / 70,451 total cost** — matching the
+  optimizer's own numbers measured earlier in this session, to the digit
+
+🔴 **The stale-NVML follow-up carried since 2026-08-20 is CLOSED.** Both `api` and `llm` now have
+healthy NVML handles for the first time since 2026-07-30.
+
 ### Verified results summary
 
 | Item | Result |
 |---|---|
-| GPU | `/health` `gpu_visible:true` + `make test` GPU probes **XPASS** after recreating `api` |
+| GPU (`api`) | `/health` `gpu_visible:true`, GPU probes **XPASS**, and the independent check — fresh-exec `torch.cuda.is_available()` **True** + real CUDA matmul + embeddings on `cuda:0` @ 768 dim |
 | `make test` | **558 passed, 2 xpassed** |
 | `make bench-all` | **all 12 objectives bit-identical** |
 | `make scenario-eval` | **29/29** |
@@ -340,12 +385,15 @@ reinterpreting the DoD.
 | `make web-check` | **38/38 PASS, 0 FAIL** |
 | §0.3 re-verification | 4 of 5 network probes reproduced exactly; **2 plan figures corrected** |
 | Probe cleanup | `data/scenarios/` and `data/generated/` back to exactly 4; `make cli-list` confirms |
+| `llm` recreated | ✅ NVML clean inside `llm`, live completion 1.06 s, healthy in 7m13s, no wedge |
+| `make rag` | ✅ `llm_finalized`, 769 completion tokens, `optimizer_benchmark_not_llm`, no injection flags |
 
 ### Open follow-ups
 
 - 🔴 **The Option E screen recording** — human, this weekend. The demo fallback.
 - 🔴 **Read the Option E talk track out loud** — human, carried since Iteration 3.
-- 🔴 **`llm` NVML still stale** — recreate in a quiet window; **needs an explicit go.**
+- ✅ **`llm` NVML — CLOSED this session** (§8). Stale since 2026-08-20; container recreated and
+  `nvidia-smi` now healthy inside it.
 - 🔴 **NVML detachment cadence is now sub-daily.** Check `/health` for `gpu_visible:true` before
   trusting any GPU-dependent result, and **immediately before the Wednesday demo.**
 - **Extend `web/e2e/dataset-view.check.mjs`** to screenshot all six 6a states, so the set is fully
