@@ -17,6 +17,16 @@
 ---
 
 ## Project snapshot (current state)
+- 🔴 **NOW: Iteration 6b — Custom Dataset, Phase 0 (demo hardening) COMPLETE except two human items.**
+  Branch **`feat/iteration6b-custom-dataset`**, cut from `main` @ `262c498` on 2026-08-21. No feature
+  code written yet — Phase 0 is deliberately demo hardening only. Green baseline re-verified on the
+  branch: `make test` **558 passed + 2 xpassed**, `make bench-all` **all 12 objectives bit-identical**,
+  `make scenario-eval` **29/29**, `make web-test` **108**, `make web-check` **38/38**.
+  🔴 **Two Phase 0 items remain open and only a person can close them: the Option E screen recording,
+  and reading the Option E talk track out loud** — both specified in
+  [`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md).
+  🔴 **The `llm` container has NOT been recreated** — it needs an explicit go (§ entry below).
+  **Ryan demo: Wednesday 2026-08-26. Internship ends Friday 2026-08-28.**
 - **Branch:** **Iteration 6a is MERGED to `main`** as **`ad17cc5`** (`--no-ff`, so the iteration
   boundary stays visible in history), on Ishan's explicit go, 2026-08-20. `main` was `cd3905f`.
   **Re-verified on `main` itself after the merge, from a clean rebuild of `api` and `web`:**
@@ -159,6 +169,191 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-21 — Iteration 6b Phase 0: demo hardening, a 4th NVML detachment, and two plan figures that did not reproduce
+
+**What this was.** Iteration 6b (Custom Dataset — the network tier) starts here, but Phase 0 contains
+**no 6b feature work at all.** It is demo hardening, deliberately sequenced first because the Ryan demo
+on **Wednesday 2026-08-26** is the deliverable and the feature is not. Plan:
+[`Iteration6b_Plan_of_Action.md`](Iteration6b_Plan_of_Action.md) §5 Phase 0.
+
+**Git ref:** branch **`feat/iteration6b-custom-dataset`**, cut from `main` @ `262c498`. The plan file —
+previously untracked on `main` — is its first commit (`7659721`), followed by this Phase 0 commit.
+
+### 1. 🔴 Real environment defect, found first: NVML detached from `api` for the FOURTH time
+
+`curl localhost:8080/health` at the start of the session read
+**`gpu_visible:false, gpu_name:null, driver_version:null`** while the host's own `nvidia-smi` was
+perfectly healthy (GB10, driver 580.159.03).
+
+🔴 **The significant part is the cadence.** The previous three detachments (2026-07-10, 2026-07-30,
+2026-08-20) were roughly two weeks apart. This one happened after the `api` container had been up
+**19 hours** — it had been recreated on 2026-08-20 *as the fix for the last one*. The gap between
+detachments has gone from ~2 weeks to under a day.
+
+**Fixed** with `docker compose up -d --no-deps --force-recreate api`. **Verified, not assumed:**
+
+| Check | Result after the fix |
+|---|---|
+| `GET /health` | `gpu_visible:true`, `gpu_name:"NVIDIA GB10"`, `driver_version:"580.159.03"`, `cuda_version:"13.0"` |
+| `make test` GPU probes | `test_gpu_visible` **XPASS**, `test_driver_version` **XPASS** |
+
+🔴 **Read the `xpassed` count, not "passed".** Those two probes are `xfail`-marked, so if the GPU fix
+had *not* taken they would report `xfailed` and the suite would still say "passed" overall. **558
+passed + 2 xpassed** is the signal; "558 passed" alone is not.
+
+**This directly raises the Wednesday risk**, and is now recorded in the plan's §0.2: Option E — the
+custom scenario, the entire subject of the meeting — is the one demo option with **no** GPU-free
+fallback, and the box is now wobbling on a sub-daily cadence.
+
+### 2. Green baseline on the branch — all five numbers
+
+Every one a real run on-device, in this session, on the branch:
+
+| Suite | Result | Expected |
+|---|---|---|
+| `make test` | **558 passed, 2 xpassed** (135.11s) | 558 + 2 xpassed ✅ |
+| `make bench-all` | **all 12 objectives bit-identical** | bit-identical ✅ |
+| `make scenario-eval` | **29/29** (7 controls; refusal classes 17/17, warnings 5/5) | 29/29 ✅ |
+| `make web-test` | **108 passed** (7 files) | 108 ✅ |
+| `make web-check` | **38 PASS / 0 FAIL**, "ALL CHECKS PASSED" | 38/38 ✅ |
+
+The 12 objectives, checked individually against the recorded table in the 6a handoff:
+
+| Scenario | Naive baseline | Classical (winner) | PPO |
+|---|---:|---:|---:|
+| `baseline` | 88,022.760795 | **81,789.359460** | 102,804.716650 |
+| `component-shortage-shock` | 102,834.785064 | **95,445.445064** | 113,584.863463 |
+| `demand-surge` | 100,734.738785 | **94,165.363245** | 115,161.538279 |
+| `stress-large` | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 |
+
+All 12 match to the digit. The optimizer, objective function and generator were not touched.
+
+### 3. 🔴 The consolidated modelling finding, written in Phase 0 on purpose
+
+New: [`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md).
+
+**The optimizer routes between lanes and has no concept of a node.** Five oddities recorded across
+three iterations — the single-period capacity read (question 6), the inert
+`dc_throughput_units_per_period`, a lane family whose loss *saves* money, a warehouse that is free,
+and an inert `lines_per_plant` — are **one gap, measured five ways.**
+
+It was written in Phase 0 rather than Phase 4 because it needs no code, it is the most valuable
+artifact of the week, and it must not be what gets cut on Tuesday night.
+
+**The mechanism was verified in the source, not inferred.** `select_ortools_lanes`
+([`src/optimize/common.py:114`](../src/optimize/common.py#L114)) builds **one LP per lane type in a
+loop** ([`:147`](../src/optimize/common.py#L147)) with a single aggregate demand constraint
+([`:166`](../src/optimize/common.py#L166)) and capacity only as a per-lane variable bound
+([`:163`](../src/optimize/common.py#L163)). There is no variable representing a node.
+🔴 **The line that makes zero warehouses *free* rather than *infeasible* is
+[`:149`](../src/optimize/common.py#L149) — `if frame.is_empty(): continue`** — a lane family with no
+lanes is silently skipped, not reported as unserved. **New finding this session:** the naive baseline
+`select_greedy_lanes` ([`:52-64`](../src/optimize/common.py#L52)) has the **identical** shape, so the
+gap is in both candidates — which is *why the within-run naive-vs-classical comparison stays fair*
+even though neither models a node. That nuance was not in the plan.
+
+### 4. 🔴 The brutal-truth pass: I re-measured §0.3 independently, and two plan figures did not reproduce
+
+The plan's headline numbers were measured on 2026-08-21 when it was written. Because this finding is
+going in front of a sponsor, **every number was measured a second time** — copy `baseline.yaml`, change
+one `network:` count, generate with `--seed 12345`, run `src.pipeline.bench --horizon 8`, read the
+classical row. **A renamed but otherwise unmodified `baseline` was run as a control and reproduced
+`81789.35946` exactly**, which validates the probe path before trusting any delta from it.
+
+**Reproduced ✅:** 1 DC `81663.107829`; 3 DCs `82056.854415`; 0 DCs `68565.250935` at `0.920103` fill;
+2 DCs `81789.35946` at `0.836619`. **1 DC and 3 DCs leave fill rate and days of inventory identical to
+the digit** (`0.836619` / `4.665808`). The lane-family collapse was counted straight out of the
+generated `lanes.csv`: 2 DCs `{inbound_raw: 10, plant_to_dc: 4, dc_to_customer: 16}` → 1 DC
+`{inbound_raw: 10, plant_to_dc: 2, dc_to_customer: 8}` → **0 DCs `{inbound_raw: 10}`**. And
+`lines_per_plant: 0` — no production lines at all — returns `81789.35946`, bit-identical to baseline.
+
+🔴 **Two figures in the plan were wrong and are now corrected in both the plan and the finding:**
+
+| Plan said | Measured | What it was |
+|---|---|---|
+| 0 DCs → **4.28** days of inventory (§0.3) | **0.63** | Simply wrong. The correction makes the finding *stronger* — the model's "best" network also holds almost no inventory |
+| *"Only transport moves — 20,352.73 → 20,478.98"* (§1.2) | 2 DCs = 20,478.98, 1 DC = **20,352.73** | 🔴 **The direction was reversed.** As written it claimed transport *rises* when you remove a warehouse, contradicting the plan's own headline that 1 DC is cheaper. The real fall is 126.251631 — *exactly* the objective delta |
+
+Neither error touched an objective or the argument, and **both would have been said out loud on
+Wednesday.** This is the third iteration in a row where the review step caught something real.
+
+**A better statement of the 0-DC case also came out of it.** The plan said the shortage penalties
+halve; measured, transport **rises** 20,478.98 → 32,495.27 and ordering **rises** 5,700 → 10,740, and
+what buys the 16% is backorder (−9,449.86) and lost sale (−10,176.77) collapsing *because nothing is
+being shipped, so nothing is recorded as short*. That is a sharper indictment than "it got cheaper".
+
+**All probes were cleaned up and cleanup was verified:** `data/scenarios/` and `data/generated/` are
+back to exactly the four shipped scenarios, `/app/benchmark/probe-*` removed, and `make cli-list`
+confirms the API offers only the four.
+
+### 5. The 6a screenshot set is committed — with an honest README
+
+New: `docs/iteration-docs/screenshots/iteration6a/` (6 PNGs, 1.4 MB). Iterations 4 and 5 each have a
+set; 6a had none, and these outlive the internship.
+
+🔴 **Finding while doing it:** only **2 of the 6** are reproducible from `make web-check`. Proven by
+timestamp — a full 38/38 `web-check` run rewrote `custom-scenario-result.png` and
+`custom-scenario-noop-warning.png` and left the other four at their 2026-08-20 mtimes. The other four
+were ad-hoc captures from the 6a Phase 4 browser review; the committed
+`web/e2e/dataset-view.check.mjs` *checks* those states but never screenshots them. The README says so
+explicitly, rather than repeating Iteration 4's blanket "regenerate with `make web-check`", which
+would have been false for four of the six. **Extending the check script to shoot all six is the better
+fix and is not done** — noted, not silently left.
+
+### 6. Deliberately NOT done
+
+- 🔴 **The `llm` container was NOT recreated.** Its NVML is still stale (carried since 2026-08-20). The
+  plan schedules it for a quiet window in Phase 0, but it costs a ~10-minute Nemotron reload and
+  carries a documented unified-memory wedge risk, so it **needs an explicit go** and did not get one in
+  this session. It serves fine; nothing reads its NVML.
+- 🔴 **The two human Phase 0 items are handed over, not done** — see
+  [`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md),
+  written this session with a full shot list and a read-aloud checklist. An agent cannot legitimately
+  close either:
+  - **the Option E screen recording** (the demo fallback). Confirmed this session that it *cannot* be
+    done from here: the GB10 has no graphical session (`XDG_SESSION_TYPE=tty`, no `DISPLAY`) and no
+    `ffmpeg`. It has to be recorded from a laptop over the SSH port-forward.
+  - **reading the Option E talk track out loud, end to end** — the DoD item **carried unclosed since
+    Iteration 3**, now four iterations old.
+- **No 6b feature code.** Phase 1 has not started. Per protocol, one phase per session.
+
+### 7. A note on one DoD wording
+
+Phase 0's DoD says the Option E fallback should be *"verified with the API blocked"*. That phrasing was
+written for a replay build, where blocking the API is the actual test. **The chosen fallback is a
+screen recording** (a deliberate timeline decision — a true replay path for Option E is half a day of
+UI work because the panel makes several round trips, and it is listed under §Deferred with that
+reasoning). A video file has no API dependency, so the equivalent check is *playing it back with the
+stack down, on a machine that cannot reach the box*. Flagging the difference rather than quietly
+reinterpreting the DoD.
+
+### Verified results summary
+
+| Item | Result |
+|---|---|
+| GPU | `/health` `gpu_visible:true` + `make test` GPU probes **XPASS** after recreating `api` |
+| `make test` | **558 passed, 2 xpassed** |
+| `make bench-all` | **all 12 objectives bit-identical** |
+| `make scenario-eval` | **29/29** |
+| `make web-test` | **108** |
+| `make web-check` | **38/38 PASS, 0 FAIL** |
+| §0.3 re-verification | 4 of 5 network probes reproduced exactly; **2 plan figures corrected** |
+| Probe cleanup | `data/scenarios/` and `data/generated/` back to exactly 4; `make cli-list` confirms |
+
+### Open follow-ups
+
+- 🔴 **The Option E screen recording** — human, this weekend. The demo fallback.
+- 🔴 **Read the Option E talk track out loud** — human, carried since Iteration 3.
+- 🔴 **`llm` NVML still stale** — recreate in a quiet window; **needs an explicit go.**
+- 🔴 **NVML detachment cadence is now sub-daily.** Check `/health` for `gpu_visible:true` before
+  trusting any GPU-dependent result, and **immediately before the Wednesday demo.**
+- **Extend `web/e2e/dataset-view.check.mjs`** to screenshot all six 6a states, so the set is fully
+  reproducible.
+- **Eleven open questions for Ryan** (7 from Iteration 5, 4 from 6a). Wednesday is the last scheduled
+  chance. §4 of the plan orders them, §4.1 first.
+- **Phase 1 not started** — the network ledger, floors and honesty labels.
+
 
 ## 2026-08-20 (merge) — Iteration 6a MERGED to `main` as `ad17cc5`
 **Status:** **Merged on Ishan's explicit go.** `--no-ff`, matching the Iteration 5 convention so the

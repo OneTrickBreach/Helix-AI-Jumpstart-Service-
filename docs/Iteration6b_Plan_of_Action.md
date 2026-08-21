@@ -46,10 +46,12 @@ deliberately hidden in replay mode ([`App.tsx:447`](../web/src/App.tsx#L447)), a
 building a scenario needs the API, and offering a panel that can only say "Failed to fetch" would be
 worse than hiding it.
 
-But NVML has now detached from these containers **three times** (2026-07-10, 2026-07-30, 2026-08-20 —
-the last one discovered four days ago, between the meeting being booked and now), and `llm`'s handle is
-**still stale**. So the failure mode is real and it is specific: the box wobbles on Wednesday morning,
-and the one thing Ryan came to see cannot be shown at all.
+But NVML has now detached from these containers **four times** (2026-07-10, 2026-07-30, 2026-08-20,
+and 🔴 **again on 2026-08-21, found at the start of Phase 0** — `/health` read `gpu_visible:false`
+after the `api` container had been up only **19 hours** since the 2026-08-20 fix). `llm`'s handle is
+**still stale**. The cadence has gone from ~2 weeks to under a day, so the failure mode is not
+theoretical: the box wobbles on Wednesday morning, and the one thing Ryan came to see cannot be shown
+at all.
 
 **Phase 0 closes that** — with a screen recording rather than a replay implementation, for the reasons
 in Phase 0. It is not polish.
@@ -67,7 +69,7 @@ results are the most valuable thing in this document.
 > | `baseline` — 2 DCs | 81,789.36 | 83.66% | 4.67 |
 > | **1 DC** — Ryan's own ask | **81,663.11** *(cheaper)* | **83.66%** *(identical)* | **4.67** |
 > | 3 DCs | 82,056.85 *(dearer)* | 83.66% *(identical)* | 4.67 |
-> | **0 DCs** | **68,565.25** *(16% cheaper)* | **92.01%** *(better!)* | 4.28 |
+> | **0 DCs** | **68,565.25** *(16% cheaper)* | **92.01%** *(better!)* | **0.63** |
 >
 > Removing warehouses makes the plan cheaper and never costs a point of service. A network with **no
 > warehouses at all** scores the best of the four.
@@ -82,11 +84,18 @@ goes**, and it is the same root cause as three things already on record:
 | Zeroing a whole lane family **lowers** the objective (81,789 → 77,788) | not shipping is not penalised |
 | **New:** removing a warehouse is free, and zero warehouses is best | a node is not in the LP at all |
 
-The mechanism, verified in [`src/optimize/common.py:118-185`](../src/optimize/common.py#L118): the
+The mechanism, verified in [`src/optimize/common.py:114-185`](../src/optimize/common.py#L114): the
 routing LP is **three independent single-commodity transportation problems**, one per lane type, each
 with one aggregate demand constraint and per-lane capacity bounds. **There is no node in it.** No flow
 conservation through a DC, no per-node throughput cap, and no link between the `plant_to_dc` problem
-and the `dc_to_customer` problem. A warehouse is a label on the end of a lane.
+and the `dc_to_customer` problem. A warehouse is a label on the end of a lane. The specific line that
+makes zero warehouses *free* rather than *infeasible* is
+[`:149`](../src/optimize/common.py#L149) — `if frame.is_empty(): continue`, which silently skips a
+lane family that has no lanes. **And `select_greedy_lanes` — the naive baseline — has the identical
+shape** ([`:52-64`](../src/optimize/common.py#L52)), so this is not an artifact of the tuned solver:
+both candidates share the gap, which is why the within-run comparison stays fair even though neither
+models a node. Full write-up:
+[`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md).
 
 **So the Wednesday pitch changes shape, for the better.** Not *"here are more sliders"* but: *"you
 asked for two things and here is both — and building the second one turned four separate oddities into
@@ -187,7 +196,8 @@ warehouse economics.
 
 **Proof, measured:** between 1 DC and 2 DCs the cost breakdown is *identical to the cent* on holding
 (5,862.55), ordering (5,700.00), backorder (18,493.56) and lost sale (19,916.14). **Only transport
-moves** — 20,352.73 → 20,478.98. A warehouse's entire modelled effect is which lanes the LP picks.
+moves** — 20,478.98 at 2 DCs → 20,352.73 at 1 DC, a fall of exactly 126.25, which is the whole
+objective delta. A warehouse's entire modelled effect is which lanes the LP picks.
 
 **Problem-size counts — `customers`, `finished_goods`, `subassemblies_per_finished_good`,
 `raw_components_per_subassembly`** move it by **1.3%–31.3%**, because they change total demand and BOM
