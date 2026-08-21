@@ -17,7 +17,16 @@
 ---
 
 ## Project snapshot (current state)
-- 🔴 **NOW: Iteration 6b — Custom Dataset. Phase 1 (the network ledger) COMPLETE.** The eight
+- 🔴 **NOW: Iteration 6b — Custom Dataset. Phase 2 COMPLETE — a network-edited dataset saves, runs,
+  reopens and deletes.** A 1-DC dataset runs to **81,663.107829** and a 7-customer one to
+  **66,548.241282**, both to the digit; the dataset view and `NetworkMap` carry them with **no
+  dataset-code change** (17 nodes → 16, redrawn on its own); delete removes all four artifacts.
+  🔴 **Guardrail 4 is live on every surface**: a resized network is labelled not-comparable in the
+  payload, the change list, the pre-run card, the run result **and an amber block beside the
+  objective**. Green: `make test` **635 passed + 2 xpassed**, `make scenario-eval` **41/41**,
+  `make bench-all` **all 12 bit-identical**, `make web-test` **111**, `make web-check` **43/43**.
+  Next: Phase 3 (the UI — a Network group; delete `PENDING_UI_GROUPS`).
+- **Iteration 6b Phase 1 (the network ledger) COMPLETE.** The eight
   `network:` counts are first-class validated settings: **67 settings across 8 groups**, floors on all
   seven values that cannot be run, the two honesty classes **derived** rather than asserted, and
   `network.lines_per_plant` classified **INERT by derivation**. No UI yet (deliberately gated out of the
@@ -179,6 +188,128 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-21 (Phase 2) — Iteration 6b: the dataset tier runs end to end, and guardrail 4 gets teeth
+
+**Git ref:** `a06327a` on `feat/iteration6b-custom-dataset`.
+
+### 1. The reuse claim held, and `store.py` needed no change
+
+Phase 2's whole premise was that **a custom dataset is still just a config**, so 6a's persistence, run
+path, dataset view and change list should carry it unmodified. That was a claim, so it was tested
+rather than assumed — and it held. `store.py` was **not touched**. The plan said a change there would
+be "a finding worth writing down"; there is nothing to write down.
+
+Verified through the real API and a real browser, not a unit test:
+
+| Check | Result |
+|---|---|
+| 1-DC dataset saves | config + data written; lanes `{inbound_raw: 10, plant_to_dc: 2, dc_to_customer: 8}`, nodes `{customer: 8, distribution_center: 1, plant: 2, supplier: 5}` |
+| …reopens and runs | 🔴 **81,663.107829** — the plan's measured figure **to the digit**, fill rate `0.836619` identical to baseline |
+| 7-customer dataset runs | 🔴 **66,548.241282** — also to the digit |
+| Delete | removes **all four** artifacts: `data/scenarios/…yaml`, `data/generated/…`, the benchmark JSON, and the qdrant collection. Four recorded scenarios intact |
+| Dataset view | renders both with **no dataset-code change** |
+| 🔴 The narrative | *"…send finished goods through **1 distribution center** out to 8 customers"* — correct singular, and the diff sentence says *"across **network size**"*. §1.6 predicted `narrative.py` would need no template work; **verified, not assumed** |
+| 🔴 `NetworkMap` | **redraws on its own, 17 nodes → 16**, zero console errors. `NetworkMap.tsx` untouched — the free demo beat |
+| Four recorded names | still refused with `name_reserved`, even carrying a network override |
+
+### 2. 🔴 Guardrail 4 now has teeth on every surface
+
+This is the substance of the phase. A resized network returns a **lower objective for a smaller
+problem** — 66,548.24 against baseline's 81,789.36 — and on the results screen that number is large,
+green-adjacent and concrete. Left unlabelled it reads as an 18.6% saving. It is 12% less demand.
+
+`network_comparability` derives the verdict from the **ledger's own `answer_class`**, not from a list
+kept beside it, so it cannot drift from what the controls say. And one builder produces the warning
+both before *and* after the run — the Iteration 5 rule that a measured fact must not acquire two
+vocabularies.
+
+It now travels on: the settings payload · the **change list entry** (what "WHAT YOU CHANGED" shows) ·
+the pre-run card · the run result · and an **amber block rendered beside the objective**. A node-count
+change is marked comparable and gets **no** caveat — verified, because crying wolf on the comparable
+case would train a viewer to ignore the block that matters.
+
+### 3. The estimate is recomputed, not inherited — after measuring, not by assuming
+
+The plan flagged this as the thing most likely to lie. What measurement actually found on 2026-08-21:
+
+| Network | Nodes | Lanes | Demand rows | Series | In-process build |
+|---|---:|---:|---:|---:|---:|
+| baseline | 17 | 30 | 2,912 | 32 | 0.008 s |
+| 1 DC | 16 | 20 | 2,912 | 32 | 0.007 s |
+| 40 customers | 49 | 94 | **9,568** | 160 | 0.029 s |
+| stress-large's shape | 42 | 152 | 22,464 | 288 | 0.059 s |
+| **largest these controls allow** | **120** | **2,000** | 41,184 | 720 | **0.207 s** |
+
+(9,568 demand rows at 40 customers reproduces the plan's §1.4 figure exactly.)
+
+So the three components got three different, honest treatments:
+
+- **forecast** — already scaled with the network. Its basis now names *this* network's own counts:
+  *"160 finished-good series (40 customers x 4 finished goods, counted from THIS network)"*.
+- **generate** — 🔴 **left flat, because measurement justified it.** 0.008 s to 0.207 s across the
+  entire reachable range, all under the 0.23 s figure already in use. Over-estimating a wait is the
+  safe direction, and the basis text now says so rather than leaving a reader to wonder. **Not
+  scaling it was the measured answer, not laziness.**
+- **optimize** — borrows a recorded latency when there is no run on record, which is right; inventing
+  one would be worse. But it now **admits when it borrowed from a different-shaped network**:
+  *"…and that network is a different shape from this one (17 nodes / 30 lanes against 49 / 94 here),
+  so treat this component as a floor rather than an estimate."*
+
+### 4. 🔴 Three defects found by running it, not by reading the diff
+
+**a. The warning repeated itself.** `why` and the note both opened with *"This network is a different
+size…"*, so the live message said it twice. Only visible by calling the endpoint. `NOT_COMPARABLE_NOTE`
+is now composed from a `LEAD` and a `TAIL`, and the specific opening appends only the tail.
+
+**b. Then the amber box said the remedy twice.** *"The naive-vs-classical comparison inside this run is
+the valid one"* appeared at the end of both consecutive paragraphs. **Found by looking at the rendered
+screenshot** — no assertion would have caught it, because both sentences were individually correct.
+Two sentences saying the same thing weakens both, so `do_not_read_as` no longer repeats the remedy.
+
+**c. My own browser check failed itself, twice.** The pre-clean `DELETE`s return 404 and **the browser
+logs a failed request as a console error**, so the setup broke the console-clean assertion. And
+loading `?scenario=…` does **not** run anything — the results screen is empty until Run is pressed — so
+the banner assertion was inspecting a blank page. Now resets the error collector after setup and drives
+the real `run-scenario` control. A check that fails for its own reasons is worse than no check.
+
+### 5. `make web-check` extended: 38 → 43
+
+Four new browser assertions, plus the rendered-caveat one: the 1-DC dataset view with the map redraw ·
+the resized run labelled not-comparable · the caveat **rendered** next to the objective · no false
+caveat on a comparable network · both datasets deleted and gone. New screenshots
+`network-onedc-dataset-view.png` and `network-resized-not-comparable.png`.
+
+The network datasets are created **over the API** in this check, deliberately: the controls are not in
+the form until Phase 3, and Phase 2's claim is precisely that the rest of the system carries a network
+edit without knowing it is one.
+
+### Verified results
+
+| Item | Result | Was |
+|---|---|---|
+| `make test` | **635 passed, 2 xpassed** | 620 + 2 |
+| `make scenario-eval` | **41/41** (12 controls), refusals **21/21**, warnings **6/6** | 39/39, 21/21, 5/5 |
+| `make bench-all` | 🔴 **all 12 objectives BIT-IDENTICAL**, 0 mismatches | — |
+| `make web-test` | **111** | 111 |
+| `make web-check` | **43/43 PASS, 0 FAIL** | 38/38 |
+| Bundle | 657.24 → **657.88 kB** raw (+0.64), gzip 186.36 → 186.46 | the amber block + one `data-testid` |
+| GPU | `/health` `gpu_visible:true` after every rebuild | — |
+| Data hygiene | `data/scenarios/`, `data/generated/` exactly 4 each; 0 stray `custom-*` benchmark artifacts | — |
+
+The optimizer, the objective function and the generator are **untouched**.
+
+### Open follow-ups
+
+- **Phase 3 next:** the Network group in `CustomScenarioPanel.tsx` — *add a group, do not restructure*.
+  🔴 **It must delete `PENDING_UI_GROUPS`** from `web/src/lib/customForm.ts`; three Vitest cases assert
+  the gate today and need flipping to assert the opposite.
+- **The three label classes need rendering distinctly** — `AdvancedControl` currently renders no
+  `note`, which is why the gate exists at all.
+- 🔴 **Option E still has no GPU-free fallback** (waived 2026-08-21). Check `/health` before the demo.
+- **`network.finished_goods` capped at 12 = `stress-large`'s own value.** Flagged for Ryan.
+- **Eleven open questions for Ryan**, §4.1 first.
+
 
 ## 2026-08-21 (Phase 1) — Iteration 6b: the network ledger, and four defects the review pass caught
 
