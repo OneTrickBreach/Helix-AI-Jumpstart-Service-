@@ -76,7 +76,15 @@ const SCHEMA: CustomSettingsPayload = {
   reach_labels: {},
   ledger: {},
   cannot_change_the_answer: { heading: INERT_LABEL, settings: [], count: 2 },
-  excluded_from_6a: { keys: ["network.*"], reason: "" },
+  network_tier: {
+    group: "network",
+    keys: [],
+    reason: "",
+    answer_class_labels: {},
+    classes: {},
+    not_comparable_note: "",
+    not_comparable_keys: [],
+  },
 };
 
 describe("naming", () => {
@@ -345,5 +353,61 @@ describe("the estimate wording", () => {
   it("switches to minutes past a minute", () => {
     expect(formatSeconds(95)).toBe("about 1 min 35 s");
     expect(formatSeconds(120)).toBe("about 2 min");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Iteration 6b Phase 1 — the network tier is validated over the API but not yet
+// rendered. These tests exist so the gate is deliberate and so Phase 3 has
+// something explicit to flip rather than a silent filter to discover.
+// ---------------------------------------------------------------------------
+
+describe("the network tier's Phase 1 UI gate", () => {
+  const withNetwork: CustomSettingsPayload = {
+    ...SCHEMA,
+    groups: ["network", "capacity", "demand", "service_targets"],
+    settings: [
+      ...SETTINGS,
+      setting({
+        key: "network.distribution_centers",
+        kind: "int",
+        minimum: 1,
+        maximum: 20,
+        answer_class: "changes_network_shape",
+        answer_class_label: "…NOT a resilience test.",
+        comparable_to_baseline: true,
+      }),
+      setting({
+        key: "network.lines_per_plant",
+        kind: "int",
+        reach: "recorded_not_read",
+        reach_label: INERT_LABEL,
+        reaches_optimizer: false,
+        minimum: 0,
+        maximum: 20,
+      }),
+    ],
+  };
+
+  it("keeps network controls out of the Advanced groups until Phase 3", () => {
+    const layout = advancedLayout(withNetwork);
+    expect(layout.groups.map((entry) => entry.group)).not.toContain("network");
+    expect(
+      layout.groups.flatMap((entry) => entry.settings).map((setting) => setting.key),
+    ).not.toContain("network.distribution_centers");
+  });
+
+  it("gates the inert network count too, rather than showing one of eight", () => {
+    const layout = advancedLayout(withNetwork);
+    expect(layout.cannotChange.map((setting) => setting.key)).not.toContain(
+      "network.lines_per_plant",
+    );
+  });
+
+  it("leaves every non-network group untouched by the gate", () => {
+    const layout = advancedLayout(withNetwork);
+    const ungated = advancedLayout(SCHEMA);
+    expect(layout.groups).toEqual(ungated.groups);
+    expect(layout.cannotChange).toEqual(ungated.cannotChange);
   });
 });

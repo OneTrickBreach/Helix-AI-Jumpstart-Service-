@@ -17,10 +17,13 @@ import json
 from typing import Any
 
 from src.scenario.ledger import (
+    ANSWER_CLASS_LABELS,
     CONDITIONAL,
     INERT,
     LABEL_ONLY,
     NON_SETTING_KEYS,
+    NOT_COMPARABLE_NOTE,
+    PROBLEM_SIZE,
     REACH_LABELS,
     SETTINGS,
     SETTINGS_BY_KEY,
@@ -96,6 +99,18 @@ def _change(group: str, parameter: str, baseline_value: Any, scenario_value: Any
         entry["reach"] = setting.reach
         entry["reach_label"] = REACH_LABELS[setting.reach]
         entry["reaches_optimizer"] = setting.reaches_optimizer
+        # 🔴 Iteration 6b guardrail 4. `reach` says this change moves the answer;
+        # it does NOT say whether the moved answer may be compared to 81,789.36.
+        # Resizing the customer base or the BOM changes total demand, so the
+        # objective becomes a different quantity — and the caveat has to travel
+        # with the change a planner actually made, not merely sit in the schema,
+        # because "WHAT YOU CHANGED" is the thing they read before running.
+        if setting.answer_class:
+            entry["answer_class"] = setting.answer_class
+            entry["answer_class_label"] = ANSWER_CLASS_LABELS[setting.answer_class]
+            entry["comparable_to_baseline"] = setting.answer_class != PROBLEM_SIZE
+            if setting.answer_class == PROBLEM_SIZE:
+                entry["not_comparable_note"] = NOT_COMPARABLE_NOTE
         return entry
 
     # A whole block turning on (``lane_disruption: null`` -> a dict) or a cost

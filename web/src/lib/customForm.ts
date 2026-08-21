@@ -39,6 +39,28 @@ export type SettingGroup = {
 };
 
 /**
+ * 🔴 Iteration 6b sequencing gate — REMOVE IN PHASE 3.
+ *
+ * Phase 1 makes the eight `network:` counts first-class, validated settings in the
+ * API. It ships **no UI**. But this layout builds itself from `payload.groups`, so
+ * the moment the API serves a `network` group these controls would appear in
+ * Advanced as plain numeric inputs — and `AdvancedControl` renders no `note`, so
+ * they would arrive with **no honesty label at all**.
+ *
+ * That breaks 6b guardrail 3 (every network control is labelled with its class)
+ * and risks guardrail 4 (a resized problem compared against 81,789.36). A control
+ * whose caveat is missing is exactly the kind of no-op-shaped hazard this iteration
+ * exists to eliminate, so the group stays out of the form until Phase 3 renders the
+ * three label classes properly.
+ *
+ * The whole tier is gated, including the inert `network.lines_per_plant`: showing
+ * one network control under the inert heading while hiding its seven siblings
+ * would be more confusing than showing none. The settings remain fully live and
+ * validated over the API throughout — this gate is presentational only.
+ */
+const PENDING_UI_GROUPS = new Set(["network"]);
+
+/**
  * Advanced-tier layout: live settings by group, then the ones that cannot move
  * the answer, collected separately.
  *
@@ -51,9 +73,14 @@ export function advancedLayout(payload: CustomSettingsPayload): {
   cannotChange: SettingSpec[];
   heading: string;
 } {
-  const cannotChange = payload.settings.filter((setting) => !setting.reaches_optimizer);
-  const live = payload.settings.filter((setting) => setting.reaches_optimizer);
+  const cannotChange = payload.settings.filter(
+    (setting) => !setting.reaches_optimizer && !PENDING_UI_GROUPS.has(setting.group),
+  );
+  const live = payload.settings.filter(
+    (setting) => setting.reaches_optimizer && !PENDING_UI_GROUPS.has(setting.group),
+  );
   const groups = payload.groups
+    .filter((group) => !PENDING_UI_GROUPS.has(group))
     .map((group) => ({
       group,
       settings: live.filter((setting) => setting.group === group),

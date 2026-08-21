@@ -45,11 +45,13 @@ cases:
     expect_refusal: unknown_setting
 
   - id: V07
-    description: the network block is out of scope for 6a and says why (it is 6b)
+    description: >
+      Iteration 6b — a misspelt network key lists the eight real counts instead of
+      saying "there are 67 settings", which helps nobody
     name: "probe"
     overrides:
-      network.distribution_centers: 1
-    expect_refusal: network_setting_out_of_scope
+      network.warehouses: 2
+    expect_refusal: unknown_network_setting
 
   - id: V08
     description: a string where a number belongs is refused
@@ -247,3 +249,104 @@ cases:
     control: true
     expect_reaches_optimizer: true
     expect_capacity_read_period: 26
+
+  # --- Iteration 6b: the network tier's floors and ceilings ---------------
+  # Guardrail 1: nothing may crash. Five values raise uncaught exceptions today
+  # and two more return a confident wrong answer, which is worse.
+
+  - id: N01
+    description: >
+      zero plants raises ZeroDivisionError inside the generator — refused before
+      anything is written
+    name: "no-plants"
+    overrides:
+      network.plants: 0
+    expect_refusal: network_count_below_floor
+
+  - id: N02
+    description: >
+      zero customers is the nastiest of the five — it passes generation, writes a
+      complete dataset, and dies two stages later in the FORECAST
+    name: "no-customers"
+    overrides:
+      network.customers: 0
+    expect_refusal: network_count_below_floor
+
+  - id: N03
+    description: >
+      zero finished goods raises ZeroDivisionError — there is no bill of materials
+      to build from
+    name: "no-products"
+    overrides:
+      network.finished_goods: 0
+    expect_refusal: network_count_below_floor
+
+  - id: N04
+    description: >
+      🔴 decision 4 — zero warehouses does NOT crash, it returns 68,565.25 at 92.01%
+      fill (better than baseline on both) for a network with no lane from any plant
+      to any customer. Refused with the measured reason, because a confident wrong
+      answer is worse than a crash
+    name: "no-dcs"
+    overrides:
+      network.distribution_centers: 0
+    expect_refusal: network_zero_distribution_centers
+
+  - id: N05
+    description: >
+      decision 4 — zero suppliers reports 83.66% fill, unchanged from baseline to
+      the digit, because nothing checks that components can be sourced
+    name: "no-suppliers"
+    overrides:
+      network.suppliers: 0
+    expect_refusal: network_zero_suppliers
+
+  - id: N06
+    description: >
+      decision 6 — a fat-fingered count is capped, and the refusal says the cap is a
+      typo guard rather than a modelled limit
+    name: "too-many"
+    overrides:
+      network.customers: 10000
+    expect_refusal: network_count_above_ceiling
+
+  # --- controls: the network tier has to ACCEPT legitimate work ------------
+
+  - id: N07
+    description: >
+      control — 🔴 Ryan's own ask, "why can't we just reduce a warehouse". One DC is
+      accepted. Measured objective 81,663.11, CHEAPER than baseline with identical
+      fill rate, which is the finding this iteration escalates rather than hides
+    name: "one-warehouse"
+    overrides:
+      network.distribution_centers: 1
+    control: true
+
+  - id: N08
+    description: >
+      control — a resized customer base is ordinary work, not an error. It changes
+      total demand, so its objective is a different quantity, not a better one
+    name: "seven-customers"
+    overrides:
+      network.customers: 7
+    control: true
+
+  - id: N09
+    description: >
+      control — zero production lines per plant is ACCEPTED, because it genuinely
+      cannot crash and genuinely cannot change the answer. Measured identical to the
+      digit at 0, 2 and 4. It is labelled inert, not refused
+    name: "no-lines"
+    overrides:
+      network.lines_per_plant: 0
+    control: true
+
+  - id: N10
+    description: >
+      control — restructuring the bill of materials at both tiers at once is
+      accepted; it resizes the problem, which the label says
+    name: "deeper-bom"
+    overrides:
+      network.subassemblies_per_finished_good: 3
+      network.raw_components_per_subassembly: 3
+    control: true

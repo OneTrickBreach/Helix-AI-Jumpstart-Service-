@@ -10,10 +10,15 @@ from __future__ import annotations
 from typing import Any
 
 from src.scenario.ledger import (
+    ANSWER_CLASS_LABELS,
     GROUPS,
     INERT_LABEL,
     LABEL_ONLY,
     INERT,
+    NETWORK_KEYS,
+    NETWORK_SHAPE,
+    NOT_COMPARABLE_NOTE,
+    PROBLEM_SIZE,
     REACH_LABELS,
     SETTINGS,
     ledger_counts,
@@ -55,10 +60,30 @@ def custom_settings_payload() -> dict[str, Any]:
             "settings": [setting.key for setting in cannot_change],
             "count": len(cannot_change),
         },
-        "excluded_from_6a": {
-            "keys": ["network.*"],
-            "reason": "Changing how many suppliers, plants, distribution centers or "
-                      "customers exist is a custom dataset, which is Iteration 6b.",
+        # Iteration 6b: what used to be ``excluded_from_6a`` is now a real tier.
+        # The two honesty classes travel WITH the payload rather than being
+        # hard-coded in the UI, the same discipline as ``cannot_change_the_answer``
+        # above — so a class can never be shown for a setting that has stopped
+        # belonging to it.
+        "network_tier": {
+            "group": "network",
+            "keys": list(NETWORK_KEYS),
+            "reason": "These change the network itself — how many suppliers, plants, "
+                      "warehouses, customers and products there are. Reducing a count "
+                      "removes the LAST entity (IDs are positional), so 2 DCs -> 1 keeps "
+                      "DC-001. Deleting a specific entity is not expressible.",
+            "answer_class_labels": dict(ANSWER_CLASS_LABELS),
+            "classes": {
+                answer_class: [
+                    setting.key for setting in SETTINGS
+                    if setting.answer_class == answer_class
+                ]
+                for answer_class in (NETWORK_SHAPE, PROBLEM_SIZE)
+            },
+            "not_comparable_note": NOT_COMPARABLE_NOTE,
+            "not_comparable_keys": [
+                setting.key for setting in SETTINGS if setting.answer_class == PROBLEM_SIZE
+            ],
         },
         "writes_nothing": True,
         "runs_nothing": True,

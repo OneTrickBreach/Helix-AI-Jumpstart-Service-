@@ -2,7 +2,7 @@
 
 Guardrail 1 is *no no-op controls*: a control that cannot change the optimizer's
 answer must not be presented as if it can. ``src/scenario/ledger.py`` declares a
-``reach`` for each of the 59 settings, and this module refuses to take that on
+``reach`` for each of the 67 settings, and this module refuses to take that on
 trust. Two independent derivations reproduce it from the running system:
 
 1. **What does the setting write?** Build the nine tables twice — once as-is, once
@@ -31,6 +31,9 @@ from src.scenario.ledger import (
     CONDITIONAL,
     INERT,
     LABEL_ONLY,
+    NETWORK_KEYS,
+    NETWORK_SHAPE,
+    PROBLEM_SIZE,
     SETTINGS,
     SETTINGS_BY_KEY,
     UNCONDITIONAL,
@@ -118,10 +121,26 @@ def derive_optimizer_reads(
             verdict[(table, column)] = False
             continue
         probed = replace(state, **{table: _perturb_column(frame, column)})
-        probed_forecast = (
-            forecast_finished_goods(probed, horizon=horizon) if table == "demand" else forecast
-        )
-        got = _objectives(probed, probed_forecast)
+        try:
+            probed_forecast = (
+                forecast_finished_goods(probed, horizon=horizon) if table == "demand" else forecast
+            )
+            got = _objectives(probed, probed_forecast)
+        except Exception:
+            # Corrupting the column did not move the objective — it broke the run
+            # outright. That is the *strongest* evidence the column is read: it was
+            # looked up, and the lookup failed.
+            #
+            # Reachable since Iteration 6b: the network counts derive changes to
+            # identifier columns (`demand.sku_id`, `demand.node_id`), where the
+            # string probe replaces a foreign key with "LEDGER_PROBE" and breaks
+            # referential integrity rather than merely moving a number. Before 6b
+            # every probed string column was a free-text label, so this never fired.
+            #
+            # Treating a crash as "unread" would be the dangerous direction: it would
+            # let a load-bearing column be labelled inert.
+            verdict[(table, column)] = True
+            continue
         verdict[(table, column)] = any(abs(a - b) > 1e-9 for a, b in zip(got, reference))
     return verdict
 
@@ -133,7 +152,7 @@ def derive_optimizer_reads(
 
 @pytest.fixture(scope="module")
 def complete_base_config() -> dict:
-    """Baseline plus BOTH optional blocks, so all 59 settings are present.
+    """Baseline plus BOTH optional blocks, so all 67 settings are present.
 
     Deriving against ``baseline`` alone would report every ``demand.shock.*`` and
     ``lane_disruption.*`` setting as writing nothing, because the blocks are
@@ -167,13 +186,15 @@ def optimizer_reads(setting_targets) -> dict[tuple[str, str], bool]:
 # ---------------------------------------------------------------------------
 
 
-def test_the_ledger_covers_59_settings_across_7_groups():
-    assert len(SETTINGS) == 59
-    assert len({setting.key for setting in SETTINGS}) == 59, "duplicate setting keys"
+def test_the_ledger_covers_67_settings_across_8_groups():
+    """59 scenario settings (6a) plus the 8 network counts (6b)."""
+    assert len(SETTINGS) == 67
+    assert len({setting.key for setting in SETTINGS}) == 67, "duplicate setting keys"
     from collections import Counter
 
     by_group = Counter(setting.group for setting in SETTINGS)
     assert dict(by_group) == {
+        "network": 8,
         "simulation": 1,
         "demand": 11,
         "capacity": 7,
@@ -184,22 +205,33 @@ def test_the_ledger_covers_59_settings_across_7_groups():
     }
 
 
-def test_no_network_setting_is_editable_in_6a():
-    """§1.6 / decision 6: exposing the network block would make 6a into 6b."""
-    assert not [setting for setting in SETTINGS if setting.group == "network"]
-    assert not [setting for setting in SETTINGS if setting.key.startswith("network.")]
+def test_the_network_tier_is_exactly_the_eight_counts():
+    """Iteration 6b: the network block is editable now, and it is closed.
+
+    6a asserted the opposite (no network setting may exist). That assertion was
+    correct for 6a and is what this replaces — the tier is deliberately capped at
+    the eight counts the generator actually reads from ``config["network"]``.
+    """
+    network = [setting for setting in SETTINGS if setting.group == "network"]
+    assert {setting.key for setting in network} == set(NETWORK_KEYS)
+    assert all(setting.key.startswith("network.") for setting in network)
+    assert all(setting.kind == "int" for setting in network), "every count is a whole number"
+    # Guardrail 1 of 6b: nothing may crash. Every count carries a floor.
+    assert all(setting.minimum is not None and setting.maximum is not None
+               for setting in network), "a count with no bounds can reach the generator"
 
 
 def test_the_ledger_counts_are_what_the_iteration_claims():
     counts = ledger_counts()
-    assert counts["total"] == 59
-    assert counts[UNCONDITIONAL] == 38
+    assert counts["total"] == 67
+    assert counts[UNCONDITIONAL] == 45  # 38 from 6a + the 7 live network counts
     assert counts[CONDITIONAL] == 6
-    assert counts[INERT] == 14
+    assert counts[INERT] == 15  # 14 from 6a + network.lines_per_plant
     assert counts[LABEL_ONLY] == 1
     # The number that matters for guardrail 1: how many controls cannot move the
-    # answer. The plan predicted 13 from a hand trace; the derivation found 15.
-    assert counts["cannot_change_the_answer"] == 15
+    # answer. The plan predicted 13 from a hand trace; the derivation found 15 in
+    # 6a, and `network.lines_per_plant` makes 16.
+    assert counts["cannot_change_the_answer"] == 16
 
 
 # ---------------------------------------------------------------------------

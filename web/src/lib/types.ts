@@ -27,6 +27,15 @@ export type SettingSpec = {
   maximum?: number;
   choices?: string[];
   note?: string;
+  /**
+   * Iteration 6b §1.2, network tier only. Orthogonal to `reach`: both classes DO
+   * move the objective, but only one of them may be compared to the recorded
+   * baseline. Absent on every scenario-tier setting.
+   */
+  answer_class?: string;
+  answer_class_label?: string;
+  /** False when changing this resizes the problem, so the objective is a different quantity. */
+  comparable_to_baseline?: boolean;
 };
 
 /** One idea a planner would say out loud, over one or more raw settings. */
@@ -58,7 +67,21 @@ export type CustomSettingsPayload = {
   ledger: Record<string, number>;
   /** Decision 15: shown in Advanced under an explicit heading, never in Simple. */
   cannot_change_the_answer: { heading: string; settings: string[]; count: number };
-  excluded_from_6a: { keys: string[]; reason: string };
+  /**
+   * Iteration 6b: the network tier. Was `excluded_from_6a` when changing the
+   * network was refused outright. The two honesty classes arrive here rather than
+   * being hard-coded in the form, so a class can never be rendered for a setting
+   * that has stopped belonging to it.
+   */
+  network_tier: {
+    group: string;
+    keys: string[];
+    reason: string;
+    answer_class_labels: Record<string, string>;
+    classes: Record<string, string[]>;
+    not_comparable_note: string;
+    not_comparable_keys: string[];
+  };
 };
 
 export type Refusal = { code: string; field?: string | null; message: string };

@@ -765,7 +765,13 @@ def test_the_clear_all_endpoint_only_touches_custom_scenarios(monkeypatch):
         {"name": ""},
         {"name": "UPPER"},
         {"name": "x" * 200},
-        {"name": "ok", "overrides": {"network.plants": 3}},
+        # Iteration 6b: `network.plants: 3` is legitimate work now — it is close to
+        # the thing Ryan actually asked for — so the hostile case is a network value
+        # that cannot be RUN, not a network key per se.
+        {"name": "ok", "overrides": {"network.plants": 0}},
+        {"name": "ok", "overrides": {"network.distribution_centers": 0}},
+        {"name": "ok", "overrides": {"network.customers": 99999}},
+        {"name": "ok", "overrides": {"network.warehouses": 2}},
         {"name": "ok", "overrides": {"simulation.horizon_periods": True}},
         {"name": "ok", "simple": {"holding_cost": "lots"}},
         {"name": "ok", "simple": {"demand_spike": 3}},
@@ -777,6 +783,15 @@ def test_hostile_save_payloads_are_refused_never_a_500(monkeypatch, payload):
     """Guardrail 5: never a 500, and never a write."""
     monkeypatch.setenv("HELIX_API_KEY", API_KEY)
     client = TestClient(app)
-    response = client.post("/scenarios/custom", headers=_headers(), json=payload)
-    assert response.status_code in (409, 422), response.text
-    assert not list(store.SCENARIO_CONFIG_ROOT.glob("custom-ok.yaml"))
+    try:
+        response = client.post("/scenarios/custom", headers=_headers(), json=payload)
+        assert response.status_code in (409, 422), response.text
+        leaked = list(store.SCENARIO_CONFIG_ROOT.glob("custom-ok.yaml"))
+        assert not leaked, f"a payload that should have been refused wrote {leaked}"
+    finally:
+        # 🔴 Every case here shares the name `custom-ok`, so a single unexpectedly
+        # ACCEPTED payload used to leave its config on disk and turn every later
+        # case into a phantom failure — five misleading reds pointing at the wrong
+        # payload. Clean up regardless of outcome: the assertion above still fails
+        # for the payload that actually misbehaved, and only for that one.
+        client.delete("/scenarios/custom/custom-ok", headers=_headers())

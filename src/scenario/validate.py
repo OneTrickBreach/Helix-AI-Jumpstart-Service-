@@ -28,6 +28,7 @@ from src.scenario.ledger import (
     INERT_LABEL,
     LABEL_ONLY,
     LABEL_ONLY_LABEL,
+    NETWORK_KEYS,
     SETTINGS_BY_KEY,
     get_value,
 )
@@ -50,7 +51,11 @@ REFUSAL_CODES = (
     "name_reserved",
     "name_bad_characters",
     "unknown_setting",
-    "network_setting_out_of_scope",
+    "unknown_network_setting",
+    "network_count_below_floor",
+    "network_zero_distribution_centers",
+    "network_zero_suppliers",
+    "network_count_above_ceiling",
     "wrong_type",
     "not_a_choice",
     "range_inverted",
@@ -116,6 +121,81 @@ class ValidationResult:
             "refusals": [item.as_dict() for item in self.refusals],
             "warnings": [item.as_dict() for item in self.warnings],
         }
+
+
+# ---------------------------------------------------------------------------
+# the network tier's floors and ceilings (Iteration 6b, decisions 4, 5, 6)
+# ---------------------------------------------------------------------------
+#
+# Guardrail 1 of 6b: *nothing may crash*. Five network values raise an uncaught
+# exception today — four inside the generator and one, the nastiest, two stages
+# later in the forecast after a full dataset has already been written. A stack
+# trace in front of a sponsor is worse than a missing feature, so every one is
+# refused BEFORE anything is written.
+#
+# Two more values do not crash, and are worse for it. ``distribution_centers = 0``
+# and ``suppliers = 0`` both produce a confident, cheaper, better-scoring answer
+# for a network that cannot physically operate. Decision 4 floors both at 1 and
+# quotes the measured numbers in the refusal, so the message teaches the modelling
+# limit rather than merely blocking the value.
+
+#: ``setting key -> (refusal code, the sentence)``. The measured figures are from
+#: on-device runs on 2026-08-21, re-verified the same day.
+NETWORK_FLOOR_REFUSALS: dict[str, tuple[str, str]] = {
+    "network.distribution_centers": (
+        "network_zero_distribution_centers",
+        "A network with no distribution centers has no lane by which a finished good can "
+        "reach a customer \u2014 and this prototype does not notice. Measured: it scores "
+        "68,565.25 at 92.01% fill, which is better than baseline on BOTH counts "
+        "(81,789.36 at 83.66%), because the optimizer has no per-node capacity and the "
+        "fill-rate calculation never asks whether a delivery route exists. "
+        "That is a limit of the model, not a fact about your network. Keep at least 1.",
+    ),
+    "network.suppliers": (
+        "network_zero_suppliers",
+        "A network with no suppliers still reports 83.66% fill \u2014 unchanged from "
+        "baseline to the digit \u2014 because nothing downstream checks that components "
+        "can actually be sourced. Measured objective 77,390.94, so removing every supplier "
+        "reads as a saving. Keep at least 1.",
+    ),
+    "network.plants": (
+        "network_count_below_floor",
+        "A network needs at least 1 plant. Zero plants raises a ZeroDivisionError inside "
+        "the generator, before any data is written.",
+    ),
+    "network.finished_goods": (
+        "network_count_below_floor",
+        "A network needs at least 1 finished good. Zero raises a ZeroDivisionError inside "
+        "the generator \u2014 there is nothing to build a bill of materials from.",
+    ),
+    "network.subassemblies_per_finished_good": (
+        "network_count_below_floor",
+        "Each finished good needs at least 1 subassembly. Zero raises a ZeroDivisionError "
+        "inside the generator.",
+    ),
+    "network.raw_components_per_subassembly": (
+        "network_count_below_floor",
+        "Each subassembly needs at least 1 raw component. Zero raises a ZeroDivisionError "
+        "inside the generator.",
+    ),
+    "network.customers": (
+        "network_count_below_floor",
+        "A network needs at least 1 customer. Zero is the worst of the crashing values: it "
+        "passes generation and writes a complete dataset, then fails two stages later in the "
+        "FORECAST, because there is no demand history to sum. Refused before anything is "
+        "written.",
+    ),
+}
+
+#: Decision 6. These exist to stop a fat-fingered 10,000 reaching the generator,
+#: **not** to model a limit \u2014 the upper end was probed and is sane (40 customers
+#: and 12 DCs both run fine and fast). Said plainly in the refusal so nobody reads
+#: a sanity cap as a capability statement.
+NETWORK_CEILING_NOTE = (
+    "This cap exists to stop a typo reaching the generator, not because the network cannot "
+    "be bigger \u2014 40 customers and 12 distribution centers were both measured running "
+    "fine. If you genuinely need more, the cap is a judgement call and can be raised."
+)
 
 
 # ---------------------------------------------------------------------------
@@ -192,23 +272,51 @@ def validate_overrides(overrides: dict[str, Any]) -> ValidationResult:
     """Type- and range-check raw setting overrides, and refuse out-of-scope keys."""
     result = ValidationResult()
     for key, value in sorted(overrides.items()):
-        if is_network_key(key):
-            result.refusals.append(Refusal(
-                "network_setting_out_of_scope",
-                f"'{key}' changes the network itself — how many suppliers, plants, "
-                "distribution centers or customers there are. That is a custom *dataset*, "
-                "which is the next iteration. A custom scenario changes the conditions "
-                "applied to this network.",
-                key))
-            continue
         setting = SETTINGS_BY_KEY.get(key)
         if setting is None:
+            # Iteration 6b: ``network.*`` is no longer refused as out-of-scope — the
+            # eight real counts are settings now. But a *misspelt* network key gets a
+            # more useful sentence than the generic one, because "there are 67
+            # settings" does not help someone who typed ``network.warehouses``.
+            if is_network_key(key):
+                result.refusals.append(Refusal(
+                    "unknown_network_setting",
+                    f"'{key}' is not one of the network counts. There are eight: "
+                    + ", ".join(k.split(".", 1)[1] for k in NETWORK_KEYS)
+                    + ".",
+                    key))
+                continue
             result.refusals.append(Refusal(
                 "unknown_setting",
-                f"'{key}' is not a scenario setting. There are 59, and the preview endpoint "
-                "lists them all with their ranges.",
+                f"'{key}' is not a scenario setting. There are {len(SETTINGS_BY_KEY)}, and the "
+                "preview endpoint lists them all with their ranges.",
                 key))
             continue
+
+        # Decisions 4, 5 and 6: a network count out of bounds gets the measured
+        # reason, not the generic "below the minimum of 1". This runs before the
+        # generic range check below so the specific sentence wins.
+        #
+        # Gated on `_is_int` rather than `_is_number` deliberately: every network
+        # count is a whole number, and 0.5 plants is a *typing* mistake, not an
+        # attempt to run a plant-less network. Letting it fall through to the type
+        # check below says "has to be a whole number", which is the useful sentence
+        # — where the floor message would have talked about zero plants.
+        if setting.group == "network" and _is_int(value):
+            number = float(value)
+            if setting.minimum is not None and number < setting.minimum:
+                code, reason = NETWORK_FLOOR_REFUSALS.get(
+                    key, ("network_count_below_floor",
+                          f"'{setting.label}' has to be at least {setting.minimum:g}."))
+                result.refusals.append(Refusal(code, reason, key))
+                continue
+            if setting.maximum is not None and number > setting.maximum:
+                result.refusals.append(Refusal(
+                    "network_count_above_ceiling",
+                    f"'{setting.label}' is {number:g}; this build caps it at "
+                    f"{setting.maximum:g}. {NETWORK_CEILING_NOTE}",
+                    key))
+                continue
 
         if setting.kind == "str":
             if not isinstance(value, str) or not value.strip():

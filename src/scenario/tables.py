@@ -1,7 +1,7 @@
 """Build a scenario's nine tables in memory, with no disk access.
 
 Why this exists: the settings ledger (:mod:`src.scenario.ledger`) has to answer
-"which CSV column does this setting actually write?" for all 59 settings. The
+"which CSV column does this setting actually write?" for all 67 settings. The
 honest way to answer it is to generate the data twice — once as-is, once with one
 setting changed — and diff. Doing that through ``data/generator/generate.py``'s
 ``generate()`` would require a scenario YAML on disk and a directory to write to,
