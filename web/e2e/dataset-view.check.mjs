@@ -865,6 +865,157 @@ async function askStarter(page, question, timeout = 90000) {
   await context.close();
 }
 
+// ---------------------------------------------------------------------------
+// Iteration 6b Phase 2 — a network-edited dataset, end to end in a real browser.
+//
+// The network controls are deliberately NOT in the form yet (Phase 3 renders their
+// honesty labels), so these datasets are created over the API — which is exactly
+// what Phase 2 claims works: a custom dataset is still just a config, so the
+// dataset view, the change list and the network map carry it with no changes.
+// ---------------------------------------------------------------------------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+  const api = (path, body) =>
+    page.evaluate(
+      async ([p, b]) => {
+        const r = await fetch(p, b ? {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(b),
+        } : {});
+        return { status: r.status, json: await r.json().catch(() => null) };
+      },
+      [path, body ?? null],
+    );
+
+  const del = (name) =>
+    page.evaluate(async (n) => {
+      const r = await fetch(`/api/scenarios/custom/${n}`, { method: "DELETE" });
+      return r.status;
+    }, name);
+
+  // Clean slate, in case a previous run died mid-way. These 404 when there is
+  // nothing to delete, and the browser logs a failed request as a console error —
+  // so reset the collector afterwards or the setup fails the console-clean check.
+  await del("custom-e2e-onedc");
+  await del("custom-e2e-seven");
+  errs.length = 0;
+
+  // --- 1. Reducing a warehouse: Ryan's actual sentence ---------------------
+  const savedDc = await api("/api/scenarios/custom", {
+    name: "e2e-onedc",
+    overrides: { "network.distribution_centers": 1 },
+  });
+
+  // Baseline's own node count first, so the redraw is a comparison and not a guess.
+  const nodeCountFor = async (scenario) => {
+    await page.goto(`${BASE}/?view=dataset&scenario=${scenario}`, { waitUntil: "networkidle" });
+    await page.waitForSelector("text=How the network is laid out", { timeout: 20000 }).catch(() => {});
+    return page.evaluate(async (s) => {
+      const r = await fetch(`/api/dataset/overview?scenario=${s}`);
+      const d = await r.json();
+      return d.data.dataset_overview.network.node_count;
+    }, scenario);
+  };
+
+  const baselineNodes = await nodeCountFor("baseline");
+  const customNodes = await nodeCountFor("custom-e2e-onedc");
+  const summary = await page
+    .locator("section p.text-lg, section p.sm\\:text-xl").first().innerText().catch(() => "");
+  const diffText = await page.locator("body").innerText();
+
+  // NetworkMap.tsx is untouched by this iteration; a network-count change is the
+  // one edit that makes it redraw on its own, which is the free demo beat.
+  const mapRedrew = customNodes === 16 && baselineNodes === 17;
+  const summaryOk = /1 distribution center\b/.test(summary) && !/1 distribution centers/.test(summary);
+  const diffOk = diffText.includes("distribution_centers") || /network size/i.test(diffText);
+  const dcOk = savedDc.status === 200 && mapRedrew && summaryOk && diffOk && errs.length === 0;
+  if (!dcOk) failures++;
+  console.log(
+    `${dcOk ? "PASS" : "FAIL"} a 1-DC dataset renders on the dataset view and the map redraws ` +
+    `saved=${savedDc.status} baselineNodes=${baselineNodes} customNodes=${customNodes} ` +
+    `summarySingular=${summaryOk} changeListed=${diffOk} errors=${errs.length}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/network-onedc-dataset-view.png`, fullPage: false });
+
+  // --- 2. A resized network must NOT be comparable, on screen -------------
+  await api("/api/scenarios/custom", {
+    name: "e2e-seven",
+    overrides: { "network.customers": 7 },
+  });
+  const run = await api("/api/scenario-comparison", { scenario: "custom-e2e-seven", horizon: 8 });
+  const codes = (run.json?.data?.warnings ?? []).map((w) => w.code);
+  const comparable = run.json?.data?.network_comparability?.comparable_to_baseline;
+  const objective = run.json?.data?.benchmark?.winner?.objective;
+  const resizedOk =
+    run.status === 200 &&
+    comparable === false &&
+    codes.includes("resized_network_not_comparable") &&
+    Math.abs(objective - 66548.241282) < 1e-6;
+  if (!resizedOk) failures++;
+  console.log(
+    `${resizedOk ? "PASS" : "FAIL"} a resized network runs and is labelled NOT comparable ` +
+    `objective=${objective} comparable=${comparable} warnings=[${codes.join(",")}]`
+  );
+
+  // ...and the caveat is actually rendered beside the number, not just in the payload.
+  // Loading `?scenario=` does not run anything — the results screen is empty until
+  // Run is pressed — so drive the real control rather than assuming a URL runs it.
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await page.selectOption('[data-testid="scenario-select"]', "custom-e2e-seven");
+  await page.click('[data-testid="run-scenario"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 180000 }).catch(() => {});
+  const notComparableBlock = await page
+    .locator('[data-testid="custom-result-not-comparable"]').count();
+  const bannerText = await page
+    .locator('[data-testid="custom-result-banner"]').innerText().catch(() => "");
+  const renderedOk =
+    notComparableBlock === 1 &&
+    /not comparable to the recorded baseline/i.test(bannerText) &&
+    /81,789\.36/.test(bannerText);
+  if (!renderedOk) failures++;
+  console.log(
+    `${renderedOk ? "PASS" : "FAIL"} the not-comparable caveat is rendered next to the objective ` +
+    `block=${notComparableBlock} namesBaseline=${/81,789\.36/.test(bannerText)}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/network-resized-not-comparable.png`, fullPage: false });
+
+  // --- 3. A comparable network gets no false caveat ------------------------
+  await page.selectOption('[data-testid="scenario-select"]', "custom-e2e-onedc");
+  await page.click('[data-testid="run-scenario"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 180000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const falseCaveat = await page.locator('[data-testid="custom-result-not-comparable"]').count();
+  const noCryWolf = falseCaveat === 0;
+  if (!noCryWolf) failures++;
+  console.log(
+    `${noCryWolf ? "PASS" : "FAIL"} reducing a warehouse gets NO not-comparable caveat ` +
+    `block=${falseCaveat}`
+  );
+
+  // --- 4. Delete leaves nothing behind ------------------------------------
+  const d1 = await del("custom-e2e-onedc");
+  const d2 = await del("custom-e2e-seven");
+  const list = await api("/api/scenarios/custom");
+  const remaining = (list.json?.data?.scenarios ?? []).map((s) => s.scenario);
+  const gone =
+    d1 === 200 && d2 === 200 &&
+    !remaining.includes("custom-e2e-onedc") && !remaining.includes("custom-e2e-seven");
+  if (!gone) failures++;
+  console.log(
+    `${gone ? "PASS" : "FAIL"} both network datasets deleted and gone from the list ` +
+    `statuses=${d1}/${d2} remaining=${remaining.length}`
+  );
+
+  await context.close();
+}
+
 await browser.close();
 console.log(failures === 0 ? "\nALL CHECKS PASSED" : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

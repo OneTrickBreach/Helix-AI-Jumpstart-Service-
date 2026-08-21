@@ -377,6 +377,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                data-testid="run-scenario"
                 onClick={() => runScenario()}
                 disabled={running || !scenario}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
@@ -521,6 +522,12 @@ function CustomResultBanner({ result }: { result: ScenarioComparison }) {
   const warning = (result.warnings ?? []).find(
     (item) => item.code === "capacity_window_misses_read_period",
   );
+  // 🔴 Iteration 6b guardrail 4. A resized network produces a LOWER objective for a
+  // smaller problem — 66,548.24 against baseline's 81,789.36 at 7 customers. On this
+  // screen that number is large and concrete, so the caveat has to be too.
+  const resized = (result.warnings ?? []).find(
+    (item) => item.code === "resized_network_not_comparable",
+  );
   const settings = result.run_settings;
   return (
     <section className="grid gap-3" data-testid="custom-result-banner">
@@ -537,6 +544,23 @@ function CustomResultBanner({ result }: { result: ScenarioComparison }) {
             : ""}
         </p>
       </div>
+      {resized ? (
+        <div
+          className="rounded-md border border-[#d9b45f] bg-[#fdf7e6] p-3"
+          data-testid="custom-result-not-comparable"
+        >
+          <p className="flex items-start gap-2 text-sm font-semibold text-[#7a5b12]">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            Not comparable to the recorded baseline
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[#6b5a2a]">{resized.message}</p>
+          {resized.do_not_read_as ? (
+            <p className="mt-1 text-sm font-semibold leading-6 text-[#7a5b12]">
+              {resized.do_not_read_as}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {warning ? (
         <div className="rounded-md border border-[#d9b45f] bg-[#fdf7e6] p-3" data-testid="custom-result-noop">
           <p className="flex items-start gap-2 text-sm font-semibold text-[#7a5b12]">

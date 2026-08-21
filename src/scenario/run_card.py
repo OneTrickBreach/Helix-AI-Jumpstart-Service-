@@ -18,7 +18,7 @@ from typing import Any
 from src.scenario.preview import estimate_run, series_count
 from src.scenario.store import config_path, data_dir, is_custom, read_config
 from src.scenario.synthesize import CANONICAL_SCENARIOS, load_base_config
-from src.scenario.validate import capacity_reachability
+from src.scenario.validate import capacity_reachability, network_comparability
 
 #: What a default custom run leaves out, in the planner's words rather than flags.
 EXCLUSION_TEXT = {
@@ -71,6 +71,41 @@ def reachability_warnings(
     }]
 
 
+def comparability_warnings(
+    config: dict[str, Any],
+    sizing: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """The not-comparable warning for a resized network, before AND after the run.
+
+    Built by one function used in both places for the same reason
+    :func:`reachability_warnings` is: the alternative is the same measured fact
+    acquiring two different vocabularies, one on the pre-run card and one on the
+    results screen.
+
+    🔴 This one matters *more* after the run than before it. Before, it is a caveat
+    on a number nobody has seen. After, there is a large, concrete, lower objective
+    on screen — 66,548.24 against baseline's 81,789.36 at 7 customers — and without
+    this it reads as a 19% saving.
+    """
+    verdict = sizing if sizing is not None else network_comparability(config)
+    if verdict["comparable_to_baseline"]:
+        return []
+    return [{
+        "code": "resized_network_not_comparable",
+        "message": f"{verdict['why']} {verdict['note']}",
+        "detail": {
+            "comparable_to_baseline": False,
+            "resized_settings": verdict["resized_settings"],
+        },
+        # Deliberately does NOT repeat the remedy. ``message`` already ends with
+        # "the naive-vs-classical comparison inside this run is the valid one", and
+        # seeing the same sentence twice in one amber box — which is how it read on
+        # screen the first time — weakens both copies.
+        "do_not_read_as": "Do not read a lower objective as a better plan: this network simply "
+                          "serves less demand.",
+    }]
+
+
 def build_run_card(
     scenario: str,
     include_ppo: bool,
@@ -82,6 +117,7 @@ def build_run_card(
     custom = is_custom(scenario)
     generated = data_dir(scenario).is_dir()
     reachability = capacity_reachability(config)
+    sizing = network_comparability(config)
 
     will_run = ["load the generated data", "forecast demand", "naive baseline", "tuned classical"]
     if include_ppo:
@@ -95,7 +131,10 @@ def build_run_card(
         if not included
     ]
 
-    warnings = reachability_warnings(config, reachability=reachability)
+    warnings = [
+        *reachability_warnings(config, reachability=reachability),
+        *comparability_warnings(config, sizing=sizing),
+    ]
 
     return {
         "scenario": scenario,
@@ -124,6 +163,7 @@ def build_run_card(
             include_generate=not generated,
         ),
         "capacity_reachability": reachability,
+        "network_comparability": sizing,
         "warnings": warnings,
         "writes_artifact": f"benchmark/{scenario}-head-to-head-comparison.json",
         "label": (

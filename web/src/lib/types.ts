@@ -274,6 +274,22 @@ export type ScenarioComparison = {
     excluded: string[];
   };
   capacity_reachability?: CapacityReachability | null;
+  /**
+   * Iteration 6b guardrail 4. Whether this run's objective may be compared to the
+   * recorded baseline at all — false whenever a problem-size network count differs,
+   * because total demand differs and the objective measures a different quantity.
+   */
+  network_comparability?: {
+    comparable_to_baseline: boolean;
+    resized_settings: {
+      key: string;
+      label: string;
+      baseline_value: number;
+      scenario_value: number;
+    }[];
+    why: string;
+    note: string;
+  } | null;
   warnings?: (ValidationWarning & { do_not_read_as?: string })[];
 };
 

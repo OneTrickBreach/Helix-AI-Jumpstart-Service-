@@ -29,10 +29,12 @@ from src.scenario.ledger import (
     LABEL_ONLY,
     LABEL_ONLY_LABEL,
     NETWORK_KEYS,
+    NOT_COMPARABLE_TAIL,
+    PROBLEM_SIZE,
     SETTINGS_BY_KEY,
     get_value,
 )
-from src.scenario.synthesize import CANONICAL_SCENARIOS, is_network_key
+from src.scenario.synthesize import CANONICAL_SCENARIOS, is_network_key, load_base_config
 
 #: Decision 3. The stored name is ``custom-<slug>``; the prefix does four jobs —
 #: a .gitignore pattern, collision protection for the name-keyed artifact, a
@@ -75,6 +77,7 @@ WARNING_CODES = (
     "capacity_wipe_does_not_create_shortage",
     "settings_recorded_not_read",
     "settings_label_only",
+    "resized_network_not_comparable",
 )
 
 
@@ -474,6 +477,59 @@ def capacity_reachability(config: dict[str, Any]) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def network_comparability(
+    config: dict[str, Any],
+    base: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Whether this network's objective may be compared to the recorded baseline.
+
+    🔴 Iteration 6b guardrail 4. ``capacity_reachability`` answers *"can this change
+    reach the optimizer?"*; this answers the question after it — *"is the answer it
+    produced the same **kind** of number as 81,789.36?"*
+
+    It is not, whenever a **problem-size** count differs from baseline. Changing the
+    customer base or the BOM depth changes total demand, so the objective measures a
+    different quantity. Measured 2026-08-21: 7 customers scores 66,548.24, which
+    looks like an 18.6% improvement and is really 12% less demand to serve.
+
+    The classification comes from the ledger (``answer_class``), not from a list
+    kept here, so this cannot drift from what the controls say. Node counts
+    (suppliers, plants, DCs) leave total demand bit-identical and stay comparable.
+    """
+    base_network = (base if base is not None else load_base_config()).get("network") or {}
+    network = config.get("network") or {}
+
+    resized: list[dict[str, Any]] = []
+    for key in NETWORK_KEYS:
+        setting = SETTINGS_BY_KEY.get(key)
+        if setting is None or setting.answer_class != PROBLEM_SIZE:
+            continue
+        name = key.split(".", 1)[1]
+        was, now = base_network.get(name), network.get(name)
+        if was is not None and now is not None and was != now:
+            resized.append({
+                "key": key, "label": setting.label,
+                "baseline_value": was, "scenario_value": now,
+            })
+
+    if not resized:
+        return {"comparable_to_baseline": True, "resized_settings": [], "why": "", "note": ""}
+
+    changed = ", ".join(
+        f"{item['label'].lower()} {item['baseline_value']} \u2192 {item['scenario_value']}"
+        for item in resized
+    )
+    return {
+        "comparable_to_baseline": False,
+        "resized_settings": resized,
+        "why": f"This network is a different size from baseline ({changed}), so total demand "
+               f"is different and the objective is a different quantity.",
+        # The tail only: ``why`` above already opens with the size statement, and with
+        # the specific counts in it. Appending the full note repeated the sentence.
+        "note": NOT_COMPARABLE_TAIL,
+    }
+
+
 def feasibility(config: dict[str, Any], run_horizon: int = 8) -> ValidationResult:
     """Refuse configurations that would produce a 500 or a meaningless objective."""
     result = ValidationResult()
@@ -678,6 +734,17 @@ def validate_custom_scenario(
                 "capacity_read_period": reach["capacity_read_period"],
                 "window": reach["window"],
                 "suggested_duration_periods": reach["suggested_duration_periods"],
+            },
+        ))
+    sizing = network_comparability(config)
+    if not sizing["comparable_to_baseline"]:
+        result.warnings.append(Warning_(
+            "resized_network_not_comparable",
+            f"{sizing['why']} {sizing['note']}",
+            sizing["resized_settings"][0]["key"],
+            detail={
+                "comparable_to_baseline": False,
+                "resized_settings": sizing["resized_settings"],
             },
         ))
     injection = description_injection_warning(description)

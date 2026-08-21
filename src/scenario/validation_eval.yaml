@@ -350,3 +350,23 @@ cases:
       network.subassemblies_per_finished_good: 3
       network.raw_components_per_subassembly: 3
     control: true
+
+  - id: N11
+    description: >
+      🔴 guardrail 4 — a resized customer base is ACCEPTED but warned about before
+      any compute: its objective is a different quantity, not a better plan. 7
+      customers scores 66,548.24 against baseline's 81,789.36 and that is 12% less
+      demand to serve, not an 18.6% saving
+    name: "resized"
+    overrides:
+      network.customers: 7
+    expect_warning: resized_network_not_comparable
+
+  - id: N12
+    description: >
+      control — reducing a WAREHOUSE is comparable, so it must NOT collect the
+      not-comparable warning. Node counts leave total demand bit-identical
+    name: "one-dc-comparable"
+    overrides:
+      network.distribution_centers: 1
+    control: true

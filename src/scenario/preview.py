@@ -64,6 +64,25 @@ def series_count(config: dict[str, Any]) -> int:
     return int(network.get("customers") or 0) * int(network.get("finished_goods") or 0)
 
 
+def topology_size(config: dict[str, Any]) -> dict[str, int]:
+    """``{nodes, lanes}`` for a config, from the ``network:`` counts alone.
+
+    Iteration 6b: the estimate has to know when it is borrowing a latency from a
+    network of a *different shape*. Derived from the counts rather than by building
+    the tables, because an estimate that costs a table build is not an estimate.
+    Verified against real builds on 2026-08-21: baseline 17 nodes / 30 lanes,
+    40 customers 49 / 94, stress-large's shape 42 / 152.
+    """
+    from src.scenario.validate import lane_counts
+
+    network = config.get("network") or {}
+    nodes = sum(
+        int(network.get(key) or 0)
+        for key in ("suppliers", "plants", "distribution_centers", "customers")
+    )
+    return {"nodes": nodes, "lanes": sum(lane_counts(config).values())}
+
+
 def config_changes(config: dict[str, Any], base: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     """Config deltas in ``_scenario_diff``'s exact shape, plus a reach annotation.
 
@@ -187,14 +206,23 @@ def estimate_run(
             "basis": "measured on this device on 2026-08-20 for a baseline-sized network "
                      "(0.23 s; 0.55 s at stress-large's 42 locations). In-process generation "
                      "measured 0.04-0.07 s on 2026-08-20; the CLI figure includes interpreter "
-                     "startup, so this is the conservative one",
+                     "startup, so this is the conservative one. Re-measured across the whole "
+                     "network range on 2026-08-21 — 0.008 s at 16 nodes to 0.207 s at the "
+                     "largest network these controls can reach (120 nodes, 2,000 lanes) — so "
+                     "this figure stays an over-estimate at every reachable size",
         })
     series = series_count(config)
+    network = config.get("network") or {}
     components.append({
         "stage": "forecast",
         "seconds": round(series * MEASURED_SECONDS_PER_SERIES, 2),
-        "basis": f"{series} finished-good series x ~25 ms/series, the measured forecast "
-                 f"ceiling from the Iteration 3 scale study",
+        # Recomputed from the network being edited, not inherited: this is the one
+        # component that grows steeply with a resized network, and it is why a
+        # 40-customer dataset is a 4-second run rather than a 1-second one.
+        "basis": f"{series} finished-good series ({network.get('customers')} customers x "
+                 f"{network.get('finished_goods')} finished goods, counted from THIS network) "
+                 f"x ~25 ms/series, the measured forecast ceiling from the Iteration 3 "
+                 f"scale study",
     })
 
     if recorded:
@@ -211,6 +239,20 @@ def estimate_run(
         optimize_seconds = FALLBACK_OPTIMIZE_SECONDS
         basis = "no run on record for this scenario or for the base scenario, so this is the "\
                 "measured 2026-08-20 figure for baseline + tuned classical"
+    # 🔴 The estimate must not inherit a latency from a network of another shape
+    # without saying so. A borrowed figure is honest; a borrowed figure presented as
+    # if it described this topology is not.
+    if basis_scenario != scenario_name:
+        here = topology_size(config)
+        there = topology_size(load_base_config(basis_scenario))
+        if here != there:
+            bigger = here["nodes"] > there["nodes"] or here["lanes"] > there["lanes"]
+            basis += (
+                f" \u2014 and that network is a different shape from this one "
+                f"({there['nodes']} nodes / {there['lanes']} lanes against "
+                f"{here['nodes']} / {here['lanes']} here), so treat this component as "
+                + ("a floor rather than an estimate" if bigger else "an over-estimate")
+            )
     components.append({
         "stage": "optimize",
         "seconds": round(optimize_seconds, 2),

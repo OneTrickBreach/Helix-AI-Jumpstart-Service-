@@ -98,12 +98,25 @@ ANSWER_CLASS_LABELS = {
         "result within this run, never against the recorded baseline.",
 }
 
-#: The one sentence that must travel with any resized result (guardrail 4).
-NOT_COMPARABLE_NOTE = (
+# The note that must travel with any resized result (guardrail 4), split so the two
+# halves can be composed without repeating themselves. ``network_comparability``
+# builds its own, more specific opening sentence (it names the counts that changed),
+# so it appends only the tail — otherwise the message says "this network is a
+# different size" twice, which is how the first live run of it read.
+
+#: The generic opening, for surfaces that have no specifics to hand.
+NOT_COMPARABLE_LEAD = (
     "This network is a different size from the recorded baseline, so its objective is a "
-    "different quantity. It is not better or worse than 81,789.36 \u2014 it is not the same "
-    "measurement. The naive-vs-classical comparison inside this run is the valid one."
+    "different quantity."
 )
+
+#: The actionable half. Always shown, whichever opening precedes it.
+NOT_COMPARABLE_TAIL = (
+    "It is not better or worse than 81,789.36 \u2014 it is not the same measurement. The "
+    "naive-vs-classical comparison inside this run is the valid one."
+)
+
+NOT_COMPARABLE_NOTE = f"{NOT_COMPARABLE_LEAD} {NOT_COMPARABLE_TAIL}"
 
 
 @dataclass(frozen=True)
