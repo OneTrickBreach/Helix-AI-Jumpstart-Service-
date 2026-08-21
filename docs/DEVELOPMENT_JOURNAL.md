@@ -17,7 +17,15 @@
 ---
 
 ## Project snapshot (current state)
-- 🔴 **NOW: Iteration 6b — Custom Dataset, Phase 0 (demo hardening) COMPLETE except two human items.**
+- 🔴 **NOW: Iteration 6b — Custom Dataset. Phase 1 (the network ledger) COMPLETE.** The eight
+  `network:` counts are first-class validated settings: **67 settings across 8 groups**, floors on all
+  seven values that cannot be run, the two honesty classes **derived** rather than asserted, and
+  `network.lines_per_plant` classified **INERT by derivation**. No UI yet (deliberately gated out of the
+  form until Phase 3) and no persistence change. Green: `make test` **620 passed + 2 xpassed**,
+  `make scenario-eval` **39/39** (refusal classes **21/21**), `make bench-all` **all 12 bit-identical**,
+  `make web-test` **111**, `make web-check` **38/38**. 🔴 **Ishan waived both human Phase 0 items on
+  2026-08-21** — see the Phase 0 entry. Next: Phase 2 (network keys through synthesis, preview, save).
+- **Iteration 6b Phase 0 (demo hardening) COMPLETE except the two waived human items.**
   Branch **`feat/iteration6b-custom-dataset`**, cut from `main` @ `262c498` on 2026-08-21. No feature
   code written yet — Phase 0 is deliberately demo hardening only. Green baseline re-verified on the
   branch: `make test` **558 passed + 2 xpassed**, `make bench-all` **all 12 objectives bit-identical**,
@@ -171,6 +179,185 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-21 (Phase 1) — Iteration 6b: the network ledger, and four defects the review pass caught
+
+**Git ref:** `8410a03` on `feat/iteration6b-custom-dataset`.
+
+**What this phase is.** The eight `network:` counts become first-class, validated, honestly-labelled
+settings. **No UI and no new persistence** — that is the phase's stated scope, and it is the *minimum
+shippable 6b*: even with no panel, this is a real, testable answer to Ryan's *"why can't we just reduce
+a warehouse"* over the API.
+
+### 1. 🔴 Both human Phase 0 items were WAIVED, not completed
+
+**Ishan's explicit decision on 2026-08-21:** skip the Option E screen recording and skip reading the
+talk track aloud; do the Wednesday-morning `/health` check on the day. Recorded here as a **decision,
+not an oversight**, because the handover document
+([`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md))
+remains written and unstarted, and the next person should know why.
+
+**The consequence, stated plainly:** 🔴 **Option E has no GPU-free fallback for Wednesday 2026-08-26.**
+If NVML detaches that morning — it has now done so four times, most recently on a sub-daily cadence —
+the custom scenario, which is the entire subject of the meeting, cannot be shown at all. The
+`/health` check before the meeting is now the only mitigation, and it is a human step.
+The talk-track read-aloud DoD item is now **five iterations old** (carried since Iteration 3).
+
+### 2. The ledger: 59 → 67 settings, and the reach is DERIVED
+
+Eight `Setting` rows in a new `network` group, which **leads** `GROUPS` because it is the dataset
+tier — the nouns; everything after it is a condition applied to them.
+
+| | Count |
+|---|---|
+| Total settings | 59 → **67** |
+| `UNCONDITIONAL` | 38 → **45** (the seven live counts) |
+| `INERT` | 14 → **15** (`network.lines_per_plant`) |
+| **Cannot change the answer** | 15 → **16** |
+| Refusal classes | 17 → **21** |
+| Eval cases | 29 → **39** (7 → 11 controls) |
+
+🔴 **`network.lines_per_plant` was not declared inert — it fell out of the derivation.** Before writing
+a line of the ledger I ran `derive_setting_targets` against provisional settings to see what each count
+actually writes. The answer for `lines_per_plant`: `production_lines` rows, plus
+`nodes.capacity_units_per_period` and `nodes.storage_capacity_units`. **The pipeline reads none of those
+three tables**, so INERT is the derivation's own verdict. Measured at 0, 2 and 4 the objective is
+`81789.35946` every time — even **zero production lines** changes nothing. The most
+manufacturing-sounding control available, and it does nothing.
+
+**No second classifier was built.** 6a's `__rows__` pseudo-column already handles a setting that acts by
+changing row counts, which is exactly how a network count acts — so the seven live counts classify
+themselves as `UNCONDITIONAL` via the tables they resize, and `lines_per_plant` as `INERT` via the ones
+it does not.
+
+### 3. Guardrail 1 — nothing may crash, and the tests prove the crash they prevent
+
+All seven unrunnable values are refused **before anything is written**:
+
+| Value | What it does today | Refusal |
+|---|---|---|
+| `plants = 0` | `ZeroDivisionError` in the generator | `network_count_below_floor` |
+| `finished_goods = 0` | `ZeroDivisionError` | `network_count_below_floor` |
+| `subassemblies_per_finished_good = 0` | `ZeroDivisionError` | `network_count_below_floor` |
+| `raw_components_per_subassembly = 0` | `ZeroDivisionError` | `network_count_below_floor` |
+| **`customers = 0`** | 🔴 **does NOT crash** — writes a complete dataset, dies two stages later in the FORECAST | `network_count_below_floor` |
+| `distribution_centers = 0` | 🔴 does not crash — returns **68,565.25 at 92.01% fill** | `network_zero_distribution_centers` |
+| `suppliers = 0` | 🔴 does not crash — **83.66% fill, unchanged to the digit** | `network_zero_suppliers` |
+
+The four generator crashes are asserted with `pytest.raises(ZeroDivisionError)` against an in-memory
+build, so the floors are not defensive decoration — the test fails if a generator change ever makes one
+survivable. And `customers = 0` has its own test asserting generation **succeeds** and produces zero
+demand rows: that is the case proving floors belong *before* the write, not at generation time.
+
+**Decision 4's refusals quote the measured numbers**, so the message teaches the modelling limit rather
+than merely blocking: *"…it scores 68,565.25 at 92.01% fill, which is better than baseline on BOTH
+counts … That is a limit of the model, not a fact about your network."* A crash is embarrassing; a
+confident wrong answer is worse.
+
+### 4. 🔴 Guardrails 3 and 4 — the honesty classes are DERIVED, not asserted
+
+§1.2 splits the counts into *changes the shape of the network* and *changes the size of the problem*.
+Rather than assert that split, I measured what actually separates them:
+
+| Config | Total demand | Demand rows |
+|---|---:|---:|
+| baseline (2 DCs) | **1,837,066** | 2,912 |
+| 3 plants — network shape | **1,837,066** *identical* | 2,912 |
+| 6 suppliers — network shape | **1,837,066** *identical* | 2,912 |
+| 1 DC — network shape | **1,837,066** *identical* | 2,912 |
+| 7 customers — problem size | 1,621,236 | 2,704 |
+| 3 finished goods — problem size | 1,536,596 | 2,184 |
+
+**A network-shape count leaves total demand bit-identical; a problem-size count moves it.** That is now
+a committed test: put a count in the wrong class and it fails, naming the class it belongs in. Guardrail
+4 is only as good as the classification behind it, and this is what makes the classification checkable
+rather than editorial.
+
+**The caveat travels with the change, not just the schema.** `config_changes` entries now carry
+`answer_class`, `comparable_to_baseline` and — for a resized problem — the `not_comparable_note` naming
+81,789.36. *"WHAT YOU CHANGED"* is what a planner reads immediately before running, so a caveat that
+lives only in the settings payload is a caveat nobody sees at the moment it matters.
+
+### 5. 🔴 The brutal-truth pass found four real defects
+
+Every one of these was found by running things, not by reading the diff.
+
+**a. The ledger ablation crashed once the network counts widened its reach.**
+`derive_optimizer_reads` perturbs a string column by writing the literal `"LEDGER_PROBE"`. Before 6b
+every probed string column was free text (`criticality_tier`, `disruption_code`). The network counts
+derive changes to **identifier** columns — `demand.sku_id`, `demand.node_id` — so the probe replaced a
+foreign key and the optimizer died on `KeyError: 'LEDGER_PROBE'`, taking three load-bearing ledger
+tests down as setup errors. **Fixed by recording read=True when the probe raises**, which is the
+semantically correct answer: a column whose corruption *crashes* the optimizer is definitionally read.
+Note the direction — treating a crash as "unread" would let a load-bearing column be labelled inert,
+which is precisely the failure this ledger exists to prevent.
+
+**b. A hostile-save payload had become legitimate work.** `test_hostile_save_payloads_are_refused` fed
+`{"name": "ok", "overrides": {"network.plants": 3}}` and expected a refusal. In 6b that is ordinary
+work — close to Ryan's actual ask — so it saved successfully and the test failed. Replaced with four
+network values that genuinely cannot be run (`plants: 0`, `distribution_centers: 0`,
+`customers: 99999`, `network.warehouses: 2`).
+
+**c. …and that test cascaded.** Every case shares the name `custom-ok`, so the one unexpectedly
+accepted payload left its config on disk and turned the **five** cases after it into phantom failures
+pointing at the wrong payload. It now cleans up in a `finally`, so the assertion still fails for the
+payload that actually misbehaved — and only for that one. This cost me a full debug cycle and would
+have cost the next person the same.
+
+**d. A fractional count got a lecture about zero.** `network.plants: 0.5` collected the measured *"zero
+plants raises ZeroDivisionError"* sentence — true about the floor, but not about what was typed. The
+floor check is now gated on `_is_int`, so 0.5 gets *"has to be a whole number"* and a genuine 0 still
+gets the measured explanation.
+
+### 6. A sequencing hazard, caught before it shipped
+
+The Advanced form builds itself from `payload.groups`. So the moment the API served a `network` group,
+**seven unlabelled numeric inputs would have appeared on screen** — `AdvancedControl` renders no
+`note`, so they would have arrived with no honesty class at all, breaking guardrail 3 before the UI
+tier exists to honour it. Phase 1 is specified as *"no UI"*, so the group is gated out of the form with
+an explicit, tested `PENDING_UI_GROUPS` set that **Phase 3 removes**. The inert
+`network.lines_per_plant` is gated too: showing one network control under the inert heading while
+hiding its seven siblings would be more confusing than showing none.
+
+### 7. An environment leak I caused, and cleaned
+
+Killing an in-flight `make test` to rebuild skipped a context manager's teardown and left
+`data/scenarios/scale-1x-ref.yaml` behind — `src/bench/scale_study.py:182` writes a temporary scenario
+and unlinks it in a `finally`. Combined with the leaked `custom-ok.yaml` from (c), this produced **10
+misleading failures** that were nothing to do with the code. Both removed; `data/scenarios/` and
+`data/generated/` verified back to exactly the four shipped scenarios after every subsequent run.
+**Lesson worth keeping: do not kill this suite mid-run — it writes real files.**
+
+### Verified results
+
+| Item | Result | Was |
+|---|---|---|
+| `make test` | **620 passed, 2 xpassed** | 558 + 2 |
+| `make scenario-eval` | **39/39** (11 controls), refusal classes **21/21**, warnings **5/5** | 29/29, 17/17 |
+| `make bench-all` | 🔴 **all 12 objectives BIT-IDENTICAL** (checked programmatically, 0 mismatches) | — |
+| `make web-test` | **111** | 108 |
+| `make web-check` | **38/38 PASS, 0 FAIL** | 38/38 |
+| `make scenario-ledger` | "67 editable settings across 8 groups", `lines_per_plant` flagged inert | 59 / 7 |
+| Bundle | 657.15 → **657.24 kB** raw (+0.09), 186.31 → 186.36 kB gzip | measured against a clean worktree at `262c498`, not assumed |
+| GPU | `/health` `gpu_visible:true` after each of five `api` rebuilds | — |
+| Data hygiene | `data/scenarios/` and `data/generated/` exactly 4 each | — |
+
+The optimizer, the objective function and the generator are **untouched**.
+
+### Open follow-ups
+
+- **Phase 2 next:** network keys through synthesis, preview and save. 🔴 The plan's specific warning:
+  **the run estimate must be recomputed, not inherited** — 6a's estimate assumes baseline's topology,
+  and a 40-customer network has more series and a longer forecast.
+- **Phase 3 must delete `PENDING_UI_GROUPS`** from `web/src/lib/customForm.ts` and render the three
+  label classes. Three Vitest cases assert the gate today and will need flipping.
+- **Extend the ablation's string probe** to use a real foreign key rather than a literal, so identifier
+  columns are measured rather than inferred from a crash. The current behaviour is correct but coarse.
+- 🔴 **Option E still has no GPU-free fallback** (§1, waived). Check `/health` before the demo.
+- **`network.finished_goods` is capped at 12, exactly `stress-large`'s value** — so no custom network can
+  hold more products than the largest shipped scenario. A judgement call, flagged for Ryan (decision 6).
+- **Eleven open questions for Ryan**, §4.1 first.
+
 
 ## 2026-08-21 — Iteration 6b Phase 0: demo hardening, a 4th NVML detachment, and two plan figures that did not reproduce
 
