@@ -1075,6 +1075,12 @@ async function askStarter(page, question, timeout = 90000) {
     `notComparable=${/never against the recorded baseline/.test(sizeLabel)}`
   );
 
+  // A clean capture of the group as a planner first meets it, before anything is
+  // typed. Kept in `web-check` so the committed 6b screenshot set is fully
+  // reproducible — which is the claim the 6a set could not make.
+  await page.locator('[data-testid="custom-network"]')
+    .screenshot({ path: `${SHOT_DIR}/network-group.png` });
+
   // --- 2. 🔴 Decision 4: typing 0 must REACH the measured refusal ----------
   await page.fill('[data-testid="custom-name"]', `${SLUG}-zero`);
   await page.fill('[data-testid="network-network.distribution_centers"] input', "0");

@@ -616,16 +616,24 @@ A **real captured transcript** (2026-08-05, on this GB10 — the on-device Nemot
 
 ---
 
-## Option E — "Build your own scenario": the custom scenario panel
+## Option E — "Build your own scenario": the custom scenario **and** the custom dataset
 
-**This is the ask from Ryan's 2026-08-19 demo review, delivered in the week it was asked for.** His
+🔴 **This is BOTH of Ryan's asks from 2026-08-19, delivered in the week they were asked for.** His
 original complaint was that the four scenarios "aren't intuitive". Option C showed what the data *is*;
 Option D let a planner *ask* about it. Both still leave the viewer inside four scenarios somebody else
-chose. **This one hands over the controls.**
+chose. **This one hands over the controls — the conditions *and* the network.**
 
-Added in Iteration 6a. It is not behind a BETA chip — but every result it produces is labelled
-**CUSTOM SCENARIO · NOT A RECORDED BENCHMARK RESULT**, and that labelling is the point. **Do not quote
-a custom number as one of the four.**
+- **The conditions** (Iteration 6a): 8 grouped controls, 67 in Advanced. Steps 1–6.
+- 🔴 **The network itself** (Iteration 6b): how many suppliers, plants, warehouses, customers and
+  products. His words were *"why can't we just reduce a warehouse."* Steps 7–9.
+
+**It is one panel, not two.** A custom dataset is still just one config file, so pretending otherwise
+would be a lie about the architecture. If he expected two screens, that is a fair question to put back
+to him — it is on the question list.
+
+Not behind a BETA chip — but every result it produces is labelled **CUSTOM SCENARIO · NOT A RECORDED
+BENCHMARK RESULT**, and that labelling is the point. **Do not quote a custom number as one of the
+four.**
 
 ### Opening it
 
@@ -649,11 +657,17 @@ call by design, and building a scenario needs the API. Use the live stack for th
 
 1. **It starts from `baseline`, and it says so.** Every control left blank means "same as baseline".
    That is why the change list is short and readable — it only ever shows what *you* moved.
-2. **Two of the eight controls are honesty features, not features.** The panel will tell you when a
-   setting cannot change the answer, and when a disruption window cannot reach the optimizer. Those are
-   the moments worth slowing down for — see steps 4 and 6.
+2. **Four of the beats are honesty features, not features.** The panel will tell you when a setting
+   cannot change the answer, when a disruption window cannot reach the optimizer, when a network is
+   too small to run, and when a resized network's objective is not comparable. Those are the moments
+   worth slowing down for — steps 4, 6, 8 and 9.
+3. 🔴 **If you only have five minutes, do steps 7 and 8.** Reducing a warehouse is what he asked for,
+   and typing a zero is the finding that changes what to fund next.
 
-### The five-step talk track, in pointing order
+### The talk track, in pointing order
+
+**Steps 1–6 are the custom scenario (Iteration 6a). Steps 7–9 are the network tier (Iteration 6b) —
+and step 8 is the most valuable thing in this demo.**
 
 **1. "Here are the eight things a planner would actually say."** Point at **THE CONTROLS**:
 
@@ -766,6 +780,83 @@ Delete button at all; their names are refused by the API as well.
 Say: *"Saved scenarios live on this box, in the dropdown, and come back next time. They are visible to
 anyone who can reach the box — this is a single-user prototype, not multi-tenant."*
 
+### 🔴 7. The network itself — "why can't we just reduce a warehouse" *(Iteration 6b)*
+
+**This is Ryan's second ask of 2026-08-19, in his own words, and it is the most valuable beat in the
+whole demo.** Reopen the panel (**Custom scenario…**) and scroll to **THE NETWORK**.
+
+Eight counts, in two groups that are labelled differently **on purpose**:
+
+| Group | Counts | What the label says |
+|---|---|---|
+| *Changes the shape of the network* | suppliers · plants · **distribution centers** | *"…moves the objective by well under 1% and does not change fill rate or days of inventory at all, because the optimizer has no per-node capacity — so this is **NOT a resilience test**."* |
+| *Changes the SIZE of the problem* | customers · finished goods · subassemblies · raw components | *"…total demand changes, so the objective becomes a different quantity — compare the naive-vs-classical result within this run, **never against the recorded baseline**."* |
+
+Say: *"Two groups, because they are not the same kind of control. The top three barely move the number
+and never move service. The bottom four move it a lot — by changing how much demand there is to
+serve, which is not the same as a better plan."*
+
+**Do the thing he asked for.** Set **Distribution centers** to `1`, name it `one-warehouse`, and click
+**Save & run**.
+
+> **Result: 81,663.11.** Baseline is **81,789.36**. Fill rate **83.66%** — *identical to the digit*.
+
+Say: *"You asked what happens if we reduce a warehouse. Here it is: the plan gets **cheaper**, and
+service does not move at all. Not by a little — identically, to six decimal places. Only transport
+cost changed, by 126 dollars."*
+
+⚠️ Note there is **no** amber caveat on this result, and that is deliberate: a node count *is*
+comparable to baseline. The caveat appears only when it should.
+
+### 🔴 8. The beat that is worth the whole iteration — type a zero
+
+Reopen the panel and set **Distribution centers** to **`0`**. Do not run it. Just watch.
+
+> **A network with no distribution centers has no lane by which a finished good can reach a
+> customer — and this prototype does not notice.** Measured: it scores **68,565.25 at 92.01% fill**,
+> which is better than baseline on **BOTH** counts (81,789.36 at 83.66%), because the optimizer has no
+> per-node capacity and the fill-rate calculation never asks whether a delivery route exists.
+> **That is a limit of the model, not a fact about your network.** Keep at least 1.
+
+**Save & run is disabled.** The control does **not** snap the 0 back to 1 — reaching that sentence is
+the entire point.
+
+Say it out loud, slowly: *"If I let this run, it would tell you that closing **every** warehouse makes
+the network 16% cheaper with **better** service. That is not a bug in the code — the code computes the
+objective correctly. It is a statement about how deep the model goes: the routing optimizer moves
+volume between **lanes**, and it has no concept of a **node**. A warehouse is a label on the end of a
+lane. So it has no throughput limit, removing one is free, and having none is optimal."*
+
+Then: *"That is why `dc_throughput_units_per_period` does nothing. It is why a ten-week supplier
+outage doesn't move the answer. It is why zeroing a whole lane family **saves** money. Those aren't
+four problems — they're one, measured four different ways, and we only found it by building the thing
+you asked for."*
+
+🔴 **This is the pitch.** Not *"here are more sliders"* but *"you asked for two things, here is both —
+and building the second one told you something about your own product that nobody knew on Monday."*
+Full write-up to hand over:
+[`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md).
+
+**If he asks "so should we fix it?"** — that is exactly the decision to put to him. A real fix means
+per-node flow conservation and throughput limits: a genuine multi-echelon LP, and **it would move
+every objective in every document he has been shown**. It is the highest-value engineering investment
+available on this prototype, and it is the difference between *"this tool resizes a network"* and
+*"this tool tells you whether your network survives."*
+
+### 9. The other honesty beat — a resized network is not a better one
+
+Set **Customers** to `7` and run it.
+
+> **66,548.24** against baseline's 81,789.36. That looks like an **18.6% saving**.
+
+It is not. An amber **"Not comparable to the recorded baseline"** block sits directly above the
+numbers: total demand fell from 66,807 to 58,972 units, so *the objective is measuring a different
+quantity*. The valid comparison is the naive-vs-classical one **inside** this run — the −4.4% on the
+tiles below the caveat.
+
+Say: *"Fewer customers is not a better plan. It's a smaller problem. The screen says so, because a
+25% drop from a product-count change is the easiest number in this whole tool to misread."*
+
 ### Also worth showing: a custom scenario on the dataset view
 
 With `custom-q3-surge` selected, click **View the dataset**. The whole Iteration 4 view works on it —
@@ -777,8 +868,16 @@ saved custom scenario is an ordinary scenario as far as the rest of the system i
 
 - Do **not** call a custom result a benchmark result. The four recorded objectives are
   81,789.36 / 95,445.45 / 94,165.36 / 2,521,615.07 and nothing built in this panel is one of them.
-- Do **not** say the panel can change the network. It cannot add or remove a supplier, plant,
-  warehouse or customer — the `network:` block is deliberately excluded, and that is **Iteration 6b**.
+- Do **not** say the panel cannot change the network any more — **Iteration 6b added exactly that**
+  (steps 7–9). What it still cannot do is delete a *specific* entity: IDs are positional, so reducing
+  a count removes the **last** one. "2 DCs → 1" keeps `DC-001`; *"delete DC-002, keep DC-003"* is not
+  expressible and is named as deferred.
+- Do **not** compare a resized network's objective to 81,789.36. Changing the customer or product
+  count changes total demand, so it is a different quantity. The screen says so; say it too.
+- Do **not** describe a network-count change as a resilience test. Node counts move the objective by
+  under 1% and never change service, because there is no node in the routing LP.
+- Do **not** present the zero-warehouse refusal as a validation nicety. It is the iteration's central
+  finding, and the number in it is the reason to fund the next piece of work.
 - Do **not** describe the 15 no-effect settings as "not implemented". They are implemented, written to
   the dataset, and visible on the dataset page. They are not read by the optimizer. That is a
   modelling fact about this prototype, not a gap in the form.
@@ -797,6 +896,9 @@ saved custom scenario is an ordinary scenario as far as the rest of the system i
 | "Custom scenario…" is missing from the dropdown | Either you are in `?replay=true` (use the live URL), or your browser is showing a cached build — **hard-reload** (Ctrl/Cmd+Shift+R). `index.html` is now served `no-store` so this should not recur. |
 | The panel says "Failed to fetch" | The API is down. `docker compose ps`, then `make up`. |
 | Save is greyed out | Either the name is empty, or there is a refusal listed above the button. The refusal says what to fix in a sentence. |
+| Save is greyed out with a long red block about warehouses | Working as intended — a network count is below its floor. **This is step 8**, not a fault. Set Distribution centers back to 1 or more. |
+| A network count won't go below 1 | It will — the field is not clamped. If it *looks* clamped, you are reading the `1–20` bound hint under the field, not a limit on typing. |
+| "The network" section is missing from the panel | Your browser is showing a cached build. **Hard-reload** (Ctrl/Cmd+Shift+R). |
 | "A scenario named … already exists" | Delete it first, or pick another name. This also happens if a save failed halfway once — delete clears it. |
 | A saved scenario shows "no data generated" | It should be impossible: a save is atomic. If you see it, delete and re-save, and it is worth a bug report. |
 
