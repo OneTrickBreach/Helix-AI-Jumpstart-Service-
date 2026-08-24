@@ -17,7 +17,17 @@
 ---
 
 ## Project snapshot (current state)
-- 🔴 **NOW: Iteration 6b — Custom Dataset. Phase 2 COMPLETE — a network-edited dataset saves, runs,
+- 🔴 **NOW: Iteration 6b — Custom Dataset. Phase 3 COMPLETE — the Network group is in the panel.**
+  A planner opens **Custom scenario…**, sees **The network** with the two honesty classes rendered
+  distinctly, sets warehouses to 1, saves and runs, and gets **81,663** with no false caveat; sets
+  customers to 7 and gets **66,548** *with* the not-comparable caveat beside it. 🔴 **Typing 0
+  warehouses is not clamped** — it reaches the measured refusal (68,565.25 at 92.01%, *"a limit of the
+  model, not a fact about your network"*) and disables Save. `lines_per_plant` is under Advanced's
+  inert heading, never a live control. `NetworkMap.tsx` **untouched all iteration** (0 commits).
+  Green: `make test` **635 + 2 xpassed**, `make scenario-eval` **41/41**, `make bench-all` **12/12
+  bit-identical**, `make web-test` **118**, `make web-check` **49/49**. Bundle **660.14 kB** (+2.26).
+  Next: Phase 4 (regression, DEMO_GUIDE Option E, handoff, Ryan packet).
+- **Iteration 6b Phase 2 COMPLETE — a network-edited dataset saves, runs,
   reopens and deletes.** A 1-DC dataset runs to **81,663.107829** and a 7-customer one to
   **66,548.241282**, both to the digit; the dataset view and `NetworkMap` carry them with **no
   dataset-code change** (17 nodes → 16, redrawn on its own); delete removes all four artifacts.
@@ -191,6 +201,127 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-24 (Phase 3) — Iteration 6b: the Network group, and a refusal that teaches
+
+**Git ref:** `3303e45` on `feat/iteration6b-custom-dataset`. **Monday — two working days to the demo.**
+
+### 0. Two corrections to the record before anything else
+
+**a. The NVML cadence claim was overstated.** Phase 0's entry said the detachment gap had gone "from
+~2 weeks to under a day" and called it a **sub-daily cadence**. That was **one 19-hour sample**. Over
+the weekend the box held **2+ days** with `gpu_visible:true` and `llm`'s NVML clean. Corrected in five
+places today: the honest reading is **irregular and unpredictable**, not accelerating. That is still
+the reason to check `/health` before the demo — an unpredictable failure is precisely the kind you
+cannot schedule around — but the record should not overstate evidence. *(These doc corrections rode
+along in the Phase 3 commit rather than getting their own; noting it so the history is legible.)*
+
+**b. Dates.** Phase 0–2 work is journalled as 2026-08-21 (Friday) per the iteration plan's calendar;
+this entry is Monday **2026-08-24**. Demo is **Wednesday 2026-08-26**.
+
+### 1. The gate is gone, and the split still is not hard-coded
+
+Phase 1's `PENDING_UI_GROUPS` is deleted and its three Vitest cases replaced with **seven** asserting
+the opposite. `networkLayout()` takes the two classes from **`network_tier.classes` in the payload**,
+never from a list in the form. That matters: the classes are a *measured* property (a network-shape
+count leaves total demand bit-identical; a problem-size count does not), the server derives them, and
+a hard-coded copy in the form could drift into putting "safe to compare" on a resized network.
+
+What renders, verified in a real browser at 1920x1080 with **zero console errors**:
+
+| | |
+|---|---|
+| **The network** heading | plus the positional-ID caveat: *"reducing a count removes the LAST entity … so 2 DCs → 1 keeps DC-001. Deleting a specific entity is not expressible."* |
+| Class 1 (3 counts) | suppliers, plants, distribution centers, under *"…the optimizer has no per-node capacity — so this is **NOT a resilience test**"* |
+| Class 2 (4 counts) | customers, finished goods, and both BOM depths, under *"…compare the naive-vs-classical result within this run, **never against the recorded baseline**"* |
+| `lines_per_plant` | 🔴 **not offered as a live control.** It sits under Advanced's existing *"recorded in the dataset, not read by the optimizer"* heading (decision 7) |
+| Bounds | shown as hints (`1–20`, `1–60`, `1–12`, `1–6`) and **deliberately not clamped** |
+
+### 2. 🔴 The refusal teaches, and that is now a browser assertion
+
+Decision 4's whole point is that floors *explain*. Typing **0** into Distribution centers is how a
+planner reaches the finding, so the control must not snap it back to 1. In the browser:
+
+- the panel quotes **68,565.25** and **92.01%**
+- it says *"That is a limit of the model, not a fact about your network."*
+- **Save & run is disabled** while it stands
+
+**This is the demo beat of the whole iteration.** Ryan asked *"why can't we just reduce a warehouse"*;
+the honest answer is that you can, it is cheaper, service does not move — and if you take it to zero
+the model tells you that is *better*, which is the thing worth funding. He can now produce that
+sentence himself by typing one character. Screenshot: `web/e2e/shots/network-zero-dc-refusal.png`.
+
+### 3. 🔴 Three defects, two found by looking rather than asserting
+
+**a. Every Network control would have been a silent no-op.** I wrote
+`...coerceSetting(setting, raw)` — but `coerceSetting` returns a **value**, not an object, so spreading
+a number yields `{}`. The controls would have rendered, accepted input, and changed nothing: exactly
+the class of defect this iteration exists to forbid. Caught by reading the existing call site two lines
+away, which keys it properly. Now `[setting.key]: coerceSetting(...)`, plus a guard so **clearing** a
+field drops the override rather than reading as "zero of these" — `Number("")` is `0`, which would have
+fired the warehouse-less refusal at someone mid-retype.
+
+**b. A JSX escape that would have shipped as literal characters.** `{min}\u2013{max}` inside a JSX
+*text node* is not a string literal; it renders the six characters. Replaced with a real en dash.
+
+**c. 🔴 The sticky footer printed the same long refusal twice.** Found by **looking at the rendered
+screenshot**, then confirmed by counting DOM nodes: the measured figure appeared in both
+`ul[custom-refusals]` and `p[custom-validation-summary]`. Both are 6a components — echoing a *short*
+refusal next to Save is useful, because the list scrolls out of view. But 6b's refusals are three
+sentences quoting figures, so one filled the panel twice over, directly under itself.
+🔴 **`validationDisplay` already carried a comment recording this exact failure for warnings** —
+*"summarising it here too printed the same long paragraph twice and made it read like two problems"* —
+and the same rule simply had not been applied to refusals. Now summarised by count past 140 chars;
+short refusals still echo verbatim.
+
+### 4. And one weak check of my own
+
+The change-list assertion was `/distribution_centers/ && /\b2\b/`. It matched the stray **2** in the
+stale *"2 → 0"* text left behind by the refusal step, so it **went green while the panel displayed the
+wrong value**. It now waits for and asserts *"2 → 1"* specifically, and fails on a lingering `→ 0`.
+That is the second time this iteration a check of mine passed for the wrong reason; both were caught by
+reading the output line rather than the exit code. **Read the assertion text, not the PASS count.**
+
+### 5. Guardrail 3 on the Advanced path too
+
+A planner can reach `network.customers` through **Show all 67 settings** without ever opening the
+Network group, so the caveat has to travel with the control there as well. `AdvancedControl` now
+carries a **"resizes the problem"** chip, and the browser asserts both directions: the chip is present
+on `network.customers` and **absent** on `network.distribution_centers`. Without the second half this
+would be a check that cannot fail.
+
+### Verified results
+
+| Item | Result | Was |
+|---|---|---|
+| `make test` | **635 passed, 2 xpassed** | 635 + 2 |
+| `make scenario-eval` | **41/41**, refusals 21/21, warnings 6/6 | 41/41 |
+| `make bench-all` | 🔴 **all 12 objectives BIT-IDENTICAL**, 0 mismatches | — |
+| `make web-test` | **118** | 111 |
+| `make web-check` | **49/49 PASS, 0 FAIL** | 43/43 |
+| Bundle | 657.88 → **660.14 kB** raw (+2.26), 186.46 → **186.97** gzip (+0.51), **no new dependencies** | — |
+| `NetworkMap.tsx` | 🔴 **untouched across the entire iteration** — 0 commits since `262c498` touch it | — |
+| Console | **0 errors** through the full panel loop | — |
+| GPU | `/health` `gpu_visible:true`; `llm` NVML clean after 2 days up | — |
+| Data hygiene | `data/scenarios/`, `data/generated/` exactly 4 each after every run | — |
+
+The bundle delta is the Network group, one control component and the footer-summary fix. **+0.51 kB
+gzipped for the tier Ryan asked for** is a fair price and adds no library.
+
+### Open follow-ups
+
+- **Phase 4 next:** full regression sweep · `DEMO_GUIDE.md` **Option E extended, not an Option F**
+  (decision 10) with the "reduce a warehouse" beat and the zero-DC refusal said **out loud** · the 6b
+  handoff with §5's limits · Ryan packet with **§4.1 first**, then the **eleven open questions on one
+  page**.
+- **Commit a 6b screenshot set** under `docs/iteration-docs/screenshots/iteration6b/` —
+  `network-zero-dc-refusal.png`, `network-group-result.png`, `network-onedc-dataset-view.png`,
+  `network-resized-not-comparable.png` are all captured and reproducible from `make web-check`.
+- 🔴 **Option E still has no GPU-free fallback** (waived 2026-08-21). The pre-demo `/health` check is
+  the only mitigation and it is Ishan's to run.
+- **`network.finished_goods` capped at 12 = `stress-large`'s own value.** Flagged for Ryan.
+- **Eleven open questions for Ryan.** Wednesday is the last scheduled chance.
+
 
 ## 2026-08-21 (Phase 2) — Iteration 6b: the dataset tier runs end to end, and guardrail 4 gets teeth
 
