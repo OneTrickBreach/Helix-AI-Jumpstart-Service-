@@ -169,7 +169,10 @@
   ~~**`llm`'s own NVML is still stale**~~ → ✅ **CLOSED 2026-08-21**: recreated in a quiet window on an
   explicit go — 7m13s to healthy, no unified-memory wedge, `nvidia-smi` clean inside the container.
   **Check `/health` before trusting any GPU-dependent result**, and note the `api` handle has since
-  detached a fourth time (2026-08-21), now on a sub-daily cadence.
+  detached a fourth time (2026-08-21), 19 hours after being fixed. **Correction (2026-08-24):** that
+  19-hour gap was a single sample; it has since held 2+ days across the weekend. The honest reading is
+  **irregular and unpredictable**, not sub-daily — which is still the reason to check before a demo,
+  because an unpredictable failure cannot be scheduled around.
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
@@ -329,7 +332,7 @@ not an oversight**, because the handover document
 remains written and unstarted, and the next person should know why.
 
 **The consequence, stated plainly:** 🔴 **Option E has no GPU-free fallback for Wednesday 2026-08-26.**
-If NVML detaches that morning — it has now done so four times, most recently on a sub-daily cadence —
+If NVML detaches that morning — four times on record, once only 19 hours after being fixed —
 the custom scenario, which is the entire subject of the meeting, cannot be shown at all. The
 `/health` check before the meeting is now the only mitigation, and it is a human step.
 The talk-track read-aloud DoD item is now **five iterations old** (carried since Iteration 3).
@@ -509,7 +512,8 @@ perfectly healthy (GB10, driver 580.159.03).
 🔴 **The significant part is the cadence.** The previous three detachments (2026-07-10, 2026-07-30,
 2026-08-20) were roughly two weeks apart. This one happened after the `api` container had been up
 **19 hours** — it had been recreated on 2026-08-20 *as the fix for the last one*. The gap between
-detachments has gone from ~2 weeks to under a day.
+detachments was ~2 weeks; this one was 19 hours. **Correction (2026-08-24):** one 19-hour gap is not a
+cadence — it has since held 2+ days. Read it as irregular, not accelerating.
 
 **Fixed** with `docker compose up -d --no-deps --force-recreate api`. **Verified, not assumed:**
 
@@ -530,7 +534,7 @@ api python3 -c "import torch..."` → `torch.cuda.is_available()` **True** on `N
 
 **This directly raises the Wednesday risk**, and is now recorded in the plan's §0.2: Option E — the
 custom scenario, the entire subject of the meeting — is the one demo option with **no** GPU-free
-fallback, and the box is now wobbling on a sub-daily cadence.
+fallback, and the box has now dropped its GPU handle four times at unpredictable intervals.
 
 ### 2. Green baseline on the branch — all five numbers
 
@@ -721,7 +725,8 @@ not" is not a verification:
 - 🔴 **Read the Option E talk track out loud** — human, carried since Iteration 3.
 - ✅ **`llm` NVML — CLOSED this session** (§8). Stale since 2026-08-20; container recreated and
   `nvidia-smi` now healthy inside it.
-- 🔴 **NVML detachment cadence is now sub-daily.** Check `/health` for `gpu_visible:true` before
+- 🔴 **NVML detachment is irregular and unpredictable** (four on record; shortest gap 19 hours, and it
+  has held 2+ days since). Check `/health` for `gpu_visible:true` before
   trusting any GPU-dependent result, and **immediately before the Wednesday demo.**
 - **Extend `web/e2e/dataset-view.check.mjs`** to screenshot all six 6a states, so the set is fully
   reproducible.

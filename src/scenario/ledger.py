@@ -89,11 +89,11 @@ PROBLEM_SIZE = "changes_problem_size"
 
 ANSWER_CLASS_LABELS = {
     NETWORK_SHAPE:
-        "changes the shape of the network. Measured: this moves the objective by well under "
+        "Changes the shape of the network. Measured: this moves the objective by well under "
         "1% and does not change fill rate or days of inventory at all, because the optimizer "
         "has no per-node capacity \u2014 so this is NOT a resilience test.",
     PROBLEM_SIZE:
-        "changes the SIZE of the problem, not the quality of the plan. Total demand changes, "
+        "Changes the SIZE of the problem, not the quality of the plan. Total demand changes, "
         "so the objective becomes a different quantity \u2014 compare the naive-vs-classical "
         "result within this run, never against the recorded baseline.",
 }

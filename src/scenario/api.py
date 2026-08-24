@@ -70,7 +70,7 @@ def custom_settings_payload() -> dict[str, Any]:
             "keys": list(NETWORK_KEYS),
             "reason": "These change the network itself — how many suppliers, plants, "
                       "warehouses, customers and products there are. Reducing a count "
-                      "removes the LAST entity (IDs are positional), so 2 DCs -> 1 keeps "
+                      "removes the LAST entity (IDs are positional), so 2 DCs \u2192 1 keeps "
                       "DC-001. Deleting a specific entity is not expressible.",
             "answer_class_labels": dict(ANSWER_CLASS_LABELS),
             "classes": {
