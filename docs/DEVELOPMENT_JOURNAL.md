@@ -18,7 +18,10 @@
 
 ## Project snapshot (current state)
 - 🔴 **NOW: Iteration 6b — Custom Dataset. ALL FOUR PHASES COMPLETE (2026-08-24), one day ahead of
-  the plan.** A planner opens **Custom scenario…**, shapes the network, runs the real pipeline, and gets
+  the plan — plus a late naming fix so the dataset tier is VISIBLE, not just built.** The dropdown now
+  offers **two doors** ("Custom scenario — the conditions…" / "Custom dataset — the network…") into the
+  one panel, and the result banner reads **CUSTOM DATASET** when a network count differs from baseline.
+  `make test` **638 + 2 xpassed**, `make web-check` **50/50**. A planner opens **Custom scenario…**, shapes the network, runs the real pipeline, and gets
   an honestly-labelled result. Deliverables: the
   [6b handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md), the
   [Ryan packet](iteration-docs/Iteration6b_Ryan_Review_Packet.md) (**draft, not sent**),
@@ -214,6 +217,78 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-24 (late) — the dataset tier was built but invisible: two doors, one panel
+
+**Git ref:** `1a95570`.
+
+### What happened
+
+Ishan tried the live build and asked: *"this demo would only be for custom scenario, not dataset
+right? did u not do anything for custom dataset?"*
+
+**The custom dataset was fully built** — eight network counts, floors, the two honesty classes,
+save/run/reopen/delete, the dataset view, the `NetworkMap` redraw. All four phases of it. But he asked
+that question **while knowing it had been built**, which makes it the most useful piece of feedback in
+the iteration.
+
+🔴 **The reason: the UI never once used the word "dataset."** Grepped and confirmed:
+
+| Surface | Said |
+|---|---|
+| Dropdown entry | "Custom scenario…" |
+| Panel heading | "Build your own" |
+| Result banner | "Custom scenario · not a recorded benchmark result" |
+| Results sub-header | "Custom scenario built from baseline on this device." |
+
+So Ryan asks for **two things**, and every label on Wednesday says **one thing**. He could watch the
+whole demo, see the network change, and conclude the second ask was not delivered. **A complete
+feature that nobody can see delivered is not a complete deliverable.** Decision 10 had flagged exactly
+this for revisiting (*"he asked for two things; he may want two screens"*) — the architectural call
+was made and then never carried through to the labelling. My omission.
+
+### What was done — and what deliberately was not
+
+**Not** two panels. It is one config file, so two panels would be a lie about the architecture and
+there is no time to build the lie well. But **two entry points into one panel is navigation, not a
+lie**, so:
+
+- the dropdown gains a **Build your own** group with **two doors**; the dataset door opens the same
+  panel scrolled to **THE NETWORK**. Added on the results screen *and* the dataset view
+- the banner reads **CUSTOM DATASET** whenever any of the eight counts differs from baseline —
+  *"the network itself was changed — this is a custom dataset, not just custom conditions"*
+- the panel header names both tiers; the section heading reads *"The network — this is the custom
+  dataset"*
+
+Driven by a new **`network_edited`** flag on the comparability verdict, so the UI reads it from the
+payload rather than inferring it from the settings it happens to hold. Note it is **true for
+`lines_per_plant` too**: that count cannot move the objective, but changing it still means the network
+was edited, and the banner must not call that a scenario. `network_edited` answers *"is this a
+dataset?"* — a different question from *"does it change the answer?"*, and conflating them is how a
+label starts lying.
+
+### One more defect, again from looking at the screenshot
+
+The results sub-header read *"Custom scenario built from baseline on this device"* — **two lines above
+a banner saying CUSTOM DATASET.** The default description is generated in `complete_config`, and it
+was being written **before** the overrides were applied, so it could not possibly know whether the
+network had changed. Moved after the edits land. That is the fourth defect this iteration found by
+reading a rendered screen rather than an assertion.
+
+### Verified
+
+`make test` **638 passed, 2 xpassed** · `make scenario-eval` **41/41** · `make bench-all` **all 12
+BIT-IDENTICAL** · `make web-test` **118** · `make web-check` **50/50, 0 FAIL** — including a new check
+that both asks have a door and both open **exactly one** panel. Bundle 660.14 → **661.45 kB** (+1.31).
+`data/scenarios/` back to exactly four.
+
+### The lesson worth keeping
+
+Every automated check in this iteration passed **before** this change, because every one of them tested
+that the feature *worked*. None tested that a person could **tell what had been delivered**. The
+browser check now asserts the labelling too, but the finding came from a human opening the thing and
+being confused — which no amount of `web-check` would have produced.
+
 
 ## 2026-08-24 (Phase 4) — Iteration 6b: demo guide, handoff, packet — and a question count that did not survive counting
 
