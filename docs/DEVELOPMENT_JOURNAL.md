@@ -17,7 +17,20 @@
 ---
 
 ## Project snapshot (current state)
-- 🔴 **NOW: Iteration 6b — Custom Dataset. Phase 3 COMPLETE — the Network group is in the panel.**
+- 🔴 **NOW: Iteration 6b — Custom Dataset. ALL FOUR PHASES COMPLETE (2026-08-24), one day ahead of
+  the plan.** A planner opens **Custom scenario…**, shapes the network, runs the real pipeline, and gets
+  an honestly-labelled result. Deliverables: the
+  [6b handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md), the
+  [Ryan packet](iteration-docs/Iteration6b_Ryan_Review_Packet.md) (**draft, not sent**),
+  [the modelling finding](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md),
+  `DEMO_GUIDE.md` **Option E steps 7–9**, and
+  [five reproducible screenshots](iteration-docs/screenshots/iteration6b/).
+  **Full green sweep:** `make test` **635 + 2 xpassed** · `make scenario-eval` **41/41** ·
+  `make bench-all` **all 12 bit-identical** · `make web-test` **118** · `make web-check` **49/49** ·
+  `make chat-eval` **31/31** · `make redteam` **27/27** · `make parse-eval` **35/35** · all four
+  GPU-free replay paths pass with the API blocked. `NetworkMap.tsx` untouched all iteration.
+  🔴 **Remaining: Phase 5 (post-demo handoff, Thu–Fri) and the Wednesday demo itself.**
+- **Iteration 6b Phase 3 COMPLETE — the Network group is in the panel.**
   A planner opens **Custom scenario…**, sees **The network** with the two honesty classes rendered
   distinctly, sets warehouses to 1, saves and runs, and gets **81,663** with no false caveat; sets
   customers to 7 and gets **66,548** *with* the not-comparable caveat beside it. 🔴 **Typing 0
@@ -201,6 +214,99 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-24 (Phase 4) — Iteration 6b: demo guide, handoff, packet — and a question count that did not survive counting
+
+**Git ref:** `2428bdd` on `feat/iteration6b-custom-dataset`. **Iteration 6b's four build phases are
+done, one day ahead of the plan** (Phase 4 was budgeted for Tuesday pm).
+
+### 1. `DEMO_GUIDE.md` Option E extended, not replaced
+
+Decision 10 said one panel, so this is **steps 7–9 inside Option E**, not an Option F. The header now
+says Option E is *both* of Ryan's asks.
+
+| Step | The beat |
+|---|---|
+| **7** | **Reduce a warehouse** — the literal ask. `2 → 1`, run, **81,663.11** against baseline's 81,789.36 with fill rate identical to the digit. Note there is deliberately **no** amber caveat: a node count *is* comparable |
+| **8** | 🔴 **Type a zero.** The refusal quoting **68,565.25 at 92.01%**, said **out loud**, with the follow-through: *"those aren't four problems — they're one, measured four different ways, and we only found it by building the thing you asked for"* |
+| **9** | **A resized network is not a better one** — 66,548.24 is 12% less demand, not an 18.6% saving |
+
+Also: *"if you only have five minutes, do steps 7 and 8"* · the old *"do not say the panel can change
+the network"* line **inverted** (it can now; what it cannot do is delete a *specific* entity) · four new
+"what to avoid saying" lines · three new troubleshooting rows, including *"Save is greyed out with a
+long red block about warehouses — working as intended, this is step 8, not a fault."*
+
+### 2. 🔴 The question count did not survive being counted
+
+I had been carrying **"eleven open questions (7 from Iteration 5, 4 from 6a)"** since the plan. Writing
+them onto one page for Ryan exposed that the number was wrong **in two directions**:
+
+- **One was already answered.** Iteration 5's q1 asked whether the dataset view answered his first ask.
+  He reviewed it on **2026-08-19**, the reaction was positive and the network map was his favourite
+  screen. That is an answer. **Closed.**
+- **Three were the same question.** Iteration 5 q6, Iteration 6a q1 and this iteration's §4.1 are all
+  *"how deep does the capacity/node model go?"* — and 6a's packet **says so in its own text**
+  (*"This is question 6 from the Iteration 5 packet"*). Merged into one.
+- **Four are new in 6b.**
+
+**11 − 1 answered − 2 duplicates + 4 new = 13**, and the packet shows that arithmetic rather than
+restating a number that falls apart on inspection. Handing a sponsor a page headed "eleven questions"
+containing ten would have been a small thing that undermined everything next to it.
+
+### 3. The 6b screenshot set — and the gap the 6a set had
+
+Five shots in `docs/iteration-docs/screenshots/iteration6b/`. 🔴 **All five are written by
+`make web-check`, and every one is *asserted*, not merely captured** — the run fails if the refusal
+stops quoting its measured figures, if the caveat stops naming 81,789.36, or if the inert count ever
+appears as a live control.
+
+That is deliberately unlike the 6a set, where only **2 of 6** regenerate and the rest were one-off
+captures. Phase 1's journal entry noted extending the check script was "the better fix and is not
+done"; it is done now, for 6b. A `network-group.png` capture was added to `web-check` specifically so
+the README's reproducibility claim is true.
+
+### 4. Full regression — including the surfaces this iteration never touched
+
+| Suite | Result | What it protects |
+|---|---|---|
+| `make test` | **635 passed, 2 xpassed** | everything |
+| `make scenario-eval` | **41/41**, refusals 21/21, warnings 6/6 | 6a + 6b validation |
+| `make bench-all` | 🔴 **all 12 bit-identical**, 0 mismatches | the guardrail the whole iteration rests on |
+| `make web-test` | **118** | form logic |
+| `make web-check` | **49/49**, 0 FAIL, 0 console errors | the browser |
+| **`make chat-eval`** | **31/31** | 🔴 the chat surface Ryan **parked** — untouched, regression-tested as the guardrail requires |
+| **`make redteam`** | **27/27**, and **every** refusal pattern fired | Iteration 5's safety surface |
+| **`make parse-eval`** | **35/35** | the what-if parser |
+| Replay paths | all four pass **with the API blocked** | the GPU-free walkthroughs for Options A, C and D |
+
+The four replay checks matter here specifically because Phase 2 and 3 edited `App.tsx`, and
+`?replay=true` is the one path where a bad payload assumption would surface as a blank screen rather
+than an error.
+
+### 5. Deliverables
+
+| Document | What it is for |
+|---|---|
+| [`Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) | 🔴 the most valuable artifact of the iteration; written in **Phase 0** so it could not be cut |
+| [`AI_Jumpstart_MVP_Iteration6b_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md) | what was built, the seven refused values, and a limits section that **leads** with "this is not a resilience test" |
+| [`Iteration6b_Ryan_Review_Packet.md`](iteration-docs/Iteration6b_Ryan_Review_Packet.md) | **draft, not sent.** §4.1 first, then 13 questions on one page |
+| `DEMO_GUIDE.md` Option E steps 7–9 | the talk track |
+| [`screenshots/iteration6b/`](iteration-docs/screenshots/iteration6b/) | five asserted, reproducible shots |
+
+### Open follow-ups
+
+- 🔴 **The Wednesday demo (2026-08-26).** Check `curl localhost:8080/health` for `gpu_visible:true`
+  before it starts — Option E has **no GPU-free fallback** (both human Phase 0 items waived
+  2026-08-21), so that check is the entire mitigation and it is Ishan's to run.
+- 🔴 **The talk track has still never been read aloud** — a DoD item now **five iterations** old, and
+  Phase 4's DoD asks for it *again* with the new steps 7–9 in it. Waived, not done. Steps 8 and 9 are
+  the ones that would benefit most, because both are long spoken passages written but never spoken.
+- **Phase 5 (Thu–Fri):** Ryan's answers written down the same day · a "picking this up" document · the
+  final snapshot rewrite. **Features stop now.**
+- **Not merged to `main`.** `main` is still `262c498`; 6b lives on its branch, pushed. Merging is a
+  decision for after the demo.
+- **Eleven → thirteen questions** (§2 above), §1 of the packet first.
+
 
 ## 2026-08-24 (Phase 3) — Iteration 6b: the Network group, and a refusal that teaches
 
