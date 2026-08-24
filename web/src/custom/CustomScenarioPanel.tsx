@@ -73,6 +73,12 @@ type Props = {
   includeRationale: boolean;
   onIncludePpoChange: (value: boolean) => void;
   onIncludeRationaleChange: (value: boolean) => void;
+  /**
+   * Which tier to open at. `"network"` when the planner picked the *dataset* entry
+   * in the dropdown — same panel, same config file, but it opens where the thing
+   * they asked for actually is instead of making them hunt for it.
+   */
+  focus?: "network" | null;
 };
 
 export default function CustomScenarioPanel({
@@ -83,7 +89,9 @@ export default function CustomScenarioPanel({
   includeRationale,
   onIncludePpoChange,
   onIncludeRationaleChange,
+  focus = null,
 }: Props) {
+  const networkRef = useRef<HTMLElement | null>(null);
   const [schema, setSchema] = useState<CustomSettingsPayload | null>(null);
   const [saved, setSaved] = useState<SavedScenario[]>([]);
   const [name, setName] = useState("");
@@ -153,6 +161,13 @@ export default function CustomScenarioPanel({
   const capacity = capacityWarning(validation.warnings);
   const rest = otherWarnings(validation.warnings);
   const layout = useMemo(() => (schema ? advancedLayout(schema) : null), [schema]);
+
+  // Opened from the dataset entry: bring the network tier into view once it exists.
+  // Guarded on `schema` because the section does not render until the payload lands.
+  useEffect(() => {
+    if (focus !== "network" || !schema) return;
+    networkRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, [focus, schema]);
   const network = useMemo(() => (schema ? networkLayout(schema) : null), [schema]);
   const changes = useMemo(
     () => (preview && schema ? annotateChanges(preview.config_changes, schema.settings) : []),
@@ -367,9 +382,9 @@ export default function CustomScenarioPanel({
 
         {/* --- Network tier (Iteration 6b) ---------------------------------- */}
         {network && network.classes.length > 0 && preview ? (
-          <section className="mt-5" data-testid="custom-network">
+          <section className="mt-5" data-testid="custom-network" ref={networkRef}>
             <h3 className="text-sm font-semibold uppercase tracking-[0.12em] text-[#587060]">
-              The network
+              The network — this is the custom dataset
             </h3>
             <p className="mt-1 text-xs leading-5 text-[#6b7a70]" data-testid="custom-network-reason">
               {network.reason}
@@ -634,9 +649,15 @@ function PanelHeader({ onClose }: { onClose: () => void }) {
     <div className="flex items-start justify-between gap-2">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#587060]">
-          Custom scenario
+          Custom scenario + custom dataset
         </p>
         <h2 className="text-lg font-semibold text-ink">Build your own</h2>
+        {/* Both of Ryan's 2026-08-19 asks live here. One config file, so one panel —
+            but the header has to say both, or only one of them looks delivered. */}
+        <p className="mt-0.5 text-xs leading-5 text-[#6b7a70]" data-testid="custom-panel-tiers">
+          <strong>The conditions</strong> — demand, capacity, costs · <strong>the network</strong> —
+          how many suppliers, plants, warehouses, customers and products.
+        </p>
       </div>
       <button type="button" onClick={onClose} aria-label="Close custom scenario panel">
         <X className="h-4 w-4 text-[#6b7a70]" />

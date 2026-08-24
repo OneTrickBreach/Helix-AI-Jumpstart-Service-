@@ -260,9 +260,6 @@ def complete_config(
     base = load_base_config(base_scenario)
     config = copy.deepcopy(base)
     config["scenario"] = scenario_name
-    config["description"] = description or (
-        f"Custom scenario built from {base_scenario} on this device."
-    )
     # Decision 7: the seed travels with the config so a re-run reproduces the
     # objective to the cent. Ambient seeds are how reproducibility gets lost.
     config["random_seed_override"] = int(seed)
@@ -282,6 +279,20 @@ def complete_config(
 
     for key, value in resolved.items():
         set_value(config, key, value)
+
+    # 🔴 The default description is written AFTER the edits land, because it has to
+    # know whether the network changed. Ryan asked for a custom scenario *and* a
+    # custom dataset; a network-edited config that describes itself as "a custom
+    # scenario" contradicts the CUSTOM DATASET banner two lines below it on the
+    # results screen — which is how it read the first time it was built.
+    if description:
+        config["description"] = description
+    else:
+        kind = (
+            "dataset" if (config.get("network") or {}) != (base.get("network") or {})
+            else "scenario"
+        )
+        config["description"] = f"Custom {kind} built from {base_scenario} on this device."
 
     return config
 

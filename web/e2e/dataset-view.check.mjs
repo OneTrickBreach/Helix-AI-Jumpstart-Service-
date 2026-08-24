@@ -1048,8 +1048,31 @@ async function askStarter(page, question, timeout = 90000) {
   const PANEL = '[data-testid="custom-panel"]';
 
   await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
-  await page.selectOption('[data-testid="scenario-select"]', "__custom__");
+
+  // --- 0. 🔴 Two doors for two asks ---------------------------------------
+  // Ryan asked for a custom scenario AND a custom dataset. Until this was added,
+  // every label said "scenario" and the dataset ask looked undelivered.
+  const entries = await page
+    .locator("[data-testid='scenario-select'] option")
+    .allInnerTexts();
+  const hasScenarioDoor = entries.some((t) => /Custom scenario — the conditions/.test(t));
+  const hasDatasetDoor = entries.some((t) => /Custom dataset — the network/.test(t));
+
+  // The dataset door opens the SAME panel, at the network tier.
+  await page.selectOption('[data-testid="scenario-select"]', "__custom_dataset__");
   await page.waitForSelector('[data-testid="custom-network"]', { timeout: 20000 });
+  const tiersLine = await page
+    .locator('[data-testid="custom-panel-tiers"]').innerText().catch(() => "");
+  const onePanel = (await page.locator('[data-testid="custom-panel"]').count()) === 1;
+  const doorsOk =
+    hasScenarioDoor && hasDatasetDoor && onePanel &&
+    /conditions/i.test(tiersLine) && /network/i.test(tiersLine);
+  if (!doorsOk) failures++;
+  console.log(
+    `${doorsOk ? "PASS" : "FAIL"} both asks have a door and both open ONE panel ` +
+    `scenarioDoor=${hasScenarioDoor} datasetDoor=${hasDatasetDoor} panels=${onePanel ? 1 : "!=1"} ` +
+    `headerNamesBothTiers=${/conditions/i.test(tiersLine) && /network/i.test(tiersLine)}`
+  );
 
   // --- 1. The three label classes are rendered distinctly ------------------
   const shapeLabel = await page
@@ -1137,16 +1160,20 @@ async function askStarter(page, question, timeout = 90000) {
   const bannerText = await page.locator('[data-testid="custom-result-banner"]').innerText();
   const falseCaveat = await page.locator('[data-testid="custom-result-not-comparable"]').count();
   const bodyText = await page.locator("body").innerText();
+  // 🔴 The banner must call this a DATASET, because the network was changed. This
+  // is the sentence that answers "did you build my second ask".
+  const kindText = await page.locator('[data-testid="custom-result-kind"]').innerText().catch(() => "");
   const ranOk =
     bannerText.includes(`custom-${SLUG}`) &&
     /81,663/.test(bodyText) &&
+    /custom dataset/i.test(kindText) &&
     falseCaveat === 0 &&
     errs.length === 0;
   if (!ranOk) failures++;
   console.log(
-    `${ranOk ? "PASS" : "FAIL"} a 1-DC dataset built IN THE PANEL runs to 81,663 with no false caveat ` +
+    `${ranOk ? "PASS" : "FAIL"} a 1-DC dataset built IN THE PANEL runs to 81,663, labelled DATASET ` +
     `named=${bannerText.includes(`custom-${SLUG}`)} objective81663=${/81,663/.test(bodyText)} ` +
-    `falseCaveat=${falseCaveat} errors=${errs.length}`
+    `kind="${kindText.replace(/\s+/g, " ").slice(0, 40)}" falseCaveat=${falseCaveat} errors=${errs.length}`
   );
   await page.screenshot({ path: `${SHOT_DIR}/network-group-result.png` });
 

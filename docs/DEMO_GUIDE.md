@@ -638,15 +638,26 @@ four.**
 ### Opening it
 
 Open the **Scenario** dropdown — **on either the results screen or the dataset view**. It now has
-three parts:
+three parts, and 🔴 **the last one has a door for each of Ryan's two asks**:
 
 ```
 Recorded benchmark scenarios     baseline, component-shortage-shock, demand-surge, stress-large
 Your custom scenarios            (appears once you have saved one, all named custom-…)
-                                 Custom scenario…          <- the fifth entry
+Build your own                   Custom scenario — the conditions…
+                                 Custom dataset — the network…      <- his second ask
 ```
 
-Pick **"Custom scenario…"**. A panel opens *beside* whichever view you are on — never over it, the same
+**Both open the same panel** — it is one config file, so it is one panel. The dataset entry simply
+opens it at **THE NETWORK** instead of making you scroll. Say that out loud if he asks why there is one
+screen for two things: *"They're two doors into one thing, because a dataset and a scenario are the
+same file. If you'd rather have two separate screens, that's a question for you — it's on the list."*
+
+🔴 **And the result banner names which one you built.** Change a network count and it reads **CUSTOM
+DATASET · NOT A RECORDED BENCHMARK RESULT**, with *"the network itself was changed — this is a custom
+dataset, not just custom conditions"*. Leave the network alone and it says **CUSTOM SCENARIO**. That
+sentence is the one that answers *"did you build my second ask."*
+
+Pick either entry to start. A panel opens *beside* whichever view you are on — never over it, the same
 rule the chat panel follows. Opening it from the dataset view keeps the network map on screen, which is
 the natural place to decide you want different conditions.
 

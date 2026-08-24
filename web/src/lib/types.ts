@@ -281,6 +281,15 @@ export type ScenarioComparison = {
    */
   network_comparability?: {
     comparable_to_baseline: boolean;
+    /** True when ANY of the eight network counts differs from baseline — i.e. this
+     *  is a custom *dataset*, not merely custom conditions. */
+    network_edited?: boolean;
+    edited_settings?: {
+      key: string;
+      label: string;
+      baseline_value: number;
+      scenario_value: number;
+    }[];
     resized_settings: {
       key: string;
       label: string;

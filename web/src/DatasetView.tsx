@@ -54,6 +54,7 @@ import DeleteScenarioButton from "./custom/DeleteScenarioButton";
 
 /** Kept in step with App.tsx: the sentinel for the "build your own" entry. */
 const BUILD_YOUR_OWN = "__custom__";
+const BUILD_YOUR_OWN_DATASET = "__custom_dataset__";
 const CUSTOM_PREFIX = "custom-";
 
 type Props = {
@@ -64,7 +65,8 @@ type Props = {
   /** `?replay=true`: render from the recorded snapshot, no API call, no GPU. */
   replay?: boolean;
   /** Open the custom-scenario panel. Omit to hide the entry entirely. */
-  onOpenCustom?: () => void;
+  /** `"network"` opens the panel at the dataset tier (the network counts). */
+  onOpenCustom?: (focus?: "network" | null) => void;
   customOpen?: boolean;
   /** Delete the selected custom scenario. Omit to hide the control. */
   onDeleteScenario?: (deleted: string) => void;
@@ -171,7 +173,8 @@ function StickyHeader({
   onBack: () => void;
   badgeText?: string;
   replay?: boolean;
-  onOpenCustom?: () => void;
+  /** `"network"` opens the panel at the dataset tier (the network counts). */
+  onOpenCustom?: (focus?: "network" | null) => void;
   customOpen?: boolean;
   onDeleteScenario?: (deleted: string) => void;
 }) {
@@ -218,8 +221,8 @@ function StickyHeader({
               value={customOpen ? BUILD_YOUR_OWN : scenario}
               onChange={(event) => {
                 const next = event.target.value;
-                if (next === BUILD_YOUR_OWN) {
-                  onOpenCustom?.();
+                if (next === BUILD_YOUR_OWN || next === BUILD_YOUR_OWN_DATASET) {
+                  onOpenCustom?.(next === BUILD_YOUR_OWN_DATASET ? "network" : null);
                   return;
                 }
                 onScenarioChange(next);
@@ -256,7 +259,10 @@ function StickyHeader({
                   when they decide they want different conditions. Absent in replay,
                   where every API call is blocked by design. */}
               {onOpenCustom && !replay ? (
-                <option value={BUILD_YOUR_OWN}>Custom scenario…</option>
+                <optgroup label="Build your own">
+                  <option value={BUILD_YOUR_OWN}>Custom scenario — the conditions…</option>
+                  <option value={BUILD_YOUR_OWN_DATASET}>Custom dataset — the network…</option>
+                </optgroup>
               ) : null}
             </select>
           </label>

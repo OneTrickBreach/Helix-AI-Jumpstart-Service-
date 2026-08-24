@@ -500,20 +500,32 @@ def network_comparability(
     network = config.get("network") or {}
 
     resized: list[dict[str, Any]] = []
+    edited: list[dict[str, Any]] = []
     for key in NETWORK_KEYS:
         setting = SETTINGS_BY_KEY.get(key)
-        if setting is None or setting.answer_class != PROBLEM_SIZE:
+        if setting is None:
             continue
         name = key.split(".", 1)[1]
         was, now = base_network.get(name), network.get(name)
-        if was is not None and now is not None and was != now:
-            resized.append({
-                "key": key, "label": setting.label,
-                "baseline_value": was, "scenario_value": now,
-            })
+        if was is None or now is None or was == now:
+            continue
+        entry = {
+            "key": key, "label": setting.label,
+            "baseline_value": was, "scenario_value": now,
+        }
+        # Any of the eight makes this a custom *dataset* rather than a custom
+        # scenario — that distinction is what Ryan asked for twice, so the payload
+        # has to carry it or the UI can only guess from the settings it was handed.
+        edited.append(entry)
+        if setting.answer_class == PROBLEM_SIZE:
+            resized.append(entry)
 
     if not resized:
-        return {"comparable_to_baseline": True, "resized_settings": [], "why": "", "note": ""}
+        return {
+            "comparable_to_baseline": True, "resized_settings": [],
+            "network_edited": bool(edited), "edited_settings": edited,
+            "why": "", "note": "",
+        }
 
     changed = ", ".join(
         f"{item['label'].lower()} {item['baseline_value']} \u2192 {item['scenario_value']}"
@@ -522,6 +534,8 @@ def network_comparability(
     return {
         "comparable_to_baseline": False,
         "resized_settings": resized,
+        "network_edited": True,
+        "edited_settings": edited,
         "why": f"This network is a different size from baseline ({changed}), so total demand "
                f"is different and the objective is a different quantity.",
         # The tail only: ``why`` above already opens with the size statement, and with

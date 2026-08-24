@@ -198,3 +198,54 @@ def test_topology_size_matches_what_the_generator_really_builds():
         tables = build_tables(config, 12345)
         assert proxy["nodes"] == len(tables["nodes"]) == expected_nodes, overrides
         assert proxy["lanes"] == len(tables["lanes"]) == expected_lanes, overrides
+
+
+# ---------------------------------------------------------------------------
+# Ryan asked for two things; a config has to say which one it is
+# ---------------------------------------------------------------------------
+
+
+def test_a_network_edited_config_describes_itself_as_a_dataset():
+    """The results screen shows this description directly above the banner.
+
+    A network-edited config calling itself "a custom scenario" contradicts the
+    CUSTOM DATASET banner two lines below it — which is exactly how it read the
+    first time it was built.
+    """
+    dataset = complete_config("custom-d", overrides={"network.distribution_centers": 1})
+    assert dataset["description"] == "Custom dataset built from baseline on this device."
+
+    conditions = complete_config(
+        "custom-s", overrides={"demand.base_units_per_customer_period": 52}
+    )
+    assert conditions["description"] == "Custom scenario built from baseline on this device."
+
+    # An unedited config is a scenario, not a dataset.
+    assert complete_config("custom-plain")["description"].startswith("Custom scenario")
+
+
+def test_an_explicit_description_still_wins():
+    config = complete_config(
+        "custom-d", overrides={"network.plants": 3}, description="Two-plant network"
+    )
+    assert config["description"] == "Two-plant network"
+
+
+def test_network_edited_is_reported_for_every_count_including_the_inert_one():
+    """`network_edited` asks "is this a dataset?", not "does it change the answer?".
+
+    `lines_per_plant` cannot move the objective, but changing it still means the
+    planner edited the network — so the payload must say so, or the banner would
+    call it a scenario while the network block differs from baseline.
+    """
+    for key, value in (
+        ("network.suppliers", 6), ("network.plants", 3),
+        ("network.distribution_centers", 1), ("network.customers", 7),
+        ("network.finished_goods", 3), ("network.subassemblies_per_finished_good", 3),
+        ("network.raw_components_per_subassembly", 3), ("network.lines_per_plant", 5),
+    ):
+        verdict = network_comparability(complete_config("c", overrides={key: value}))
+        assert verdict["network_edited"] is True, key
+        assert [item["key"] for item in verdict["edited_settings"]] == [key], key
+
+    assert network_comparability(complete_config("c"))["network_edited"] is False
