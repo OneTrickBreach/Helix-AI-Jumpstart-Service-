@@ -16,6 +16,8 @@ const DEMO_REPLAY_URL = "/demo-replay.json";
 
 /** The fifth dropdown entry. A sentinel, not a scenario the API knows about. */
 const BUILD_YOUR_OWN = "__custom__";
+/** Same panel, opened at the network tier. See CustomResultBanner. */
+const BUILD_YOUR_OWN_DATASET = "__custom_dataset__";
 const CUSTOM_PREFIX = "custom-";
 
 const STAGES = ["ingest", "forecast", "baseline", "classical", "ppo", "rag", "done"];
@@ -86,6 +88,8 @@ export default function App() {
   const [view, setView] = useState<View>(() => readViewFromUrl().view);
   const [chatOpen, setChatOpen] = useState<boolean>(() => readViewFromUrl().chat);
   const [customOpen, setCustomOpen] = useState(false);
+  /** Which tier the panel opens at, when it was opened from the dataset entry. */
+  const [customFocus, setCustomFocus] = useState<"network" | null>(null);
   // Decision 8: a custom run defaults to the fast path, because the written
   // rationale alone is ~20x the whole numeric comparison. These make that a
   // visible choice rather than something the panel does silently — and they stop
@@ -310,7 +314,8 @@ export default function App() {
       <div className="min-w-0 flex-1">{body}</div>
       {customOpen && !isReplayMode() ? (
         <CustomScenarioPanel
-          onClose={() => setCustomOpen(false)}
+          focus={customFocus}
+          onClose={() => { setCustomOpen(false); setCustomFocus(null); }}
           onSavedSetChanged={refreshScenarios}
           includePpo={includePpo}
           includeRationale={includeRationale}
@@ -318,6 +323,7 @@ export default function App() {
           onIncludeRationaleChange={setIncludeRationale}
           onRun={(target) => {
             setCustomOpen(false);
+            setCustomFocus(null);
             runScenario(target);
           }}
         />
@@ -346,7 +352,14 @@ export default function App() {
         // Reachable from this screen too. It is the screen a planner is looking at
         // when they decide they want different conditions — and the one Ryan
         // singled out. Omitted in replay, where every API call is blocked.
-        onOpenCustom={isReplayMode() ? undefined : () => setCustomOpen(true)}
+        onOpenCustom={
+          isReplayMode()
+            ? undefined
+            : (focus) => {
+                setCustomOpen(true);
+                setCustomFocus(focus ?? null);
+              }
+        }
         customOpen={customOpen}
         onDeleteScenario={
           isReplayMode()
@@ -377,6 +390,7 @@ export default function App() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                data-testid="run-scenario"
                 onClick={() => runScenario()}
                 disabled={running || !scenario}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-ink px-5 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
@@ -411,11 +425,12 @@ export default function App() {
             <label className="control-label">
               Scenario
               <select
-                value={customOpen ? BUILD_YOUR_OWN : scenario}
+                value={customOpen ? (customFocus === "network" ? BUILD_YOUR_OWN_DATASET : BUILD_YOUR_OWN) : scenario}
                 onChange={(event) => {
                   const next = event.target.value;
-                  if (next === BUILD_YOUR_OWN) {
+                  if (next === BUILD_YOUR_OWN || next === BUILD_YOUR_OWN_DATASET) {
                     setCustomOpen(true);
+                    setCustomFocus(next === BUILD_YOUR_OWN_DATASET ? "network" : null);
                     return;
                   }
                   setCustomOpen(false);
@@ -444,7 +459,12 @@ export default function App() {
                     no backend at all, and every /api/ call is blocked. Building a
                     scenario requires the API, so offering the control there would
                     hand a viewer a panel that can only say "Failed to fetch". */}
-                {isReplayMode() ? null : <option value={BUILD_YOUR_OWN}>Custom scenario…</option>}
+                {isReplayMode() ? null : (
+                  <optgroup label="Build your own">
+                    <option value={BUILD_YOUR_OWN}>Custom scenario — the conditions…</option>
+                    <option value={BUILD_YOUR_OWN_DATASET}>Custom dataset — the network…</option>
+                  </optgroup>
+                )}
               </select>
             </label>
             <NumberControl label="Horizon" min={1} max={52} value={horizon} onChange={setHorizon} />
@@ -517,26 +537,67 @@ export default function App() {
  * it in words, and repeats the no-op warning if the run carried one — an
  * unchanged objective has to be explained *after* the run as well as before it.
  */
+/**
+ * 🔴 Ryan asked for TWO things on 2026-08-19 — a custom scenario and a custom
+ * dataset — and until now every label in this panel said "scenario". A viewer could
+ * change the network, run it, and still conclude the second ask was not delivered.
+ *
+ * It is still ONE panel over ONE config file (decision 10); two panels would be a
+ * lie about the architecture. But two *entry points* into it are not a lie, they
+ * are navigation — and the result banner can name what was actually built by
+ * reading whether any of the eight network counts differs from baseline.
+ */
 function CustomResultBanner({ result }: { result: ScenarioComparison }) {
+  const networkEdited = result.network_comparability?.network_edited === true;
+  const kind = networkEdited ? "Custom dataset" : "Custom scenario";
   const warning = (result.warnings ?? []).find(
     (item) => item.code === "capacity_window_misses_read_period",
+  );
+  // 🔴 Iteration 6b guardrail 4. A resized network produces a LOWER objective for a
+  // smaller problem — 66,548.24 against baseline's 81,789.36 at 7 customers. On this
+  // screen that number is large and concrete, so the caveat has to be too.
+  const resized = (result.warnings ?? []).find(
+    (item) => item.code === "resized_network_not_comparable",
   );
   const settings = result.run_settings;
   return (
     <section className="grid gap-3" data-testid="custom-result-banner">
       <div className="rounded-md border border-[#c8d6cb] bg-[#eef5ef] p-3">
-        <p className="text-sm font-semibold uppercase tracking-[0.12em] text-[#2f6d4f]">
-          Custom scenario · not a recorded benchmark result
+        <p
+          className="text-sm font-semibold uppercase tracking-[0.12em] text-[#2f6d4f]"
+          data-testid="custom-result-kind"
+        >
+          {kind} · not a recorded benchmark result
         </p>
         <p className="mt-1 text-sm leading-6 text-[#4d5c51]">
           <strong className="font-mono">{result.benchmark.scenario}</strong> was built on this box and
-          run on the real pipeline. The four recorded benchmark results are unchanged; do not quote
-          this figure as one of them.
+          run on the real pipeline.
+          {networkEdited
+            ? " The network itself was changed — this is a custom dataset, not just custom conditions."
+            : ""}{" "}
+          The four recorded benchmark results are unchanged; do not quote this figure as one of them.
           {settings?.excluded.length
             ? ` Excluded from this run: ${settings.excluded.join(", ")}.`
             : ""}
         </p>
       </div>
+      {resized ? (
+        <div
+          className="rounded-md border border-[#d9b45f] bg-[#fdf7e6] p-3"
+          data-testid="custom-result-not-comparable"
+        >
+          <p className="flex items-start gap-2 text-sm font-semibold text-[#7a5b12]">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            Not comparable to the recorded baseline
+          </p>
+          <p className="mt-1 text-sm leading-6 text-[#6b5a2a]">{resized.message}</p>
+          {resized.do_not_read_as ? (
+            <p className="mt-1 text-sm font-semibold leading-6 text-[#7a5b12]">
+              {resized.do_not_read_as}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {warning ? (
         <div className="rounded-md border border-[#d9b45f] bg-[#fdf7e6] p-3" data-testid="custom-result-noop">
           <p className="flex items-start gap-2 text-sm font-semibold text-[#7a5b12]">

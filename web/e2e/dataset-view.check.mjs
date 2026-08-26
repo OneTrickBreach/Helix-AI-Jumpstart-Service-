@@ -589,14 +589,30 @@ async function askStarter(page, question, timeout = 90000) {
     (await page.locator('[data-testid="reach-capacity.dc_throughput_units_per_period"]').count()) > 0;
   const advancedSettingCount = await page.locator('[data-testid^="setting-"]').count();
 
+  // Iteration 6b: 59 scenario settings + the 8 network counts. And the inert
+  // network count has to land in THIS block, not among the live controls.
+  const linesPerPlantInert = /lines_per_plant/.test(inertBlock);
+  // 🔴 Guardrail 3 on the ADVANCED path too. A planner can reach network.customers
+  // here without ever opening the Network group, so the not-comparable caveat has
+  // to travel with the control, or Advanced becomes the dishonest route to the
+  // same edit.
+  const resizesFlaggedInAdvanced =
+    (await page.locator('[data-testid="not-comparable-network.customers"]').count()) > 0;
+  const shapeNotFlagged =
+    (await page.locator('[data-testid="not-comparable-network.distribution_centers"]').count()) === 0;
   const labellingOk =
     /not read by the optimizer/i.test(inertHeading) &&
     dcThroughputLabelled &&
-    advancedSettingCount === 59;
+    linesPerPlantInert &&
+    resizesFlaggedInAdvanced &&
+    shapeNotFlagged &&
+    advancedSettingCount === 67;
   if (!labellingOk) failures++;
   console.log(
     `${labellingOk ? "PASS" : "FAIL"} custom advanced labelling settings=${advancedSettingCount} ` +
-    `inertHeading="${inertHeading.slice(0, 48)}" dcThroughputFlagged=${dcThroughputLabelled}`
+    `inertHeading="${inertHeading.slice(0, 48)}" dcThroughputFlagged=${dcThroughputLabelled} ` +
+    `linesPerPlantInert=${linesPerPlantInert} resizesFlagged=${resizesFlaggedInAdvanced} ` +
+    `shapeNotFalselyFlagged=${shapeNotFlagged}`
   );
 
   // Decision 8's opt-ins have to be visible, or "PPO timesteps" and "Top K" are
@@ -860,6 +876,345 @@ async function askStarter(page, question, timeout = 90000) {
   console.log(
     `${cacheOk ? "PASS" : "FAIL"} a new build reaches a returning viewer ` +
     `indexCacheControl="${indexCache}" assetCacheControl="${assetCache}"`
+  );
+
+  await context.close();
+}
+
+// ---------------------------------------------------------------------------
+// Iteration 6b Phase 2 — a network-edited dataset, end to end in a real browser.
+//
+// The network controls are deliberately NOT in the form yet (Phase 3 renders their
+// honesty labels), so these datasets are created over the API — which is exactly
+// what Phase 2 claims works: a custom dataset is still just a config, so the
+// dataset view, the change list and the network map carry it with no changes.
+// ---------------------------------------------------------------------------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+  const api = (path, body) =>
+    page.evaluate(
+      async ([p, b]) => {
+        const r = await fetch(p, b ? {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(b),
+        } : {});
+        return { status: r.status, json: await r.json().catch(() => null) };
+      },
+      [path, body ?? null],
+    );
+
+  const del = (name) =>
+    page.evaluate(async (n) => {
+      const r = await fetch(`/api/scenarios/custom/${n}`, { method: "DELETE" });
+      return r.status;
+    }, name);
+
+  // Clean slate, in case a previous run died mid-way. These 404 when there is
+  // nothing to delete, and the browser logs a failed request as a console error —
+  // so reset the collector afterwards or the setup fails the console-clean check.
+  await del("custom-e2e-onedc");
+  await del("custom-e2e-seven");
+  errs.length = 0;
+
+  // --- 1. Reducing a warehouse: Ryan's actual sentence ---------------------
+  const savedDc = await api("/api/scenarios/custom", {
+    name: "e2e-onedc",
+    overrides: { "network.distribution_centers": 1 },
+  });
+
+  // Baseline's own node count first, so the redraw is a comparison and not a guess.
+  const nodeCountFor = async (scenario) => {
+    await page.goto(`${BASE}/?view=dataset&scenario=${scenario}`, { waitUntil: "networkidle" });
+    await page.waitForSelector("text=How the network is laid out", { timeout: 20000 }).catch(() => {});
+    return page.evaluate(async (s) => {
+      const r = await fetch(`/api/dataset/overview?scenario=${s}`);
+      const d = await r.json();
+      return d.data.dataset_overview.network.node_count;
+    }, scenario);
+  };
+
+  const baselineNodes = await nodeCountFor("baseline");
+  const customNodes = await nodeCountFor("custom-e2e-onedc");
+  const summary = await page
+    .locator("section p.text-lg, section p.sm\\:text-xl").first().innerText().catch(() => "");
+  const diffText = await page.locator("body").innerText();
+
+  // NetworkMap.tsx is untouched by this iteration; a network-count change is the
+  // one edit that makes it redraw on its own, which is the free demo beat.
+  const mapRedrew = customNodes === 16 && baselineNodes === 17;
+  const summaryOk = /1 distribution center\b/.test(summary) && !/1 distribution centers/.test(summary);
+  const diffOk = diffText.includes("distribution_centers") || /network size/i.test(diffText);
+  const dcOk = savedDc.status === 200 && mapRedrew && summaryOk && diffOk && errs.length === 0;
+  if (!dcOk) failures++;
+  console.log(
+    `${dcOk ? "PASS" : "FAIL"} a 1-DC dataset renders on the dataset view and the map redraws ` +
+    `saved=${savedDc.status} baselineNodes=${baselineNodes} customNodes=${customNodes} ` +
+    `summarySingular=${summaryOk} changeListed=${diffOk} errors=${errs.length}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/network-onedc-dataset-view.png`, fullPage: false });
+
+  // --- 2. A resized network must NOT be comparable, on screen -------------
+  await api("/api/scenarios/custom", {
+    name: "e2e-seven",
+    overrides: { "network.customers": 7 },
+  });
+  const run = await api("/api/scenario-comparison", { scenario: "custom-e2e-seven", horizon: 8 });
+  const codes = (run.json?.data?.warnings ?? []).map((w) => w.code);
+  const comparable = run.json?.data?.network_comparability?.comparable_to_baseline;
+  const objective = run.json?.data?.benchmark?.winner?.objective;
+  const resizedOk =
+    run.status === 200 &&
+    comparable === false &&
+    codes.includes("resized_network_not_comparable") &&
+    Math.abs(objective - 66548.241282) < 1e-6;
+  if (!resizedOk) failures++;
+  console.log(
+    `${resizedOk ? "PASS" : "FAIL"} a resized network runs and is labelled NOT comparable ` +
+    `objective=${objective} comparable=${comparable} warnings=[${codes.join(",")}]`
+  );
+
+  // ...and the caveat is actually rendered beside the number, not just in the payload.
+  // Loading `?scenario=` does not run anything — the results screen is empty until
+  // Run is pressed — so drive the real control rather than assuming a URL runs it.
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await page.selectOption('[data-testid="scenario-select"]', "custom-e2e-seven");
+  await page.click('[data-testid="run-scenario"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 180000 }).catch(() => {});
+  const notComparableBlock = await page
+    .locator('[data-testid="custom-result-not-comparable"]').count();
+  const bannerText = await page
+    .locator('[data-testid="custom-result-banner"]').innerText().catch(() => "");
+  const renderedOk =
+    notComparableBlock === 1 &&
+    /not comparable to the recorded baseline/i.test(bannerText) &&
+    /81,789\.36/.test(bannerText);
+  if (!renderedOk) failures++;
+  console.log(
+    `${renderedOk ? "PASS" : "FAIL"} the not-comparable caveat is rendered next to the objective ` +
+    `block=${notComparableBlock} namesBaseline=${/81,789\.36/.test(bannerText)}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/network-resized-not-comparable.png`, fullPage: false });
+
+  // --- 3. A comparable network gets no false caveat ------------------------
+  await page.selectOption('[data-testid="scenario-select"]', "custom-e2e-onedc");
+  await page.click('[data-testid="run-scenario"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 180000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const falseCaveat = await page.locator('[data-testid="custom-result-not-comparable"]').count();
+  const noCryWolf = falseCaveat === 0;
+  if (!noCryWolf) failures++;
+  console.log(
+    `${noCryWolf ? "PASS" : "FAIL"} reducing a warehouse gets NO not-comparable caveat ` +
+    `block=${falseCaveat}`
+  );
+
+  // --- 4. Delete leaves nothing behind ------------------------------------
+  const d1 = await del("custom-e2e-onedc");
+  const d2 = await del("custom-e2e-seven");
+  const list = await api("/api/scenarios/custom");
+  const remaining = (list.json?.data?.scenarios ?? []).map((s) => s.scenario);
+  const gone =
+    d1 === 200 && d2 === 200 &&
+    !remaining.includes("custom-e2e-onedc") && !remaining.includes("custom-e2e-seven");
+  if (!gone) failures++;
+  console.log(
+    `${gone ? "PASS" : "FAIL"} both network datasets deleted and gone from the list ` +
+    `statuses=${d1}/${d2} remaining=${remaining.length}`
+  );
+
+  await context.close();
+}
+
+// ---------------------------------------------------------------------------
+// Iteration 6b Phase 3 — the Network group, driven the way Ryan will drive it.
+// Phase 2 created its datasets over the API because the controls did not exist
+// yet. These go through the panel.
+// ---------------------------------------------------------------------------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+
+  const SLUG = `net${Math.random().toString(36).slice(2, 8)}`;
+  const PANEL = '[data-testid="custom-panel"]';
+
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+
+  // --- 0. 🔴 Two doors for two asks ---------------------------------------
+  // Ryan asked for a custom scenario AND a custom dataset. Until this was added,
+  // every label said "scenario" and the dataset ask looked undelivered.
+  const entries = await page
+    .locator("[data-testid='scenario-select'] option")
+    .allInnerTexts();
+  const hasScenarioDoor = entries.some((t) => /Custom scenario — the conditions/.test(t));
+  const hasDatasetDoor = entries.some((t) => /Custom dataset — the network/.test(t));
+
+  // The dataset door opens the SAME panel, at the network tier.
+  await page.selectOption('[data-testid="scenario-select"]', "__custom_dataset__");
+  await page.waitForSelector('[data-testid="custom-network"]', { timeout: 20000 });
+  const tiersLine = await page
+    .locator('[data-testid="custom-panel-tiers"]').innerText().catch(() => "");
+  const onePanel = (await page.locator('[data-testid="custom-panel"]').count()) === 1;
+  const doorsOk =
+    hasScenarioDoor && hasDatasetDoor && onePanel &&
+    /conditions/i.test(tiersLine) && /network/i.test(tiersLine);
+  if (!doorsOk) failures++;
+  console.log(
+    `${doorsOk ? "PASS" : "FAIL"} both asks have a door and both open ONE panel ` +
+    `scenarioDoor=${hasScenarioDoor} datasetDoor=${hasDatasetDoor} panels=${onePanel ? 1 : "!=1"} ` +
+    `headerNamesBothTiers=${/conditions/i.test(tiersLine) && /network/i.test(tiersLine)}`
+  );
+
+  // --- 1. The three label classes are rendered distinctly ------------------
+  const shapeLabel = await page
+    .locator('[data-testid="network-class-label-changes_network_shape"]').innerText().catch(() => "");
+  const sizeLabel = await page
+    .locator('[data-testid="network-class-label-changes_problem_size"]').innerText().catch(() => "");
+  const shapeCounts = await page
+    .locator('[data-testid="network-class-changes_network_shape"] input').count();
+  const sizeCounts = await page
+    .locator('[data-testid="network-class-changes_problem_size"] input').count();
+  // The inert count must NOT be a live network control (decision 7).
+  const inertAsLive = await page.locator('[data-testid="network-network.lines_per_plant"]').count();
+
+  const labelsOk =
+    /NOT a resilience test/.test(shapeLabel) &&
+    /never against the recorded baseline/.test(sizeLabel) &&
+    shapeCounts === 3 && sizeCounts === 4 && inertAsLive === 0;
+  if (!labelsOk) failures++;
+  console.log(
+    `${labelsOk ? "PASS" : "FAIL"} the network group renders both honesty classes distinctly ` +
+    `shapeCounts=${shapeCounts} sizeCounts=${sizeCounts} inertOfferedAsLive=${inertAsLive} ` +
+    `notResilience=${/NOT a resilience test/.test(shapeLabel)} ` +
+    `notComparable=${/never against the recorded baseline/.test(sizeLabel)}`
+  );
+
+  // A clean capture of the group as a planner first meets it, before anything is
+  // typed. Kept in `web-check` so the committed 6b screenshot set is fully
+  // reproducible — which is the claim the 6a set could not make.
+  await page.locator('[data-testid="custom-network"]')
+    .screenshot({ path: `${SHOT_DIR}/network-group.png` });
+
+  // --- 2. 🔴 Decision 4: typing 0 must REACH the measured refusal ----------
+  await page.fill('[data-testid="custom-name"]', `${SLUG}-zero`);
+  await page.fill('[data-testid="network-network.distribution_centers"] input', "0");
+  await page.waitForFunction(
+    () => document.body.innerText.includes("68,565.25"),
+    null,
+    { timeout: 20000 },
+  ).catch(() => {});
+  const panelText = await page.locator(PANEL).innerText();
+  const saveDisabled = await page.locator('[data-testid="custom-save-run"]').isDisabled()
+    .catch(() => false);
+  const teachesOk =
+    panelText.includes("68,565.25") &&
+    panelText.includes("92.01%") &&
+    /limit of the model/.test(panelText) &&
+    saveDisabled;
+  if (!teachesOk) failures++;
+  console.log(
+    `${teachesOk ? "PASS" : "FAIL"} zero warehouses is refused with the MEASURED reason, not clamped ` +
+    `quotes68565=${panelText.includes("68,565.25")} quotes9201=${panelText.includes("92.01%")} ` +
+    `saysModelLimit=${/limit of the model/.test(panelText)} saveDisabled=${saveDisabled}`
+  );
+  await page.locator(PANEL).screenshot({ path: `${SHOT_DIR}/network-zero-dc-refusal.png` });
+
+  // --- 3. Ryan's sentence: reduce a warehouse, run it ---------------------
+  await page.fill('[data-testid="network-network.distribution_centers"] input', "1");
+  await page.fill('[data-testid="custom-name"]', SLUG);
+  // Assert the SPECIFIC transition, and wait for the debounced preview to catch up.
+  // A looser check (/distribution_centers/ plus a stray "2") passed against the
+  // stale "2 -> 0" text from the refusal step above — a check that goes green on
+  // the wrong displayed value is worse than no check.
+  await page.waitForSelector('[data-testid="custom-changes"]', { timeout: 20000 });
+  await page.waitForFunction(
+    () => {
+      const el = document.querySelector('[data-testid="custom-changes"]');
+      return Boolean(el && /distribution_centers\s*2\s*\u2192\s*1/.test(el.textContent ?? ""));
+    },
+    null,
+    { timeout: 20000 },
+  ).catch(() => {});
+  const changesText = await page.locator('[data-testid="custom-changes"]').innerText();
+  const changeOk =
+    /distribution_centers/.test(changesText) &&
+    /2\s*\u2192\s*1/.test(changesText) &&
+    !/\u2192\s*0/.test(changesText);
+  if (!changeOk) failures++;
+  console.log(
+    `${changeOk ? "PASS" : "FAIL"} the change list names the network edit 2 -> 1 ` +
+    `changes="${changesText.replace(/\s+/g, " ").slice(0, 90)}"`
+  );
+
+  await page.click('[data-testid="custom-save-run"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 180000 });
+  const bannerText = await page.locator('[data-testid="custom-result-banner"]').innerText();
+  const falseCaveat = await page.locator('[data-testid="custom-result-not-comparable"]').count();
+  const bodyText = await page.locator("body").innerText();
+  // 🔴 The banner must call this a DATASET, because the network was changed. This
+  // is the sentence that answers "did you build my second ask".
+  const kindText = await page.locator('[data-testid="custom-result-kind"]').innerText().catch(() => "");
+  const ranOk =
+    bannerText.includes(`custom-${SLUG}`) &&
+    /81,663/.test(bodyText) &&
+    /custom dataset/i.test(kindText) &&
+    falseCaveat === 0 &&
+    errs.length === 0;
+  if (!ranOk) failures++;
+  console.log(
+    `${ranOk ? "PASS" : "FAIL"} a 1-DC dataset built IN THE PANEL runs to 81,663, labelled DATASET ` +
+    `named=${bannerText.includes(`custom-${SLUG}`)} objective81663=${/81,663/.test(bodyText)} ` +
+    `kind="${kindText.replace(/\s+/g, " ").slice(0, 40)}" falseCaveat=${falseCaveat} errors=${errs.length}`
+  );
+  await page.screenshot({ path: `${SHOT_DIR}/network-group-result.png` });
+
+  // --- 4. A resized network built in the panel IS caveated ----------------
+  await page.selectOption('[data-testid="scenario-select"]', "__custom__");
+  await page.waitForSelector('[data-testid="custom-network"]', { timeout: 20000 });
+  await page.fill('[data-testid="custom-name"]', `${SLUG}-sized`);
+  await page.fill('[data-testid="network-network.customers"] input', "7");
+  await page.click('[data-testid="custom-save-run"]');
+  await page.waitForSelector('[data-testid="custom-result-not-comparable"]', { timeout: 180000 })
+    .catch(() => {});
+  const caveat = await page.locator('[data-testid="custom-result-not-comparable"]').count();
+  const caveatText = await page
+    .locator('[data-testid="custom-result-not-comparable"]').innerText().catch(() => "");
+  const sizedBody = await page.locator("body").innerText();
+  const caveatOk =
+    caveat === 1 && /81,789\.36/.test(caveatText) && /66,548/.test(sizedBody);
+  if (!caveatOk) failures++;
+  console.log(
+    `${caveatOk ? "PASS" : "FAIL"} a resized network built IN THE PANEL is caveated beside 66,548 ` +
+    `block=${caveat} namesBaseline=${/81,789\.36/.test(caveatText)}`
+  );
+
+  // --- 5. Reopen and delete both, through the UI --------------------------
+  await page.selectOption('[data-testid="scenario-select"]', "__custom__");
+  await page.waitForSelector('[data-testid="custom-saved-list"]', { timeout: 20000 });
+  const savedBefore = await page.locator('[data-testid="custom-saved-list"] li').count();
+  for (const name of [`custom-${SLUG}`, `custom-${SLUG}-sized`]) {
+    await page.click(`[aria-label="Delete ${name}"]`);
+    await page.waitForTimeout(1200);
+  }
+  const savedAfter = await page.locator('[data-testid="custom-saved-list"] li').count();
+  const options = await page.locator("[data-testid='scenario-select'] option").allInnerTexts();
+  const deletedOk =
+    savedAfter === savedBefore - 2 &&
+    !options.some((t) => t.includes(SLUG)) &&
+    options.filter((t) => !t.includes("custom")).length >= 4;
+  if (!deletedOk) failures++;
+  console.log(
+    `${deletedOk ? "PASS" : "FAIL"} both panel-built network datasets deleted, recorded four intact ` +
+    `saved=${savedBefore}->${savedAfter} recordedIntact=${options.filter((t) => !t.includes("custom")).length >= 4}`
   );
 
   await context.close();

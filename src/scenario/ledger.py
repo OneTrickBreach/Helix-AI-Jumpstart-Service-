@@ -1,4 +1,4 @@
-"""The settings ledger: what each of the 59 scenario settings can actually change.
+"""The settings ledger: what each of the 67 scenario settings can actually change.
 
 Iteration 6a guardrail 1 — *no no-op controls*. A control that cannot change the
 optimizer's answer must not be presented as if it can. This module is where that
@@ -23,6 +23,18 @@ trusted: two independent derivations reproduce it from the running system.
 
 A setting is therefore inert exactly when every column it writes is unread, and
 the test asserting *derived == declared* is what fails when a label becomes a lie.
+
+Iteration 6b adds the eight ``network:`` counts — the dataset tier. They act by
+changing **row counts** rather than column values, which the derivation already
+handles via the ``__rows__`` pseudo-column, so no second classifier was built.
+``network.lines_per_plant`` falls out as :data:`INERT` on its own: the only rows it
+changes are ``production_lines``, which the pipeline never reads.
+
+6b also adds a second, orthogonal axis. ``reach`` answers *"can this move the
+answer?"*; :data:`ANSWER_CLASS_LABELS` answers *"is the moved answer comparable to
+the recorded baseline?"* — because resizing the customer base changes total demand,
+which makes the objective a different quantity rather than a better one (§1.2,
+guardrail 4).
 """
 
 from __future__ import annotations
@@ -58,6 +70,54 @@ REACH_LABELS = {
     LABEL_ONLY: LABEL_ONLY_LABEL,
 }
 
+# --- answer classes (Iteration 6b §1.2, guardrails 3 and 4) -----------------
+# A second axis, orthogonal to ``reach``. Both of these DO move the objective, so
+# ``reach`` calls them both UNCONDITIONAL and is right to. But they move it for
+# completely different reasons and only one of them is a comparison a planner may
+# make against 81,789.36. Carried in the payload rather than hard-coded in the UI,
+# the same discipline as 6a's ``cannot_change_the_answer`` block.
+
+#: Node counts. Measured 2026-08-21: 0.12%-0.64% on the objective, and fill rate
+#: and days of inventory do not move **at all** — because the routing LP has no
+#: per-node capacity. The delta is lane-capacity re-allocation plus random cost
+#: draws, not warehouse economics.
+NETWORK_SHAPE = "changes_network_shape"
+
+#: Counts that change total demand or BOM depth, so they change the *size* of the
+#: problem: 1.3%-31.3% moves. A smaller problem is not a better plan.
+PROBLEM_SIZE = "changes_problem_size"
+
+ANSWER_CLASS_LABELS = {
+    NETWORK_SHAPE:
+        "Changes the shape of the network. Measured: this moves the objective by well under "
+        "1% and does not change fill rate or days of inventory at all, because the optimizer "
+        "has no per-node capacity \u2014 so this is NOT a resilience test.",
+    PROBLEM_SIZE:
+        "Changes the SIZE of the problem, not the quality of the plan. Total demand changes, "
+        "so the objective becomes a different quantity \u2014 compare the naive-vs-classical "
+        "result within this run, never against the recorded baseline.",
+}
+
+# The note that must travel with any resized result (guardrail 4), split so the two
+# halves can be composed without repeating themselves. ``network_comparability``
+# builds its own, more specific opening sentence (it names the counts that changed),
+# so it appends only the tail — otherwise the message says "this network is a
+# different size" twice, which is how the first live run of it read.
+
+#: The generic opening, for surfaces that have no specifics to hand.
+NOT_COMPARABLE_LEAD = (
+    "This network is a different size from the recorded baseline, so its objective is a "
+    "different quantity."
+)
+
+#: The actionable half. Always shown, whichever opening precedes it.
+NOT_COMPARABLE_TAIL = (
+    "It is not better or worse than 81,789.36 \u2014 it is not the same measurement. The "
+    "naive-vs-classical comparison inside this run is the valid one."
+)
+
+NOT_COMPARABLE_NOTE = f"{NOT_COMPARABLE_LEAD} {NOT_COMPARABLE_TAIL}"
+
 
 @dataclass(frozen=True)
 class Setting:
@@ -73,6 +133,9 @@ class Setting:
     maximum: float | None = None
     choices: tuple[str, ...] = ()
     note: str = ""
+    #: §1.2. Only set for the network tier: which of the two honest classes this
+    #: count belongs to. Empty for every scenario-tier setting.
+    answer_class: str = ""
 
     @property
     def path(self) -> tuple[str, ...]:
@@ -107,6 +170,10 @@ class Setting:
             payload["choices"] = list(self.choices)
         if self.note:
             payload["note"] = self.note
+        if self.answer_class:
+            payload["answer_class"] = self.answer_class
+            payload["answer_class_label"] = ANSWER_CLASS_LABELS[self.answer_class]
+            payload["comparable_to_baseline"] = self.answer_class != PROBLEM_SIZE
         return payload
 
 
@@ -116,7 +183,78 @@ _NODES_NOT_READ = (
 )
 _LANE_COLUMN_NOT_READ = "the column is written to lanes.csv but never consumed downstream"
 
+_ROWS = "__rows__"
+
 SETTINGS: tuple[Setting, ...] = (
+    # --- network (8) — Iteration 6b, the dataset tier ----------------------
+    # Every ``writes`` entry below was DERIVED by building the tables twice and
+    # diffing (see the module docstring), not read off the generator. Note they act
+    # through ``__rows__``: a count changes how many rows a table has, which changes
+    # what the pipeline reads even though no single value differs in place.
+    Setting("network.suppliers", "network", "int",
+            "Suppliers", UNCONDITIONAL,
+            writes=(("nodes", _ROWS), ("lanes", _ROWS), ("lane_periods", _ROWS)),
+            minimum=1, maximum=20, answer_class=NETWORK_SHAPE,
+            note="measured: 4 suppliers 81,887.69 / 6 suppliers 82,308.50 against baseline's "
+                 "81,789.36 — +0.12% / +0.63%, with fill rate unchanged. Floored at 1 because "
+                 "a network with NO suppliers still reports 83.66% fill, unchanged to the digit"),
+    Setting("network.plants", "network", "int",
+            "Plants", UNCONDITIONAL,
+            writes=(("nodes", _ROWS), ("production_lines", _ROWS), ("lanes", _ROWS),
+                    ("lane_periods", _ROWS), ("demand", "quantity_units")),
+            minimum=1, maximum=20, answer_class=NETWORK_SHAPE,
+            note="measured: 3 plants 81,611.00 — −0.22%, fill rate unchanged. Floored at 1 "
+                 "because 0 raises ZeroDivisionError inside the generator"),
+    Setting("network.lines_per_plant", "network", "int",
+            "Production lines per plant", INERT,
+            writes=(("production_lines", _ROWS),
+                    ("nodes", "capacity_units_per_period"),
+                    ("nodes", "storage_capacity_units")),
+            minimum=0, maximum=20,
+            note="the most manufacturing-sounding control on the panel, and it does nothing: "
+                 "measured at 0, 2 and 4 the objective is 81,789.359460 every time, identical "
+                 "to the digit. It writes production_lines.csv and two nodes.csv columns, none "
+                 "of which the forecast or the optimizer read. Even ZERO production lines "
+                 "changes nothing"),
+    Setting("network.distribution_centers", "network", "int",
+            "Distribution centers (warehouses)", UNCONDITIONAL,
+            writes=(("nodes", _ROWS), ("lanes", _ROWS), ("lane_periods", _ROWS)),
+            minimum=1, maximum=20, answer_class=NETWORK_SHAPE,
+            note="measured: 1 DC 81,663.11 (CHEAPER than baseline) / 3 DCs 82,056.85, with fill "
+                 "rate and days of inventory identical to the digit in both. Only transport cost "
+                 "moves. Floored at 1: a network with NO warehouses has no lane by which a "
+                 "finished good can reach a customer, and scores 68,565.25 at 92.01% fill — "
+                 "better than baseline on both"),
+    Setting("network.customers", "network", "int",
+            "Customers", UNCONDITIONAL,
+            writes=(("nodes", _ROWS), ("demand", _ROWS), ("initial_inventory", _ROWS),
+                    ("lanes", _ROWS), ("lane_periods", _ROWS), ("service_targets", _ROWS)),
+            minimum=1, maximum=60, answer_class=PROBLEM_SIZE,
+            note="measured: 7 customers 66,548.24 (−18.6%) / 9 customers 83,735.10 (+2.4%). "
+                 "Fewer customers is not a better plan, it is less demand — finished-good "
+                 "demand falls 66,807 to 58,972 units at 7 customers. Floored at 1 because 0 "
+                 "passes generation and then dies in the FORECAST"),
+    Setting("network.finished_goods", "network", "int",
+            "Finished goods", UNCONDITIONAL,
+            writes=(("skus", _ROWS), ("bom", _ROWS), ("demand", _ROWS),
+                    ("initial_inventory", _ROWS), ("service_targets", _ROWS)),
+            minimum=1, maximum=12, answer_class=PROBLEM_SIZE,
+            note="measured: 3 finished goods 60,776.80 (−25.7%) / 5 finished goods 102,245.23 "
+                 "(+25.0%). This is the control most likely to be misread as a 25% saving. "
+                 "Floored at 1 because 0 raises ZeroDivisionError in the generator"),
+    Setting("network.subassemblies_per_finished_good", "network", "int",
+            "Subassemblies per finished good", UNCONDITIONAL,
+            writes=(("skus", _ROWS), ("bom", _ROWS), ("demand", _ROWS)),
+            minimum=1, maximum=6, answer_class=PROBLEM_SIZE,
+            note="measured: 1 per finished good 107,405.44 (+31.3%) / 3 per finished good "
+                 "84,768.66 (+3.6%) — the largest move of any network count, and it is BOM "
+                 "depth, not plan quality. Floored at 1 because 0 raises ZeroDivisionError"),
+    Setting("network.raw_components_per_subassembly", "network", "int",
+            "Raw components per subassembly", UNCONDITIONAL,
+            writes=(("skus", _ROWS), ("bom", _ROWS), ("demand", _ROWS)),
+            minimum=1, maximum=6, answer_class=PROBLEM_SIZE,
+            note="measured: 1 per subassembly 80,741.83 (−1.3%) / 3 per subassembly 89,681.64 "
+                 "(+9.6%). Floored at 1 because 0 raises ZeroDivisionError"),
     # --- capacity (7) ------------------------------------------------------
     Setting("capacity.capacity_tightness", "capacity", "float",
             "Capacity tightness", UNCONDITIONAL,
@@ -284,16 +422,20 @@ SETTINGS: tuple[Setting, ...] = (
 
 SETTINGS_BY_KEY: dict[str, Setting] = {setting.key: setting for setting in SETTINGS}
 
-#: The 7 groups the 59 settings fall into. ``network`` is deliberately absent —
-#: it is the dataset layer and belongs to Iteration 6b (§1.6, decision 6).
-GROUPS = ("simulation", "demand", "capacity", "lanes", "lane_disruption", "costs", "service_targets")
+#: The 8 groups the 67 settings fall into. ``network`` leads because it is the
+#: dataset tier — the nouns. Everything after it is a condition applied to them.
+GROUPS = ("network", "simulation", "demand", "capacity", "lanes", "lane_disruption",
+          "costs", "service_targets")
 
 #: Settings that exist in a scenario file but are NOT editable scenario settings.
 #: ``random_seed_override`` is the seed (decision 7), handled separately so a
 #: saved scenario is reproducible; the other two are metadata.
 NON_SETTING_KEYS = ("scenario", "description", "random_seed_override")
 
-#: Excluded from 6a: changing these is a custom *dataset*, not a custom scenario.
+#: The network tier. In 6a these were REFUSED outright (changing them made a custom
+#: *dataset*, not a custom scenario); Iteration 6b turns that refusal into a
+#: validated path. Kept as an explicit tuple so ``is_network_key`` stays cheap and
+#: so a typo'd ``network.warehouses`` still falls through to ``unknown_setting``.
 NETWORK_KEYS = (
     "network.suppliers", "network.plants", "network.lines_per_plant",
     "network.distribution_centers", "network.customers", "network.finished_goods",

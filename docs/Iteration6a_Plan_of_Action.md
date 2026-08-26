@@ -2,8 +2,10 @@
 
 **Prepared for:** Ryan Spurr | Helix, Connection Inc.
 **From:** Ishan (AI Intern)
-**Status:** 🔴 **PLANNED, NOT STARTED.** Written 2026-08-20 against a re-verified live stack. No code
-has been written. Phases are runnable one per session.
+**Status:** ✅ **EXECUTED AND MERGED.** All phases complete and verified on-device; merged to `main`
+as `ad17cc5` on 2026-08-20. **Reviewed by Ryan at the 2026-08-26 demo and accepted as-is — no further
+changes requested.** Written 2026-08-20 against a re-verified live stack; the plan text below is kept
+as written, as the record of what was intended.
 **Branch:** `feat/iteration6a-custom-scenario`, to be cut from `main` @ `cd3905f` (see Phase 0).
 **Predecessor:** Iteration 5 (Beta) — conversational analyst. Built, verified, merged to `main` as
 `bc42bb3` on 2026-08-05; handoff at

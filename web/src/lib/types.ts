@@ -27,6 +27,15 @@ export type SettingSpec = {
   maximum?: number;
   choices?: string[];
   note?: string;
+  /**
+   * Iteration 6b §1.2, network tier only. Orthogonal to `reach`: both classes DO
+   * move the objective, but only one of them may be compared to the recorded
+   * baseline. Absent on every scenario-tier setting.
+   */
+  answer_class?: string;
+  answer_class_label?: string;
+  /** False when changing this resizes the problem, so the objective is a different quantity. */
+  comparable_to_baseline?: boolean;
 };
 
 /** One idea a planner would say out loud, over one or more raw settings. */
@@ -58,7 +67,21 @@ export type CustomSettingsPayload = {
   ledger: Record<string, number>;
   /** Decision 15: shown in Advanced under an explicit heading, never in Simple. */
   cannot_change_the_answer: { heading: string; settings: string[]; count: number };
-  excluded_from_6a: { keys: string[]; reason: string };
+  /**
+   * Iteration 6b: the network tier. Was `excluded_from_6a` when changing the
+   * network was refused outright. The two honesty classes arrive here rather than
+   * being hard-coded in the form, so a class can never be rendered for a setting
+   * that has stopped belonging to it.
+   */
+  network_tier: {
+    group: string;
+    keys: string[];
+    reason: string;
+    answer_class_labels: Record<string, string>;
+    classes: Record<string, string[]>;
+    not_comparable_note: string;
+    not_comparable_keys: string[];
+  };
 };
 
 export type Refusal = { code: string; field?: string | null; message: string };
@@ -251,6 +274,31 @@ export type ScenarioComparison = {
     excluded: string[];
   };
   capacity_reachability?: CapacityReachability | null;
+  /**
+   * Iteration 6b guardrail 4. Whether this run's objective may be compared to the
+   * recorded baseline at all — false whenever a problem-size network count differs,
+   * because total demand differs and the objective measures a different quantity.
+   */
+  network_comparability?: {
+    comparable_to_baseline: boolean;
+    /** True when ANY of the eight network counts differs from baseline — i.e. this
+     *  is a custom *dataset*, not merely custom conditions. */
+    network_edited?: boolean;
+    edited_settings?: {
+      key: string;
+      label: string;
+      baseline_value: number;
+      scenario_value: number;
+    }[];
+    resized_settings: {
+      key: string;
+      label: string;
+      baseline_value: number;
+      scenario_value: number;
+    }[];
+    why: string;
+    note: string;
+  } | null;
   warnings?: (ValidationWarning & { do_not_read_as?: string })[];
 };
 

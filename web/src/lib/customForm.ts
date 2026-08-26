@@ -164,6 +164,20 @@ export type ValidationDisplay = {
  * written to be actionable by a planner, and a second vocabulary for the same
  * refusal is how a UI ends up disagreeing with its backend.
  */
+/**
+ * How long a single refusal or warning may be before the sticky footer summarises
+ * it by count instead of repeating it verbatim.
+ *
+ * 🔴 The footer summary exists because the refusal list can scroll out of view, so
+ * echoing a SHORT message there is genuinely useful — that is 6a's behaviour and it
+ * is kept. But Iteration 6b's network refusals are three sentences that quote
+ * measured figures ("…scores 68,565.25 at 92.01% fill…"), and repeating one of
+ * those in full put the same long paragraph on screen twice, directly under itself.
+ * Exactly the failure the comment inside `validationDisplay` already records for
+ * warnings; this applies the same rule to refusals.
+ */
+const FOOTER_SUMMARY_MAX = 140;
+
 export function validationDisplay(validation: ValidationPayload | null): ValidationDisplay {
   if (!validation) {
     return { ok: true, refusals: [], warnings: [], summary: "", blocking: false };
@@ -173,11 +187,21 @@ export function validationDisplay(validation: ValidationPayload | null): Validat
   // The capacity warning gets its own amber block, so summarising it here too
   // printed the same long paragraph twice and made it read like two problems.
   const summarisable = otherWarnings(warnings);
+  const brief = (message: string) => message.length <= FOOTER_SUMMARY_MAX;
   let summary = "";
-  if (refusals.length === 1) summary = refusals[0].message;
-  else if (refusals.length > 1) summary = `${refusals.length} things need fixing before this can be saved.`;
-  else if (summarisable.length === 1) summary = summarisable[0].message;
-  else if (summarisable.length > 1) summary = `${summarisable.length} things worth knowing before you run this.`;
+  if (refusals.length === 1) {
+    summary = brief(refusals[0].message)
+      ? refusals[0].message
+      : "1 thing needs fixing before this can be saved — see the reason above.";
+  } else if (refusals.length > 1) {
+    summary = `${refusals.length} things need fixing before this can be saved.`;
+  } else if (summarisable.length === 1) {
+    summary = brief(summarisable[0].message)
+      ? summarisable[0].message
+      : "1 thing is worth knowing before you run this — see the note above.";
+  } else if (summarisable.length > 1) {
+    summary = `${summarisable.length} things worth knowing before you run this.`;
+  }
   return {
     ok: refusals.length === 0,
     refusals,
@@ -249,4 +273,45 @@ export function formatSeconds(seconds: number): string {
   const minutes = Math.floor(seconds / 60);
   const rest = Math.round(seconds % 60);
   return rest ? `about ${minutes} min ${rest} s` : `about ${minutes} min`;
+}
+
+/**
+ * Iteration 6b Phase 3 — the Network group's own layout.
+ *
+ * 🔴 The split comes from the payload's `network_tier.classes`, never from a list
+ * kept here. §1.2's two classes are a *measured* property (a network-shape count
+ * leaves total demand bit-identical; a problem-size count does not), and the
+ * server derives them. Hard-coding the split in the form would let it drift from
+ * what the ledger proved and put a "safe to compare" label on a resized network.
+ *
+ * `network.lines_per_plant` is deliberately absent from every class: it is inert,
+ * so it belongs under Advanced's existing "recorded in the dataset, not read by
+ * the optimizer" heading and must never appear here as a live control (decision 7).
+ */
+export function networkLayout(payload: CustomSettingsPayload): {
+  classes: { answerClass: string; label: string; settings: SettingSpec[] }[];
+  inert: SettingSpec[];
+  reason: string;
+} {
+  const tier = payload.network_tier;
+  const byKey = new Map(payload.settings.map((setting) => [setting.key, setting]));
+  const classes = Object.entries(tier?.classes ?? {})
+    .map(([answerClass, keys]) => ({
+      answerClass,
+      label: tier?.answer_class_labels?.[answerClass] ?? "",
+      settings: keys
+        .map((key) => byKey.get(key))
+        .filter((setting): setting is SettingSpec => Boolean(setting)),
+    }))
+    .filter((entry) => entry.settings.length > 0);
+
+  const classed = new Set(classes.flatMap((entry) => entry.settings.map((s) => s.key)));
+  const inert = (tier?.keys ?? [])
+    .map((key) => byKey.get(key))
+    .filter(
+      (setting): setting is SettingSpec =>
+        Boolean(setting) && !classed.has(setting!.key) && !setting!.reaches_optimizer,
+    );
+
+  return { classes, inert, reason: tier?.reason ?? "" };
 }

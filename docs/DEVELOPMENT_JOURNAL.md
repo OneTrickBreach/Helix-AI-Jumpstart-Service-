@@ -17,6 +17,83 @@
 ---
 
 ## Project snapshot (current state)
+- ✅ **NOW: SPONSOR-ACCEPTED, FEATURE-COMPLETE. ONE OPEN DEFECT.** **Ryan reviewed the whole product
+  live on 2026-08-26, is satisfied, and requested no changes.** Feature work on this engagement is
+  **closed**. He also asked for a **narrated screen recording** of the tool — that is a deliverable,
+  not a feature. On the §1 question the 6b packet put to him — *should the optimizer model a node?* —
+  he **parked it**: acknowledged, not disputed, deliberately not funded. 🔴 **Parked is not resolved;
+  every limit in
+  [the modelling finding](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) is still true
+  of the code today.**
+  🔴 **THE ONE REMAINING TASK: the Save / Save & run button-state defect**, found live at the demo.
+  Clicking **Save** then **Save & run** errors with *"already exists"* because the panel has no
+  dirty-state tracking. **Frontend-only; no data loss, no wrong results**; `overwrite` is already
+  plumbed through store, API and the TS type and is simply never set.
+  Write-up: [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+  Branch: `fix/custom-panel-save-run-state`.
+  **Re-verified on-device 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** ·
+  `make web-test` **118** · `make scenario-eval` **41/41** · `make web-check` **ALL CHECKS PASSED
+  (91 PASS, 0 FAIL)**.
+  ⚠️ **Three documentation defects were found and fixed in the same pass** — see the 2026-08-26
+  entry: the "638" pass count silently included 5 skips; `web-check` was quoted as "50/50" from a
+  hand-count the script does not produce; and the README's table of contents disagreed with its own
+  §9 heading behind a broken anchor.
+- 🔴 **Iteration 6b — Custom Dataset. ALL FOUR PHASES COMPLETE (2026-08-24), one day ahead of
+  the plan — plus a late naming fix so the dataset tier is VISIBLE, not just built.** The dropdown now
+  offers **two doors** ("Custom scenario — the conditions…" / "Custom dataset — the network…") into the
+  one panel, and the result banner reads **CUSTOM DATASET** when a network count differs from baseline.
+  A planner opens **Custom scenario…**, shapes the network, runs the real pipeline, and gets
+  an honestly-labelled result. Deliverables: the
+  [6b handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md), the
+  [Ryan packet](iteration-docs/Iteration6b_Ryan_Review_Packet.md) (**sent; reviewed 2026-08-26**),
+  [the modelling finding](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md),
+  `DEMO_GUIDE.md` **Option E steps 7–9**, and
+  [five reproducible screenshots](iteration-docs/screenshots/iteration6b/).
+  **Green sweep at Phase 4 close (2026-08-24):** `make test` **635 + 2 xpassed** ·
+  `make scenario-eval` **41/41** · `make bench-all` **all 12 bit-identical** · `make web-test` **118** ·
+  `make chat-eval` **31/31** · `make redteam` **27/27** · `make parse-eval` **35/35** · all four
+  GPU-free replay paths pass with the API blocked. `NetworkMap.tsx` untouched all iteration.
+  ⚠️ **The counts in this bullet used to disagree with each other** ("638 + 2 xpassed / 50-50" in one
+  sentence, "635 + 2 xpassed / 49-49" two lines later). Corrected 2026-08-26 to the numbers actually
+  re-measured; see that entry for why a pass count on this box is environment-dependent.
+- **Iteration 6b Phase 3 COMPLETE — the Network group is in the panel.**
+  A planner opens **Custom scenario…**, sees **The network** with the two honesty classes rendered
+  distinctly, sets warehouses to 1, saves and runs, and gets **81,663** with no false caveat; sets
+  customers to 7 and gets **66,548** *with* the not-comparable caveat beside it. 🔴 **Typing 0
+  warehouses is not clamped** — it reaches the measured refusal (68,565.25 at 92.01%, *"a limit of the
+  model, not a fact about your network"*) and disables Save. `lines_per_plant` is under Advanced's
+  inert heading, never a live control. `NetworkMap.tsx` **untouched all iteration** (0 commits).
+  Green: `make test` **635 + 2 xpassed**, `make scenario-eval` **41/41**, `make bench-all` **12/12
+  bit-identical**, `make web-test` **118**, `make web-check` **49/49**. Bundle **660.14 kB** (+2.26).
+  Next: Phase 4 (regression, DEMO_GUIDE Option E, handoff, Ryan packet).
+- **Iteration 6b Phase 2 COMPLETE — a network-edited dataset saves, runs,
+  reopens and deletes.** A 1-DC dataset runs to **81,663.107829** and a 7-customer one to
+  **66,548.241282**, both to the digit; the dataset view and `NetworkMap` carry them with **no
+  dataset-code change** (17 nodes → 16, redrawn on its own); delete removes all four artifacts.
+  🔴 **Guardrail 4 is live on every surface**: a resized network is labelled not-comparable in the
+  payload, the change list, the pre-run card, the run result **and an amber block beside the
+  objective**. Green: `make test` **635 passed + 2 xpassed**, `make scenario-eval` **41/41**,
+  `make bench-all` **all 12 bit-identical**, `make web-test` **111**, `make web-check` **43/43**.
+  Next: Phase 3 (the UI — a Network group; delete `PENDING_UI_GROUPS`).
+- **Iteration 6b Phase 1 (the network ledger) COMPLETE.** The eight
+  `network:` counts are first-class validated settings: **67 settings across 8 groups**, floors on all
+  seven values that cannot be run, the two honesty classes **derived** rather than asserted, and
+  `network.lines_per_plant` classified **INERT by derivation**. No UI yet (deliberately gated out of the
+  form until Phase 3) and no persistence change. Green: `make test` **620 passed + 2 xpassed**,
+  `make scenario-eval` **39/39** (refusal classes **21/21**), `make bench-all` **all 12 bit-identical**,
+  `make web-test` **111**, `make web-check` **38/38**. 🔴 **Ishan waived both human Phase 0 items on
+  2026-08-21** — see the Phase 0 entry. Next: Phase 2 (network keys through synthesis, preview, save).
+- **Iteration 6b Phase 0 (demo hardening) COMPLETE except the two waived human items.**
+  Branch **`feat/iteration6b-custom-dataset`**, cut from `main` @ `262c498` on 2026-08-21. No feature
+  code written yet — Phase 0 is deliberately demo hardening only. Green baseline re-verified on the
+  branch: `make test` **558 passed + 2 xpassed**, `make bench-all` **all 12 objectives bit-identical**,
+  `make scenario-eval` **29/29**, `make web-test` **108**, `make web-check` **38/38**.
+  🔴 **Two Phase 0 items remain open and only a person can close them: the Option E screen recording,
+  and reading the Option E talk track out loud** — both specified in
+  [`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md).
+  ✅ **The `llm` container WAS recreated on an explicit go and its NVML is now clean** — the
+  stale-NVML follow-up carried since 2026-08-20 is **CLOSED** (§ entry below).
+  **Ryan demo: Wednesday 2026-08-26. Internship ends Friday 2026-08-28.**
 - **Branch:** **Iteration 6a is MERGED to `main`** as **`ad17cc5`** (`--no-ff`, so the iteration
   boundary stays visible in history), on Ishan's explicit go, 2026-08-20. `main` was `cd3905f`.
   **Re-verified on `main` itself after the merge, from a clean rebuild of `api` and `web`:**
@@ -127,8 +204,8 @@
   exactly the case NVML detachment breaks), plus a **fresh** `docker compose exec` confirming
   `torch.cuda.is_available()` `True` on `NVIDIA GB10` with a real CUDA matmul. Note the two
   `xfail`-marked probes only read `/health`, so their `XPASS` is not an independent check — the fresh
-  exec is. **`llm` remains stale** (`Failed to initialize NVML`), serves fine, not recreated (needs an
-  explicit go). Detail below.
+  exec is. ~~**`llm` remains stale**~~ → ✅ **superseded 2026-08-21: `llm` was recreated and its NVML
+  is clean.** Detail below.
 - 🔴 **GPU/NVML: recurred 2026-08-20 and is PARTLY fixed.** After ~2 weeks up, **both** `api` and
   `llm` returned `Failed to initialize NVML: Unknown Error` and `/health` read `gpu_visible:false` —
   while compute kept working off already-loaded CUDA contexts, so it looked healthy and the 2026-08-19
@@ -138,9 +215,13 @@
   in-container `nvidia-smi`, `/health` `gpu_visible:true, gpu_name:"NVIDIA GB10",
   driver_version:"580.159.03"`, `torch.cuda.is_available()` `True`, `nomic-embed` on `cuda:0` at 768
   dim, and the full RAG advisory path `llm_finalized` with 5 citations in 20.1 s.
-  **`llm`'s own NVML is still stale** — it serves fine (live completion confirmed) and nothing reads
-  it, but a restart would not re-see the GPU. Recreate it in a window, accepting the ~10-min Nemotron
-  reload and the documented wedge risk. **Check `/health` before trusting any GPU-dependent result.**
+  ~~**`llm`'s own NVML is still stale**~~ → ✅ **CLOSED 2026-08-21**: recreated in a quiet window on an
+  explicit go — 7m13s to healthy, no unified-memory wedge, `nvidia-smi` clean inside the container.
+  **Check `/health` before trusting any GPU-dependent result**, and note the `api` handle has since
+  detached a fourth time (2026-08-21), 19 hours after being fixed. **Correction (2026-08-24):** that
+  19-hour gap was a single sample; it has since held 2+ days across the weekend. The honest reading is
+  **irregular and unpredictable**, not sub-daily — which is still the reason to check before a demo,
+  because an unpredictable failure cannot be scheduled around.
 - **Demo:** `?replay=true` is a complete GPU-free walkthrough including the dataset view and now the
   chat panel (`?replay=true&chat=true`), served from real captured snapshots. `make demo` prints all
   six URLs.
@@ -159,6 +240,997 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-26 — The demo: Ryan accepts the product, parks the node question, and a two-click bug shows up live
+
+**Status:** ✅ **The sponsor reviewed the full product live and is satisfied. He requested no
+changes. Feature work on this engagement is CLOSED.** 🔴 **One defect is open**, found during the
+demo itself, and it is the only outstanding work. **git ref: this documentation tie-up commit.**
+Branch `feat/iteration6b-custom-dataset` → merged to `main`.
+
+---
+
+### 1. What happened at the demo
+
+Ryan reviewed everything — Iterations 4, 5, 6a and 6b — live on the GB10. **Outcome: satisfied, no
+changes requested.** Three decisions came out of it:
+
+| Question | His answer | Consequence |
+|---|---|---|
+| The product as built | **Accepted as-is** | Feature work on this engagement is closed |
+| 🔴 *"Should the optimizer model a node?"* (6b packet §1) | **Parked** | Acknowledged, not disputed, **not funded**. Documented and carried into handoff |
+| Anything else wanted | **A narrated screen recording** of the tool | A deliverable, not a feature. Script to be written; Ishan records via OBS |
+
+**On "parked".** It is not "resolved" and this journal should never let it read as such. The
+optimizer still has no concept of a node; removing a warehouse is still free; a network with zero
+warehouses still scores best on both cost and service. Every word of
+[`Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+is still true of the code as it stands. What changed is only that the sponsor has seen it and chosen
+not to fund it now.
+
+**On "accepted".** Also not "production-ready". README §12 stands in full. The distinction is written
+into every doc updated in this pass rather than left to the reader.
+
+---
+
+### 2. 🔴 The defect — found in front of the sponsor, in the most obvious two-click sequence in the panel
+
+Building a scenario, clicking **Save**, then clicking **Save & run**, produces:
+
+> A scenario named 'custom-test1' already exists. Delete it first, or save under a different name.
+
+**Root cause: the panel has no concept of "already saved."** No dirty-state tracking exists anywhere
+in `CustomScenarioPanel.tsx`, so:
+
+- `request()` ([`CustomScenarioPanel.tsx:192`](../web/src/custom/CustomScenarioPanel.tsx#L192)) never
+  sets `overwrite` — every save is a first save;
+- `canSave` ([`CustomScenarioPanel.tsx:177`](../web/src/custom/CustomScenarioPanel.tsx#L177)) is
+  `name && validation.ok && !busy` — so **both buttons stay fully enabled after a successful save**.
+
+The storage layer then does exactly what it promises, at
+[`store.py:296`](../src/scenario/store.py#L296).
+
+🔴 **This is not a backend bug, and the guard must not be removed.** `overwrite` is already plumbed
+through [`store.py:275`](../src/scenario/store.py#L275),
+[`pipeline.py:177`](../src/api/pipeline.py#L177) and even the TypeScript type at
+[`customApi.ts:48`](../web/src/lib/customApi.ts#L48) — **it is simply never set by the one component
+that needs it.** The whole capability was built and left unused. And the reason it defaults to
+`False` is written down at [`pipeline.py:170-173`](../src/api/pipeline.py#L170-L173): storage is
+box-global (decision 14), so silently overwriting a scenario someone else built is not a default
+worth having.
+
+**The fix therefore narrows the guard rather than removing it:** send `overwrite: true` **only** when
+the target name is the one this panel session saved. Full state machine and DoD in
+[`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+
+### 🔴 Why 633 pytest, 118 Vitest and 91 browser checks all passed
+
+They still pass. None was wrong. The suite asserts *"saving works"* and *"saving a duplicate is
+refused"* — both correct, both tested; `test_the_save_endpoint_returns_409_on_a_duplicate` passes
+today. **What no test covers is the sequence a person actually performs**, because every test
+performs one action and asserts the outcome.
+
+**This is the second time in three days:**
+
+| Date | What escaped | What the tests proved instead |
+|---|---|---|
+| 2026-08-24 | Every label said "scenario", so nobody could tell the custom **dataset** existed | That the feature *worked* |
+| **2026-08-26** | Save-then-run, the most obvious two-click sequence in the panel | That each click *works in isolation* |
+
+**The lesson, recorded properly this time:** this suite tests that features work. It does not test
+that a human moving through them in a natural order has a coherent experience. **One browser check
+that performs a realistic multi-step session is the highest-value test improvement available to
+whoever picks this up**, and it would have caught both.
+
+**And the item that would have caught it was on the list.** The Option E read-aloud rehearsal has
+been carried as a definition-of-done since **Iteration 3** and was never once closed — waived again
+on 2026-08-21. Its stated purpose was to catch *"a transition that assumes a click you did not
+make."* That is precisely this defect. Sixty minutes in a quiet room versus finding it in front of
+the sponsor. See
+[`Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md).
+
+---
+
+### 3. The documentation tie-up — and the brutal-truth review of it
+
+Every project document was reviewed against the post-demo reality. **Three real documentation
+defects were found**, none of them cosmetic:
+
+| # | Defect | Where | Fix |
+|---|---|---|---|
+| 1 | 🔴 **The headline pass count silently included skips.** The snapshot claimed `make test` **638 + 2 xpassed**. The suite actually reports **633 passed, 5 skipped, 2 xpassed** — 638 was `passed + skipped` presented as passed | journal snapshot, README §9, `handoff.md` | Quote all three numbers, always |
+| 2 | 🔴 **`web-check` "50/50" is a number the tooling does not produce.** `dataset-view.check.mjs` keeps **no counter** — it prints `PASS`/`FAIL` lines and a final `ALL CHECKS PASSED`. The real output today is **91 PASS, 0 FAIL**. The hand-maintained count had drifted through 38/38 → 49/49 → 50/50 | everywhere it was quoted | Quote the script's own output |
+| 3 | **The README's table of contents disagreed with its own §9 heading** — TOC said *"Iteration 5 (Beta) complete on the branch"*, the heading said *"Iteration 6a"*, and the TOC anchor pointed at a section that no longer existed | `README.md` | Both rewritten; anchor now resolves |
+
+**Why the 5 skips are not a regression, and why the number is environment-dependent.** They are the
+box-global `clear_all` tests. `_skip_if_it_would_destroy_real_scenarios()`
+([`tests/test_iteration6a_persistence.py:79`](../tests/test_iteration6a_persistence.py#L79)) makes
+them **self-skip rather than delete custom scenarios a human saved on the box** — decision 14 again,
+and a deliberately good design. Two demo leftovers, **`custom-test1` and `custom-test3`** (written
+15:16 and 15:17 today), are still present, so the tests stood down. **On a clean box: 638 passed + 2
+xpassed.**
+
+🔴 **`custom-test1` is deliberately left in place** — it is the exact repro state for the open defect
+and the scenario named in the error message. Delete it before quoting a clean pass count; do not
+delete it before reproducing the bug.
+
+**`make bench-all` was not re-run**, and that is stated rather than glossed. It is the long one, and
+`git log` confirms **`src/optimize/`, `src/pipeline/`, `src/forecast/` and `data/generator/` have had
+no commit since before the last full run on 2026-08-24**, when all 12 objectives were bit-identical.
+The claim holds by construction, not by re-measurement. **Anyone touching the optimizer must re-run
+it rather than inherit this reasoning.**
+
+**Verified on-device this session (2026-08-26):**
+
+| Command | Result |
+|---|---|
+| `make test` | **633 passed, 5 skipped, 2 xpassed** in 130.66 s (exit 0) |
+| `make web-test` | **118 passed** (7 files, exit 0) |
+| `make scenario-eval` | **41/41 cases** (12 controls); refusal classes **21/21**; warnings **6/6** |
+| `make web-check` | **ALL CHECKS PASSED — 91 PASS, 0 FAIL** (exit 0) |
+| `make bench-all` | **not re-run** — see above |
+
+**Documents updated:** `README.md` · `docs/handoff.md` · `docs/DEMO_GUIDE.md` ·
+`docs/DEVELOPMENT_JOURNAL.md` · `docs/Iteration6a_Plan_of_Action.md` ·
+`docs/Iteration6b_Plan_of_Action.md` · both Ryan review packets · both 6a/6b handoffs ·
+the modelling finding · the Phase 0 human handover. **New:**
+[`docs/Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+
+**Deliberately NOT rewritten**, because they are dated records rather than status: the six
+`data/corpus/manufacturing/*.md` synthetic RAG documents (editing them would corrupt the retrieval
+corpus), `docs/environment.md` and `docs/containerization.md` (dated device probes),
+`docs/agent-browser-setup.md` (a dated install record), the Iteration 1–5 plans and handoffs, and the
+screenshot READMEs. Iteration plan *bodies* were left exactly as written and only their status
+headers changed — a plan is a record of what was intended, and rewriting it to match the outcome
+would destroy the only evidence of the difference.
+
+---
+
+### 4. Open items carried forward
+
+1. 🔴 **The Save / Save & run defect.** The only outstanding work.
+   [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md), branch
+   `fix/custom-panel-save-run-state`.
+2. **The narrated screen recording** Ryan asked for. Script to be written; Ishan records via OBS.
+3. 🔴 **The node question is parked, not answered.** Anyone building a resilience, node-capacity or
+   network-survivability feature must read the modelling finding first.
+4. **A realistic multi-step browser check** — the test-suite gap that let two defects through in
+   three days.
+5. Everything in `handoff.md` *Known limits carried forward* still stands.
+
+**Deadline reality:** the internship ends **Friday 2026-08-28**.
+
+---
+
+
+## 2026-08-24 (late) — the dataset tier was built but invisible: two doors, one panel
+
+**Git ref:** `1a95570`.
+
+### What happened
+
+Ishan tried the live build and asked: *"this demo would only be for custom scenario, not dataset
+right? did u not do anything for custom dataset?"*
+
+**The custom dataset was fully built** — eight network counts, floors, the two honesty classes,
+save/run/reopen/delete, the dataset view, the `NetworkMap` redraw. All four phases of it. But he asked
+that question **while knowing it had been built**, which makes it the most useful piece of feedback in
+the iteration.
+
+🔴 **The reason: the UI never once used the word "dataset."** Grepped and confirmed:
+
+| Surface | Said |
+|---|---|
+| Dropdown entry | "Custom scenario…" |
+| Panel heading | "Build your own" |
+| Result banner | "Custom scenario · not a recorded benchmark result" |
+| Results sub-header | "Custom scenario built from baseline on this device." |
+
+So Ryan asks for **two things**, and every label on Wednesday says **one thing**. He could watch the
+whole demo, see the network change, and conclude the second ask was not delivered. **A complete
+feature that nobody can see delivered is not a complete deliverable.** Decision 10 had flagged exactly
+this for revisiting (*"he asked for two things; he may want two screens"*) — the architectural call
+was made and then never carried through to the labelling. My omission.
+
+### What was done — and what deliberately was not
+
+**Not** two panels. It is one config file, so two panels would be a lie about the architecture and
+there is no time to build the lie well. But **two entry points into one panel is navigation, not a
+lie**, so:
+
+- the dropdown gains a **Build your own** group with **two doors**; the dataset door opens the same
+  panel scrolled to **THE NETWORK**. Added on the results screen *and* the dataset view
+- the banner reads **CUSTOM DATASET** whenever any of the eight counts differs from baseline —
+  *"the network itself was changed — this is a custom dataset, not just custom conditions"*
+- the panel header names both tiers; the section heading reads *"The network — this is the custom
+  dataset"*
+
+Driven by a new **`network_edited`** flag on the comparability verdict, so the UI reads it from the
+payload rather than inferring it from the settings it happens to hold. Note it is **true for
+`lines_per_plant` too**: that count cannot move the objective, but changing it still means the network
+was edited, and the banner must not call that a scenario. `network_edited` answers *"is this a
+dataset?"* — a different question from *"does it change the answer?"*, and conflating them is how a
+label starts lying.
+
+### One more defect, again from looking at the screenshot
+
+The results sub-header read *"Custom scenario built from baseline on this device"* — **two lines above
+a banner saying CUSTOM DATASET.** The default description is generated in `complete_config`, and it
+was being written **before** the overrides were applied, so it could not possibly know whether the
+network had changed. Moved after the edits land. That is the fourth defect this iteration found by
+reading a rendered screen rather than an assertion.
+
+### Verified
+
+`make test` **638 passed, 2 xpassed** · `make scenario-eval` **41/41** · `make bench-all` **all 12
+BIT-IDENTICAL** · `make web-test` **118** · `make web-check` **50/50, 0 FAIL** — including a new check
+that both asks have a door and both open **exactly one** panel. Bundle 660.14 → **661.45 kB** (+1.31).
+`data/scenarios/` back to exactly four.
+
+### The lesson worth keeping
+
+Every automated check in this iteration passed **before** this change, because every one of them tested
+that the feature *worked*. None tested that a person could **tell what had been delivered**. The
+browser check now asserts the labelling too, but the finding came from a human opening the thing and
+being confused — which no amount of `web-check` would have produced.
+
+
+## 2026-08-24 (Phase 4) — Iteration 6b: demo guide, handoff, packet — and a question count that did not survive counting
+
+**Git ref:** `2428bdd` on `feat/iteration6b-custom-dataset`. **Iteration 6b's four build phases are
+done, one day ahead of the plan** (Phase 4 was budgeted for Tuesday pm).
+
+### 1. `DEMO_GUIDE.md` Option E extended, not replaced
+
+Decision 10 said one panel, so this is **steps 7–9 inside Option E**, not an Option F. The header now
+says Option E is *both* of Ryan's asks.
+
+| Step | The beat |
+|---|---|
+| **7** | **Reduce a warehouse** — the literal ask. `2 → 1`, run, **81,663.11** against baseline's 81,789.36 with fill rate identical to the digit. Note there is deliberately **no** amber caveat: a node count *is* comparable |
+| **8** | 🔴 **Type a zero.** The refusal quoting **68,565.25 at 92.01%**, said **out loud**, with the follow-through: *"those aren't four problems — they're one, measured four different ways, and we only found it by building the thing you asked for"* |
+| **9** | **A resized network is not a better one** — 66,548.24 is 12% less demand, not an 18.6% saving |
+
+Also: *"if you only have five minutes, do steps 7 and 8"* · the old *"do not say the panel can change
+the network"* line **inverted** (it can now; what it cannot do is delete a *specific* entity) · four new
+"what to avoid saying" lines · three new troubleshooting rows, including *"Save is greyed out with a
+long red block about warehouses — working as intended, this is step 8, not a fault."*
+
+### 2. 🔴 The question count did not survive being counted
+
+I had been carrying **"eleven open questions (7 from Iteration 5, 4 from 6a)"** since the plan. Writing
+them onto one page for Ryan exposed that the number was wrong **in two directions**:
+
+- **One was already answered.** Iteration 5's q1 asked whether the dataset view answered his first ask.
+  He reviewed it on **2026-08-19**, the reaction was positive and the network map was his favourite
+  screen. That is an answer. **Closed.**
+- **Three were the same question.** Iteration 5 q6, Iteration 6a q1 and this iteration's §4.1 are all
+  *"how deep does the capacity/node model go?"* — and 6a's packet **says so in its own text**
+  (*"This is question 6 from the Iteration 5 packet"*). Merged into one.
+- **Four are new in 6b.**
+
+**11 − 1 answered − 2 duplicates + 4 new = 13**, and the packet shows that arithmetic rather than
+restating a number that falls apart on inspection. Handing a sponsor a page headed "eleven questions"
+containing ten would have been a small thing that undermined everything next to it.
+
+### 3. The 6b screenshot set — and the gap the 6a set had
+
+Five shots in `docs/iteration-docs/screenshots/iteration6b/`. 🔴 **All five are written by
+`make web-check`, and every one is *asserted*, not merely captured** — the run fails if the refusal
+stops quoting its measured figures, if the caveat stops naming 81,789.36, or if the inert count ever
+appears as a live control.
+
+That is deliberately unlike the 6a set, where only **2 of 6** regenerate and the rest were one-off
+captures. Phase 1's journal entry noted extending the check script was "the better fix and is not
+done"; it is done now, for 6b. A `network-group.png` capture was added to `web-check` specifically so
+the README's reproducibility claim is true.
+
+### 4. Full regression — including the surfaces this iteration never touched
+
+| Suite | Result | What it protects |
+|---|---|---|
+| `make test` | **635 passed, 2 xpassed** | everything |
+| `make scenario-eval` | **41/41**, refusals 21/21, warnings 6/6 | 6a + 6b validation |
+| `make bench-all` | 🔴 **all 12 bit-identical**, 0 mismatches | the guardrail the whole iteration rests on |
+| `make web-test` | **118** | form logic |
+| `make web-check` | **49/49**, 0 FAIL, 0 console errors | the browser |
+| **`make chat-eval`** | **31/31** | 🔴 the chat surface Ryan **parked** — untouched, regression-tested as the guardrail requires |
+| **`make redteam`** | **27/27**, and **every** refusal pattern fired | Iteration 5's safety surface |
+| **`make parse-eval`** | **35/35** | the what-if parser |
+| Replay paths | all four pass **with the API blocked** | the GPU-free walkthroughs for Options A, C and D |
+
+The four replay checks matter here specifically because Phase 2 and 3 edited `App.tsx`, and
+`?replay=true` is the one path where a bad payload assumption would surface as a blank screen rather
+than an error.
+
+### 5. Deliverables
+
+| Document | What it is for |
+|---|---|
+| [`Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) | 🔴 the most valuable artifact of the iteration; written in **Phase 0** so it could not be cut |
+| [`AI_Jumpstart_MVP_Iteration6b_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md) | what was built, the seven refused values, and a limits section that **leads** with "this is not a resilience test" |
+| [`Iteration6b_Ryan_Review_Packet.md`](iteration-docs/Iteration6b_Ryan_Review_Packet.md) | **draft, not sent.** §4.1 first, then 13 questions on one page |
+| `DEMO_GUIDE.md` Option E steps 7–9 | the talk track |
+| [`screenshots/iteration6b/`](iteration-docs/screenshots/iteration6b/) | five asserted, reproducible shots |
+
+### Open follow-ups
+
+- 🔴 **The Wednesday demo (2026-08-26).** Check `curl localhost:8080/health` for `gpu_visible:true`
+  before it starts — Option E has **no GPU-free fallback** (both human Phase 0 items waived
+  2026-08-21), so that check is the entire mitigation and it is Ishan's to run.
+- 🔴 **The talk track has still never been read aloud** — a DoD item now **five iterations** old, and
+  Phase 4's DoD asks for it *again* with the new steps 7–9 in it. Waived, not done. Steps 8 and 9 are
+  the ones that would benefit most, because both are long spoken passages written but never spoken.
+- **Phase 5 (Thu–Fri):** Ryan's answers written down the same day · a "picking this up" document · the
+  final snapshot rewrite. **Features stop now.**
+- **Not merged to `main`.** `main` is still `262c498`; 6b lives on its branch, pushed. Merging is a
+  decision for after the demo.
+- **Eleven → thirteen questions** (§2 above), §1 of the packet first.
+
+
+## 2026-08-24 (Phase 3) — Iteration 6b: the Network group, and a refusal that teaches
+
+**Git ref:** `3303e45` on `feat/iteration6b-custom-dataset`. **Monday — two working days to the demo.**
+
+### 0. Two corrections to the record before anything else
+
+**a. The NVML cadence claim was overstated.** Phase 0's entry said the detachment gap had gone "from
+~2 weeks to under a day" and called it a **sub-daily cadence**. That was **one 19-hour sample**. Over
+the weekend the box held **2+ days** with `gpu_visible:true` and `llm`'s NVML clean. Corrected in five
+places today: the honest reading is **irregular and unpredictable**, not accelerating. That is still
+the reason to check `/health` before the demo — an unpredictable failure is precisely the kind you
+cannot schedule around — but the record should not overstate evidence. *(These doc corrections rode
+along in the Phase 3 commit rather than getting their own; noting it so the history is legible.)*
+
+**b. Dates.** Phase 0–2 work is journalled as 2026-08-21 (Friday) per the iteration plan's calendar;
+this entry is Monday **2026-08-24**. Demo is **Wednesday 2026-08-26**.
+
+### 1. The gate is gone, and the split still is not hard-coded
+
+Phase 1's `PENDING_UI_GROUPS` is deleted and its three Vitest cases replaced with **seven** asserting
+the opposite. `networkLayout()` takes the two classes from **`network_tier.classes` in the payload**,
+never from a list in the form. That matters: the classes are a *measured* property (a network-shape
+count leaves total demand bit-identical; a problem-size count does not), the server derives them, and
+a hard-coded copy in the form could drift into putting "safe to compare" on a resized network.
+
+What renders, verified in a real browser at 1920x1080 with **zero console errors**:
+
+| | |
+|---|---|
+| **The network** heading | plus the positional-ID caveat: *"reducing a count removes the LAST entity … so 2 DCs → 1 keeps DC-001. Deleting a specific entity is not expressible."* |
+| Class 1 (3 counts) | suppliers, plants, distribution centers, under *"…the optimizer has no per-node capacity — so this is **NOT a resilience test**"* |
+| Class 2 (4 counts) | customers, finished goods, and both BOM depths, under *"…compare the naive-vs-classical result within this run, **never against the recorded baseline**"* |
+| `lines_per_plant` | 🔴 **not offered as a live control.** It sits under Advanced's existing *"recorded in the dataset, not read by the optimizer"* heading (decision 7) |
+| Bounds | shown as hints (`1–20`, `1–60`, `1–12`, `1–6`) and **deliberately not clamped** |
+
+### 2. 🔴 The refusal teaches, and that is now a browser assertion
+
+Decision 4's whole point is that floors *explain*. Typing **0** into Distribution centers is how a
+planner reaches the finding, so the control must not snap it back to 1. In the browser:
+
+- the panel quotes **68,565.25** and **92.01%**
+- it says *"That is a limit of the model, not a fact about your network."*
+- **Save & run is disabled** while it stands
+
+**This is the demo beat of the whole iteration.** Ryan asked *"why can't we just reduce a warehouse"*;
+the honest answer is that you can, it is cheaper, service does not move — and if you take it to zero
+the model tells you that is *better*, which is the thing worth funding. He can now produce that
+sentence himself by typing one character. Screenshot: `web/e2e/shots/network-zero-dc-refusal.png`.
+
+### 3. 🔴 Three defects, two found by looking rather than asserting
+
+**a. Every Network control would have been a silent no-op.** I wrote
+`...coerceSetting(setting, raw)` — but `coerceSetting` returns a **value**, not an object, so spreading
+a number yields `{}`. The controls would have rendered, accepted input, and changed nothing: exactly
+the class of defect this iteration exists to forbid. Caught by reading the existing call site two lines
+away, which keys it properly. Now `[setting.key]: coerceSetting(...)`, plus a guard so **clearing** a
+field drops the override rather than reading as "zero of these" — `Number("")` is `0`, which would have
+fired the warehouse-less refusal at someone mid-retype.
+
+**b. A JSX escape that would have shipped as literal characters.** `{min}\u2013{max}` inside a JSX
+*text node* is not a string literal; it renders the six characters. Replaced with a real en dash.
+
+**c. 🔴 The sticky footer printed the same long refusal twice.** Found by **looking at the rendered
+screenshot**, then confirmed by counting DOM nodes: the measured figure appeared in both
+`ul[custom-refusals]` and `p[custom-validation-summary]`. Both are 6a components — echoing a *short*
+refusal next to Save is useful, because the list scrolls out of view. But 6b's refusals are three
+sentences quoting figures, so one filled the panel twice over, directly under itself.
+🔴 **`validationDisplay` already carried a comment recording this exact failure for warnings** —
+*"summarising it here too printed the same long paragraph twice and made it read like two problems"* —
+and the same rule simply had not been applied to refusals. Now summarised by count past 140 chars;
+short refusals still echo verbatim.
+
+### 4. And one weak check of my own
+
+The change-list assertion was `/distribution_centers/ && /\b2\b/`. It matched the stray **2** in the
+stale *"2 → 0"* text left behind by the refusal step, so it **went green while the panel displayed the
+wrong value**. It now waits for and asserts *"2 → 1"* specifically, and fails on a lingering `→ 0`.
+That is the second time this iteration a check of mine passed for the wrong reason; both were caught by
+reading the output line rather than the exit code. **Read the assertion text, not the PASS count.**
+
+### 5. Guardrail 3 on the Advanced path too
+
+A planner can reach `network.customers` through **Show all 67 settings** without ever opening the
+Network group, so the caveat has to travel with the control there as well. `AdvancedControl` now
+carries a **"resizes the problem"** chip, and the browser asserts both directions: the chip is present
+on `network.customers` and **absent** on `network.distribution_centers`. Without the second half this
+would be a check that cannot fail.
+
+### Verified results
+
+| Item | Result | Was |
+|---|---|---|
+| `make test` | **635 passed, 2 xpassed** | 635 + 2 |
+| `make scenario-eval` | **41/41**, refusals 21/21, warnings 6/6 | 41/41 |
+| `make bench-all` | 🔴 **all 12 objectives BIT-IDENTICAL**, 0 mismatches | — |
+| `make web-test` | **118** | 111 |
+| `make web-check` | **49/49 PASS, 0 FAIL** | 43/43 |
+| Bundle | 657.88 → **660.14 kB** raw (+2.26), 186.46 → **186.97** gzip (+0.51), **no new dependencies** | — |
+| `NetworkMap.tsx` | 🔴 **untouched across the entire iteration** — 0 commits since `262c498` touch it | — |
+| Console | **0 errors** through the full panel loop | — |
+| GPU | `/health` `gpu_visible:true`; `llm` NVML clean after 2 days up | — |
+| Data hygiene | `data/scenarios/`, `data/generated/` exactly 4 each after every run | — |
+
+The bundle delta is the Network group, one control component and the footer-summary fix. **+0.51 kB
+gzipped for the tier Ryan asked for** is a fair price and adds no library.
+
+### Open follow-ups
+
+- **Phase 4 next:** full regression sweep · `DEMO_GUIDE.md` **Option E extended, not an Option F**
+  (decision 10) with the "reduce a warehouse" beat and the zero-DC refusal said **out loud** · the 6b
+  handoff with §5's limits · Ryan packet with **§4.1 first**, then the **eleven open questions on one
+  page**.
+- **Commit a 6b screenshot set** under `docs/iteration-docs/screenshots/iteration6b/` —
+  `network-zero-dc-refusal.png`, `network-group-result.png`, `network-onedc-dataset-view.png`,
+  `network-resized-not-comparable.png` are all captured and reproducible from `make web-check`.
+- 🔴 **Option E still has no GPU-free fallback** (waived 2026-08-21). The pre-demo `/health` check is
+  the only mitigation and it is Ishan's to run.
+- **`network.finished_goods` capped at 12 = `stress-large`'s own value.** Flagged for Ryan.
+- **Eleven open questions for Ryan.** Wednesday is the last scheduled chance.
+
+
+## 2026-08-21 (Phase 2) — Iteration 6b: the dataset tier runs end to end, and guardrail 4 gets teeth
+
+**Git ref:** `a06327a` on `feat/iteration6b-custom-dataset`.
+
+### 1. The reuse claim held, and `store.py` needed no change
+
+Phase 2's whole premise was that **a custom dataset is still just a config**, so 6a's persistence, run
+path, dataset view and change list should carry it unmodified. That was a claim, so it was tested
+rather than assumed — and it held. `store.py` was **not touched**. The plan said a change there would
+be "a finding worth writing down"; there is nothing to write down.
+
+Verified through the real API and a real browser, not a unit test:
+
+| Check | Result |
+|---|---|
+| 1-DC dataset saves | config + data written; lanes `{inbound_raw: 10, plant_to_dc: 2, dc_to_customer: 8}`, nodes `{customer: 8, distribution_center: 1, plant: 2, supplier: 5}` |
+| …reopens and runs | 🔴 **81,663.107829** — the plan's measured figure **to the digit**, fill rate `0.836619` identical to baseline |
+| 7-customer dataset runs | 🔴 **66,548.241282** — also to the digit |
+| Delete | removes **all four** artifacts: `data/scenarios/…yaml`, `data/generated/…`, the benchmark JSON, and the qdrant collection. Four recorded scenarios intact |
+| Dataset view | renders both with **no dataset-code change** |
+| 🔴 The narrative | *"…send finished goods through **1 distribution center** out to 8 customers"* — correct singular, and the diff sentence says *"across **network size**"*. §1.6 predicted `narrative.py` would need no template work; **verified, not assumed** |
+| 🔴 `NetworkMap` | **redraws on its own, 17 nodes → 16**, zero console errors. `NetworkMap.tsx` untouched — the free demo beat |
+| Four recorded names | still refused with `name_reserved`, even carrying a network override |
+
+### 2. 🔴 Guardrail 4 now has teeth on every surface
+
+This is the substance of the phase. A resized network returns a **lower objective for a smaller
+problem** — 66,548.24 against baseline's 81,789.36 — and on the results screen that number is large,
+green-adjacent and concrete. Left unlabelled it reads as an 18.6% saving. It is 12% less demand.
+
+`network_comparability` derives the verdict from the **ledger's own `answer_class`**, not from a list
+kept beside it, so it cannot drift from what the controls say. And one builder produces the warning
+both before *and* after the run — the Iteration 5 rule that a measured fact must not acquire two
+vocabularies.
+
+It now travels on: the settings payload · the **change list entry** (what "WHAT YOU CHANGED" shows) ·
+the pre-run card · the run result · and an **amber block rendered beside the objective**. A node-count
+change is marked comparable and gets **no** caveat — verified, because crying wolf on the comparable
+case would train a viewer to ignore the block that matters.
+
+### 3. The estimate is recomputed, not inherited — after measuring, not by assuming
+
+The plan flagged this as the thing most likely to lie. What measurement actually found on 2026-08-21:
+
+| Network | Nodes | Lanes | Demand rows | Series | In-process build |
+|---|---:|---:|---:|---:|---:|
+| baseline | 17 | 30 | 2,912 | 32 | 0.008 s |
+| 1 DC | 16 | 20 | 2,912 | 32 | 0.007 s |
+| 40 customers | 49 | 94 | **9,568** | 160 | 0.029 s |
+| stress-large's shape | 42 | 152 | 22,464 | 288 | 0.059 s |
+| **largest these controls allow** | **120** | **2,000** | 41,184 | 720 | **0.207 s** |
+
+(9,568 demand rows at 40 customers reproduces the plan's §1.4 figure exactly.)
+
+So the three components got three different, honest treatments:
+
+- **forecast** — already scaled with the network. Its basis now names *this* network's own counts:
+  *"160 finished-good series (40 customers x 4 finished goods, counted from THIS network)"*.
+- **generate** — 🔴 **left flat, because measurement justified it.** 0.008 s to 0.207 s across the
+  entire reachable range, all under the 0.23 s figure already in use. Over-estimating a wait is the
+  safe direction, and the basis text now says so rather than leaving a reader to wonder. **Not
+  scaling it was the measured answer, not laziness.**
+- **optimize** — borrows a recorded latency when there is no run on record, which is right; inventing
+  one would be worse. But it now **admits when it borrowed from a different-shaped network**:
+  *"…and that network is a different shape from this one (17 nodes / 30 lanes against 49 / 94 here),
+  so treat this component as a floor rather than an estimate."*
+
+### 4. 🔴 Three defects found by running it, not by reading the diff
+
+**a. The warning repeated itself.** `why` and the note both opened with *"This network is a different
+size…"*, so the live message said it twice. Only visible by calling the endpoint. `NOT_COMPARABLE_NOTE`
+is now composed from a `LEAD` and a `TAIL`, and the specific opening appends only the tail.
+
+**b. Then the amber box said the remedy twice.** *"The naive-vs-classical comparison inside this run is
+the valid one"* appeared at the end of both consecutive paragraphs. **Found by looking at the rendered
+screenshot** — no assertion would have caught it, because both sentences were individually correct.
+Two sentences saying the same thing weakens both, so `do_not_read_as` no longer repeats the remedy.
+
+**c. My own browser check failed itself, twice.** The pre-clean `DELETE`s return 404 and **the browser
+logs a failed request as a console error**, so the setup broke the console-clean assertion. And
+loading `?scenario=…` does **not** run anything — the results screen is empty until Run is pressed — so
+the banner assertion was inspecting a blank page. Now resets the error collector after setup and drives
+the real `run-scenario` control. A check that fails for its own reasons is worse than no check.
+
+### 5. `make web-check` extended: 38 → 43
+
+Four new browser assertions, plus the rendered-caveat one: the 1-DC dataset view with the map redraw ·
+the resized run labelled not-comparable · the caveat **rendered** next to the objective · no false
+caveat on a comparable network · both datasets deleted and gone. New screenshots
+`network-onedc-dataset-view.png` and `network-resized-not-comparable.png`.
+
+The network datasets are created **over the API** in this check, deliberately: the controls are not in
+the form until Phase 3, and Phase 2's claim is precisely that the rest of the system carries a network
+edit without knowing it is one.
+
+### Verified results
+
+| Item | Result | Was |
+|---|---|---|
+| `make test` | **635 passed, 2 xpassed** | 620 + 2 |
+| `make scenario-eval` | **41/41** (12 controls), refusals **21/21**, warnings **6/6** | 39/39, 21/21, 5/5 |
+| `make bench-all` | 🔴 **all 12 objectives BIT-IDENTICAL**, 0 mismatches | — |
+| `make web-test` | **111** | 111 |
+| `make web-check` | **43/43 PASS, 0 FAIL** | 38/38 |
+| Bundle | 657.24 → **657.88 kB** raw (+0.64), gzip 186.36 → 186.46 | the amber block + one `data-testid` |
+| GPU | `/health` `gpu_visible:true` after every rebuild | — |
+| Data hygiene | `data/scenarios/`, `data/generated/` exactly 4 each; 0 stray `custom-*` benchmark artifacts | — |
+
+The optimizer, the objective function and the generator are **untouched**.
+
+### Open follow-ups
+
+- **Phase 3 next:** the Network group in `CustomScenarioPanel.tsx` — *add a group, do not restructure*.
+  🔴 **It must delete `PENDING_UI_GROUPS`** from `web/src/lib/customForm.ts`; three Vitest cases assert
+  the gate today and need flipping to assert the opposite.
+- **The three label classes need rendering distinctly** — `AdvancedControl` currently renders no
+  `note`, which is why the gate exists at all.
+- 🔴 **Option E still has no GPU-free fallback** (waived 2026-08-21). Check `/health` before the demo.
+- **`network.finished_goods` capped at 12 = `stress-large`'s own value.** Flagged for Ryan.
+- **Eleven open questions for Ryan**, §4.1 first.
+
+
+## 2026-08-21 (Phase 1) — Iteration 6b: the network ledger, and four defects the review pass caught
+
+**Git ref:** `8410a03` on `feat/iteration6b-custom-dataset`.
+
+**What this phase is.** The eight `network:` counts become first-class, validated, honestly-labelled
+settings. **No UI and no new persistence** — that is the phase's stated scope, and it is the *minimum
+shippable 6b*: even with no panel, this is a real, testable answer to Ryan's *"why can't we just reduce
+a warehouse"* over the API.
+
+### 1. 🔴 Both human Phase 0 items were WAIVED, not completed
+
+**Ishan's explicit decision on 2026-08-21:** skip the Option E screen recording and skip reading the
+talk track aloud; do the Wednesday-morning `/health` check on the day. Recorded here as a **decision,
+not an oversight**, because the handover document
+([`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md))
+remains written and unstarted, and the next person should know why.
+
+**The consequence, stated plainly:** 🔴 **Option E has no GPU-free fallback for Wednesday 2026-08-26.**
+If NVML detaches that morning — four times on record, once only 19 hours after being fixed —
+the custom scenario, which is the entire subject of the meeting, cannot be shown at all. The
+`/health` check before the meeting is now the only mitigation, and it is a human step.
+The talk-track read-aloud DoD item is now **five iterations old** (carried since Iteration 3).
+
+### 2. The ledger: 59 → 67 settings, and the reach is DERIVED
+
+Eight `Setting` rows in a new `network` group, which **leads** `GROUPS` because it is the dataset
+tier — the nouns; everything after it is a condition applied to them.
+
+| | Count |
+|---|---|
+| Total settings | 59 → **67** |
+| `UNCONDITIONAL` | 38 → **45** (the seven live counts) |
+| `INERT` | 14 → **15** (`network.lines_per_plant`) |
+| **Cannot change the answer** | 15 → **16** |
+| Refusal classes | 17 → **21** |
+| Eval cases | 29 → **39** (7 → 11 controls) |
+
+🔴 **`network.lines_per_plant` was not declared inert — it fell out of the derivation.** Before writing
+a line of the ledger I ran `derive_setting_targets` against provisional settings to see what each count
+actually writes. The answer for `lines_per_plant`: `production_lines` rows, plus
+`nodes.capacity_units_per_period` and `nodes.storage_capacity_units`. **The pipeline reads none of those
+three tables**, so INERT is the derivation's own verdict. Measured at 0, 2 and 4 the objective is
+`81789.35946` every time — even **zero production lines** changes nothing. The most
+manufacturing-sounding control available, and it does nothing.
+
+**No second classifier was built.** 6a's `__rows__` pseudo-column already handles a setting that acts by
+changing row counts, which is exactly how a network count acts — so the seven live counts classify
+themselves as `UNCONDITIONAL` via the tables they resize, and `lines_per_plant` as `INERT` via the ones
+it does not.
+
+### 3. Guardrail 1 — nothing may crash, and the tests prove the crash they prevent
+
+All seven unrunnable values are refused **before anything is written**:
+
+| Value | What it does today | Refusal |
+|---|---|---|
+| `plants = 0` | `ZeroDivisionError` in the generator | `network_count_below_floor` |
+| `finished_goods = 0` | `ZeroDivisionError` | `network_count_below_floor` |
+| `subassemblies_per_finished_good = 0` | `ZeroDivisionError` | `network_count_below_floor` |
+| `raw_components_per_subassembly = 0` | `ZeroDivisionError` | `network_count_below_floor` |
+| **`customers = 0`** | 🔴 **does NOT crash** — writes a complete dataset, dies two stages later in the FORECAST | `network_count_below_floor` |
+| `distribution_centers = 0` | 🔴 does not crash — returns **68,565.25 at 92.01% fill** | `network_zero_distribution_centers` |
+| `suppliers = 0` | 🔴 does not crash — **83.66% fill, unchanged to the digit** | `network_zero_suppliers` |
+
+The four generator crashes are asserted with `pytest.raises(ZeroDivisionError)` against an in-memory
+build, so the floors are not defensive decoration — the test fails if a generator change ever makes one
+survivable. And `customers = 0` has its own test asserting generation **succeeds** and produces zero
+demand rows: that is the case proving floors belong *before* the write, not at generation time.
+
+**Decision 4's refusals quote the measured numbers**, so the message teaches the modelling limit rather
+than merely blocking: *"…it scores 68,565.25 at 92.01% fill, which is better than baseline on BOTH
+counts … That is a limit of the model, not a fact about your network."* A crash is embarrassing; a
+confident wrong answer is worse.
+
+### 4. 🔴 Guardrails 3 and 4 — the honesty classes are DERIVED, not asserted
+
+§1.2 splits the counts into *changes the shape of the network* and *changes the size of the problem*.
+Rather than assert that split, I measured what actually separates them:
+
+| Config | Total demand | Demand rows |
+|---|---:|---:|
+| baseline (2 DCs) | **1,837,066** | 2,912 |
+| 3 plants — network shape | **1,837,066** *identical* | 2,912 |
+| 6 suppliers — network shape | **1,837,066** *identical* | 2,912 |
+| 1 DC — network shape | **1,837,066** *identical* | 2,912 |
+| 7 customers — problem size | 1,621,236 | 2,704 |
+| 3 finished goods — problem size | 1,536,596 | 2,184 |
+
+**A network-shape count leaves total demand bit-identical; a problem-size count moves it.** That is now
+a committed test: put a count in the wrong class and it fails, naming the class it belongs in. Guardrail
+4 is only as good as the classification behind it, and this is what makes the classification checkable
+rather than editorial.
+
+**The caveat travels with the change, not just the schema.** `config_changes` entries now carry
+`answer_class`, `comparable_to_baseline` and — for a resized problem — the `not_comparable_note` naming
+81,789.36. *"WHAT YOU CHANGED"* is what a planner reads immediately before running, so a caveat that
+lives only in the settings payload is a caveat nobody sees at the moment it matters.
+
+### 5. 🔴 The brutal-truth pass found four real defects
+
+Every one of these was found by running things, not by reading the diff.
+
+**a. The ledger ablation crashed once the network counts widened its reach.**
+`derive_optimizer_reads` perturbs a string column by writing the literal `"LEDGER_PROBE"`. Before 6b
+every probed string column was free text (`criticality_tier`, `disruption_code`). The network counts
+derive changes to **identifier** columns — `demand.sku_id`, `demand.node_id` — so the probe replaced a
+foreign key and the optimizer died on `KeyError: 'LEDGER_PROBE'`, taking three load-bearing ledger
+tests down as setup errors. **Fixed by recording read=True when the probe raises**, which is the
+semantically correct answer: a column whose corruption *crashes* the optimizer is definitionally read.
+Note the direction — treating a crash as "unread" would let a load-bearing column be labelled inert,
+which is precisely the failure this ledger exists to prevent.
+
+**b. A hostile-save payload had become legitimate work.** `test_hostile_save_payloads_are_refused` fed
+`{"name": "ok", "overrides": {"network.plants": 3}}` and expected a refusal. In 6b that is ordinary
+work — close to Ryan's actual ask — so it saved successfully and the test failed. Replaced with four
+network values that genuinely cannot be run (`plants: 0`, `distribution_centers: 0`,
+`customers: 99999`, `network.warehouses: 2`).
+
+**c. …and that test cascaded.** Every case shares the name `custom-ok`, so the one unexpectedly
+accepted payload left its config on disk and turned the **five** cases after it into phantom failures
+pointing at the wrong payload. It now cleans up in a `finally`, so the assertion still fails for the
+payload that actually misbehaved — and only for that one. This cost me a full debug cycle and would
+have cost the next person the same.
+
+**d. A fractional count got a lecture about zero.** `network.plants: 0.5` collected the measured *"zero
+plants raises ZeroDivisionError"* sentence — true about the floor, but not about what was typed. The
+floor check is now gated on `_is_int`, so 0.5 gets *"has to be a whole number"* and a genuine 0 still
+gets the measured explanation.
+
+### 6. A sequencing hazard, caught before it shipped
+
+The Advanced form builds itself from `payload.groups`. So the moment the API served a `network` group,
+**seven unlabelled numeric inputs would have appeared on screen** — `AdvancedControl` renders no
+`note`, so they would have arrived with no honesty class at all, breaking guardrail 3 before the UI
+tier exists to honour it. Phase 1 is specified as *"no UI"*, so the group is gated out of the form with
+an explicit, tested `PENDING_UI_GROUPS` set that **Phase 3 removes**. The inert
+`network.lines_per_plant` is gated too: showing one network control under the inert heading while
+hiding its seven siblings would be more confusing than showing none.
+
+### 7. An environment leak I caused, and cleaned
+
+Killing an in-flight `make test` to rebuild skipped a context manager's teardown and left
+`data/scenarios/scale-1x-ref.yaml` behind — `src/bench/scale_study.py:182` writes a temporary scenario
+and unlinks it in a `finally`. Combined with the leaked `custom-ok.yaml` from (c), this produced **10
+misleading failures** that were nothing to do with the code. Both removed; `data/scenarios/` and
+`data/generated/` verified back to exactly the four shipped scenarios after every subsequent run.
+**Lesson worth keeping: do not kill this suite mid-run — it writes real files.**
+
+### Verified results
+
+| Item | Result | Was |
+|---|---|---|
+| `make test` | **620 passed, 2 xpassed** | 558 + 2 |
+| `make scenario-eval` | **39/39** (11 controls), refusal classes **21/21**, warnings **5/5** | 29/29, 17/17 |
+| `make bench-all` | 🔴 **all 12 objectives BIT-IDENTICAL** (checked programmatically, 0 mismatches) | — |
+| `make web-test` | **111** | 108 |
+| `make web-check` | **38/38 PASS, 0 FAIL** | 38/38 |
+| `make scenario-ledger` | "67 editable settings across 8 groups", `lines_per_plant` flagged inert | 59 / 7 |
+| Bundle | 657.15 → **657.24 kB** raw (+0.09), 186.31 → 186.36 kB gzip | measured against a clean worktree at `262c498`, not assumed |
+| GPU | `/health` `gpu_visible:true` after each of five `api` rebuilds | — |
+| Data hygiene | `data/scenarios/` and `data/generated/` exactly 4 each | — |
+
+The optimizer, the objective function and the generator are **untouched**.
+
+### Open follow-ups
+
+- **Phase 2 next:** network keys through synthesis, preview and save. 🔴 The plan's specific warning:
+  **the run estimate must be recomputed, not inherited** — 6a's estimate assumes baseline's topology,
+  and a 40-customer network has more series and a longer forecast.
+- **Phase 3 must delete `PENDING_UI_GROUPS`** from `web/src/lib/customForm.ts` and render the three
+  label classes. Three Vitest cases assert the gate today and will need flipping.
+- **Extend the ablation's string probe** to use a real foreign key rather than a literal, so identifier
+  columns are measured rather than inferred from a crash. The current behaviour is correct but coarse.
+- 🔴 **Option E still has no GPU-free fallback** (§1, waived). Check `/health` before the demo.
+- **`network.finished_goods` is capped at 12, exactly `stress-large`'s value** — so no custom network can
+  hold more products than the largest shipped scenario. A judgement call, flagged for Ryan (decision 6).
+- **Eleven open questions for Ryan**, §4.1 first.
+
+
+## 2026-08-21 — Iteration 6b Phase 0: demo hardening, a 4th NVML detachment, and two plan figures that did not reproduce
+
+**What this was.** Iteration 6b (Custom Dataset — the network tier) starts here, but Phase 0 contains
+**no 6b feature work at all.** It is demo hardening, deliberately sequenced first because the Ryan demo
+on **Wednesday 2026-08-26** is the deliverable and the feature is not. Plan:
+[`Iteration6b_Plan_of_Action.md`](Iteration6b_Plan_of_Action.md) §5 Phase 0.
+
+**Git ref:** branch **`feat/iteration6b-custom-dataset`**, cut from `main` @ `262c498`. The plan file —
+previously untracked on `main` — is its first commit (`7659721`), followed by this Phase 0 commit.
+
+### 1. 🔴 Real environment defect, found first: NVML detached from `api` for the FOURTH time
+
+`curl localhost:8080/health` at the start of the session read
+**`gpu_visible:false, gpu_name:null, driver_version:null`** while the host's own `nvidia-smi` was
+perfectly healthy (GB10, driver 580.159.03).
+
+🔴 **The significant part is the cadence.** The previous three detachments (2026-07-10, 2026-07-30,
+2026-08-20) were roughly two weeks apart. This one happened after the `api` container had been up
+**19 hours** — it had been recreated on 2026-08-20 *as the fix for the last one*. The gap between
+detachments was ~2 weeks; this one was 19 hours. **Correction (2026-08-24):** one 19-hour gap is not a
+cadence — it has since held 2+ days. Read it as irregular, not accelerating.
+
+**Fixed** with `docker compose up -d --no-deps --force-recreate api`. **Verified, not assumed:**
+
+| Check | Result after the fix |
+|---|---|
+| `GET /health` | `gpu_visible:true`, `gpu_name:"NVIDIA GB10"`, `driver_version:"580.159.03"`, `cuda_version:"13.0"` |
+| `make test` GPU probes | `test_gpu_visible` **XPASS**, `test_driver_version` **XPASS** |
+
+🔴 **Read the `xpassed` count, not "passed".** Those two probes are `xfail`-marked, so if the GPU fix
+had *not* taken they would report `xfailed` and the suite would still say "passed" overall. **558
+passed + 2 xpassed** is the signal; "558 passed" alone is not.
+
+**But heeding the 2026-08-20 correction below:** those two probes only read `/health`, so their `XPASS`
+is *not* independent of it. The independent check is a fresh exec, and it was run: `docker compose exec
+api python3 -c "import torch..."` → `torch.cuda.is_available()` **True** on `NVIDIA GB10` with a real
+512×512 CUDA matmul, plus `/embeddings/health` reporting `nomic-embed-text-v1.5` on **`cuda:0`** at
+768 dim.
+
+**This directly raises the Wednesday risk**, and is now recorded in the plan's §0.2: Option E — the
+custom scenario, the entire subject of the meeting — is the one demo option with **no** GPU-free
+fallback, and the box has now dropped its GPU handle four times at unpredictable intervals.
+
+### 2. Green baseline on the branch — all five numbers
+
+Every one a real run on-device, in this session, on the branch:
+
+| Suite | Result | Expected |
+|---|---|---|
+| `make test` | **558 passed, 2 xpassed** (135.11s) | 558 + 2 xpassed ✅ |
+| `make bench-all` | **all 12 objectives bit-identical** | bit-identical ✅ |
+| `make scenario-eval` | **29/29** (7 controls; refusal classes 17/17, warnings 5/5) | 29/29 ✅ |
+| `make web-test` | **108 passed** (7 files) | 108 ✅ |
+| `make web-check` | **38 PASS / 0 FAIL**, "ALL CHECKS PASSED" | 38/38 ✅ |
+
+The 12 objectives, checked individually against the recorded table in the 6a handoff:
+
+| Scenario | Naive baseline | Classical (winner) | PPO |
+|---|---:|---:|---:|
+| `baseline` | 88,022.760795 | **81,789.359460** | 102,804.716650 |
+| `component-shortage-shock` | 102,834.785064 | **95,445.445064** | 113,584.863463 |
+| `demand-surge` | 100,734.738785 | **94,165.363245** | 115,161.538279 |
+| `stress-large` | 2,622,335.215962 | **2,521,615.068565** | 2,867,271.225615 |
+
+All 12 match to the digit. The optimizer, objective function and generator were not touched.
+
+### 3. 🔴 The consolidated modelling finding, written in Phase 0 on purpose
+
+New: [`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md).
+
+**The optimizer routes between lanes and has no concept of a node.** Five oddities recorded across
+three iterations — the single-period capacity read (question 6), the inert
+`dc_throughput_units_per_period`, a lane family whose loss *saves* money, a warehouse that is free,
+and an inert `lines_per_plant` — are **one gap, measured five ways.**
+
+It was written in Phase 0 rather than Phase 4 because it needs no code, it is the most valuable
+artifact of the week, and it must not be what gets cut on Tuesday night.
+
+**The mechanism was verified in the source, not inferred.** `select_ortools_lanes`
+([`src/optimize/common.py:114`](../src/optimize/common.py#L114)) builds **one LP per lane type in a
+loop** ([`:147`](../src/optimize/common.py#L147)) with a single aggregate demand constraint
+([`:166`](../src/optimize/common.py#L166)) and capacity only as a per-lane variable bound
+([`:163`](../src/optimize/common.py#L163)). There is no variable representing a node.
+🔴 **The line that makes zero warehouses *free* rather than *infeasible* is
+[`:149`](../src/optimize/common.py#L149) — `if frame.is_empty(): continue`** — a lane family with no
+lanes is silently skipped, not reported as unserved. **New finding this session:** the naive baseline
+`select_greedy_lanes` ([`:52-64`](../src/optimize/common.py#L52)) has the **identical** shape, so the
+gap is in both candidates — which is *why the within-run naive-vs-classical comparison stays fair*
+even though neither models a node. That nuance was not in the plan.
+
+### 4. 🔴 The brutal-truth pass: I re-measured §0.3 independently, and two plan figures did not reproduce
+
+The plan's headline numbers were measured on 2026-08-21 when it was written. Because this finding is
+going in front of a sponsor, **every number was measured a second time** — copy `baseline.yaml`, change
+one `network:` count, generate with `--seed 12345`, run `src.pipeline.bench --horizon 8`, read the
+classical row. **A renamed but otherwise unmodified `baseline` was run as a control and reproduced
+`81789.35946` exactly**, which validates the probe path before trusting any delta from it.
+
+**Reproduced ✅:** 1 DC `81663.107829`; 3 DCs `82056.854415`; 0 DCs `68565.250935` at `0.920103` fill;
+2 DCs `81789.35946` at `0.836619`. **1 DC and 3 DCs leave fill rate and days of inventory identical to
+the digit** (`0.836619` / `4.665808`). The lane-family collapse was counted straight out of the
+generated `lanes.csv`: 2 DCs `{inbound_raw: 10, plant_to_dc: 4, dc_to_customer: 16}` → 1 DC
+`{inbound_raw: 10, plant_to_dc: 2, dc_to_customer: 8}` → **0 DCs `{inbound_raw: 10}`**. And
+`lines_per_plant: 0` — no production lines at all — returns `81789.35946`, bit-identical to baseline.
+
+🔴 **Two figures in the plan were wrong and are now corrected in both the plan and the finding:**
+
+| Plan said | Measured | What it was |
+|---|---|---|
+| 0 DCs → **4.28** days of inventory (§0.3) | **0.63** | Simply wrong. The correction makes the finding *stronger* — the model's "best" network also holds almost no inventory |
+| *"Only transport moves — 20,352.73 → 20,478.98"* (§1.2) | 2 DCs = 20,478.98, 1 DC = **20,352.73** | 🔴 **The direction was reversed.** As written it claimed transport *rises* when you remove a warehouse, contradicting the plan's own headline that 1 DC is cheaper. The real fall is 126.251631 — *exactly* the objective delta |
+
+Neither error touched an objective or the argument, and **both would have been said out loud on
+Wednesday.** This is the third iteration in a row where the review step caught something real.
+
+**A better statement of the 0-DC case also came out of it.** The plan said the shortage penalties
+halve; measured, transport **rises** 20,478.98 → 32,495.27 and ordering **rises** 5,700 → 10,740, and
+what buys the 16% is backorder (−9,449.86) and lost sale (−10,176.77) collapsing *because nothing is
+being shipped, so nothing is recorded as short*. That is a sharper indictment than "it got cheaper".
+
+**All probes were cleaned up and cleanup was verified:** `data/scenarios/` and `data/generated/` are
+back to exactly the four shipped scenarios, `/app/benchmark/probe-*` removed, and `make cli-list`
+confirms the API offers only the four.
+
+### 5. The 6a screenshot set is committed — with an honest README
+
+New: `docs/iteration-docs/screenshots/iteration6a/` (6 PNGs, 1.4 MB). Iterations 4 and 5 each have a
+set; 6a had none, and these outlive the internship.
+
+🔴 **Finding while doing it:** only **2 of the 6** are reproducible from `make web-check`. Proven by
+timestamp — a full 38/38 `web-check` run rewrote `custom-scenario-result.png` and
+`custom-scenario-noop-warning.png` and left the other four at their 2026-08-20 mtimes. The other four
+were ad-hoc captures from the 6a Phase 4 browser review; the committed
+`web/e2e/dataset-view.check.mjs` *checks* those states but never screenshots them. The README says so
+explicitly, rather than repeating Iteration 4's blanket "regenerate with `make web-check`", which
+would have been false for four of the six. **Extending the check script to shoot all six is the better
+fix and is not done** — noted, not silently left.
+
+### 6. Deliberately NOT done
+
+- ✅ **The `llm` container WAS recreated** — see §8 below. It was flagged for an explicit go, the go
+  was given, and it succeeded.
+- 🔴 **The two human Phase 0 items are handed over, not done** — see
+  [`iteration-docs/Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md),
+  written this session with a full shot list and a read-aloud checklist. An agent cannot legitimately
+  close either:
+  - **the Option E screen recording** (the demo fallback). Confirmed this session that it *cannot* be
+    done from here: the GB10 has no graphical session (`XDG_SESSION_TYPE=tty`, no `DISPLAY`) and no
+    `ffmpeg`. It has to be recorded from a laptop over the SSH port-forward.
+  - **reading the Option E talk track out loud, end to end** — the DoD item **carried unclosed since
+    Iteration 3**, now four iterations old.
+- **No 6b feature code.** Phase 1 has not started. Per protocol, one phase per session.
+
+### 7. A note on one DoD wording
+
+Phase 0's DoD says the Option E fallback should be *"verified with the API blocked"*. That phrasing was
+written for a replay build, where blocking the API is the actual test. **The chosen fallback is a
+screen recording** (a deliberate timeline decision — a true replay path for Option E is half a day of
+UI work because the panel makes several round trips, and it is listed under §Deferred with that
+reasoning). A video file has no API dependency, so the equivalent check is *playing it back with the
+stack down, on a machine that cannot reach the box*. Flagging the difference rather than quietly
+reinterpreting the DoD.
+
+### 8. ✅ The `llm` container recreated — stale NVML CLOSED, no wedge
+
+I recommended **deferring** this until after the demo, on the grounds that `llm` served fine, nothing
+reads its NVML, and recreating it risked breaking the LLM five days before the meeting for ~zero
+functional gain. **Ishan's call was to do it now, in the quiet window** — Friday afternoon, everything
+green and committed, five clear days to recover if it wedged. Recorded because the reasoning matters
+more than the outcome: doing it now traded a small risk taken deliberately for the same risk arriving
+unmanaged on Wednesday morning.
+
+**Before:** `docker compose exec llm nvidia-smi` → **`Failed to initialize NVML: Unknown Error`**,
+container up **3 weeks**. A live completion was captured first, to have parity to compare against.
+
+**Recreated** with `docker compose up -d --no-deps --force-recreate llm` at 16:00:52. Healthy and
+serving at **16:08:05 — 7m13s**, faster than the ~10 minutes budgeted. **The unified-memory wedge risk
+did not materialise.**
+
+| Check | Before | After |
+|---|---|---|
+| `nvidia-smi` inside `llm` | 🔴 `Failed to initialize NVML: Unknown Error` | ✅ **`NVIDIA GB10, 580.159.03, 55C`** |
+| Live chat completion | ✅ 0.55 s, 49 total tokens | ✅ **1.06 s, 49 total tokens** — identical usage |
+| `GET /v1/models` | Nemotron-3-Nano-30B-A3B-FP8 | same model, reloaded |
+| `api` `/health` | `gpu_visible:true` | ✅ still `gpu_visible:true` |
+| All four containers | healthy | ✅ all healthy |
+| Host memory | — | 67 GB used / 121, **53 GB available** — no wedge |
+
+**The demo path was then verified end-to-end, not just the container.** `make rag` (the Phase 4 RAG
+advisory — the thing behind Option E's "Written rationale" tick and Option D's chat) ran clean:
+
+- `advisory_text_source: **llm_finalized**` — real model output, not a fallback
+- `llm_usage`: 1,993 prompt + **769 completion** tokens
+- 🔴 `numeric_metrics_generated_by: **optimizer_benchmark_not_llm**` — the narrate-never-calculate
+  guardrail holds
+- `prompt_injection_flags: []`
+- and the generated text quotes **81,789 / 0.8366 fill / 4.67 days / 70,451 total cost** — matching the
+  optimizer's own numbers measured earlier in this session, to the digit
+
+🔴 **The stale-NVML follow-up carried since 2026-08-20 is CLOSED.** Both `api` and `llm` now have
+healthy NVML handles for the first time since 2026-07-30.
+
+**And the checkpoint guardrail was re-run after the infra change rather than assumed.** Recreating
+`llm` should not be able to move an objective — the LLM narrates and never calculates — but "should
+not" is not a verification:
+
+| Re-run after recreating `llm` | Result |
+|---|---|
+| `make bench-all` | ✅ **all 12 objectives bit-identical**, checked programmatically against the recorded table — **0 mismatches** |
+| `make test` | ✅ **558 passed, 2 xpassed** (125.91s), both GPU probes `XPASS` |
+
+### Verified results summary
+
+| Item | Result |
+|---|---|
+| GPU (`api`) | `/health` `gpu_visible:true`, GPU probes **XPASS**, and the independent check — fresh-exec `torch.cuda.is_available()` **True** + real CUDA matmul + embeddings on `cuda:0` @ 768 dim |
+| `make test` | **558 passed, 2 xpassed** |
+| `make bench-all` | **all 12 objectives bit-identical** |
+| `make scenario-eval` | **29/29** |
+| `make web-test` | **108** |
+| `make web-check` | **38/38 PASS, 0 FAIL** |
+| §0.3 re-verification | 4 of 5 network probes reproduced exactly; **2 plan figures corrected** |
+| Probe cleanup | `data/scenarios/` and `data/generated/` back to exactly 4; `make cli-list` confirms |
+| `llm` recreated | ✅ NVML clean inside `llm`, live completion 1.06 s, healthy in 7m13s, no wedge |
+| `make rag` | ✅ `llm_finalized`, 769 completion tokens, `optimizer_benchmark_not_llm`, no injection flags |
+
+### Open follow-ups
+
+- 🔴 **The Option E screen recording** — human, this weekend. The demo fallback.
+- 🔴 **Read the Option E talk track out loud** — human, carried since Iteration 3.
+- ✅ **`llm` NVML — CLOSED this session** (§8). Stale since 2026-08-20; container recreated and
+  `nvidia-smi` now healthy inside it.
+- 🔴 **NVML detachment is irregular and unpredictable** (four on record; shortest gap 19 hours, and it
+  has held 2+ days since). Check `/health` for `gpu_visible:true` before
+  trusting any GPU-dependent result, and **immediately before the Wednesday demo.**
+- **Extend `web/e2e/dataset-view.check.mjs`** to screenshot all six 6a states, so the set is fully
+  reproducible.
+- **Eleven open questions for Ryan** (7 from Iteration 5, 4 from 6a). Wednesday is the last scheduled
+  chance. §4 of the plan orders them, §4.1 first.
+- **Phase 1 not started** — the network ledger, floors and honesty labels.
+
 
 ## 2026-08-20 (merge) — Iteration 6a MERGED to `main` as `ad17cc5`
 **Status:** **Merged on Ishan's explicit go.** `--no-ff`, matching the Iteration 5 convention so the

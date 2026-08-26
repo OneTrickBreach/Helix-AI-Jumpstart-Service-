@@ -2,7 +2,8 @@
 
 **From:** Ishan (AI Intern)
 **Date:** 2026-08-20
-**Status:** 🔴 **DRAFT — not sent.**
+**Status:** ✅ **SENT.** Reviewed by Ryan at the **2026-08-26** demo. Outcome: Iteration 6a accepted
+as-is.
 **Subject:** You asked for a custom scenario on 2026-08-19. It is on the box. Four questions.
 
 ---

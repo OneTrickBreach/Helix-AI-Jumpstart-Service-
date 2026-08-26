@@ -25,7 +25,7 @@ A suggested `.gitignore` is in **[§10](#10-repository-structure)**.
 6. [Data Elements & Pipeline](#6-data-elements--pipeline)
 7. [Use-Case / Opportunity Map](#7-use-case--opportunity-map)
 8. [Prototype Scope (depth over breadth)](#8-prototype-scope-depth-over-breadth)
-9. [Current Status — Iteration 5 (Beta) complete on the branch](#9-current-status--iteration-5-beta-complete-on-the-branch)
+9. [Current Status — sponsor-accepted through Iteration 6b; one open defect](#9-current-status--sponsor-accepted-through-iteration-6b-one-open-defect)
 10. [Repository Structure](#10-repository-structure)
 11. [Confirmed Kickoff Decisions](#11-confirmed-kickoff-decisions)
 12. [Honest Caveats & Guardrails (carry-forward)](#12-honest-caveats--guardrails-carry-forward)
@@ -207,27 +207,57 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 
 ---
 
-## 9. Current Status — Iteration 6a (custom scenario) complete on the branch
+## 9. Current Status — sponsor-accepted through Iteration 6b; one open defect
+
+> ### ✅ The sponsor reviewed the full product on 2026-08-26, is satisfied, and requested no changes.
+>
+> **Feature work on this engagement is closed.** Everything through **Iteration 6b** is built,
+> verified on-device, and accepted.
+>
+> 🔴 **One defect is outstanding, and it is the only remaining work:** the custom panel's **Save /
+> Save & run** buttons have no dirty-state tracking, so *Save* followed by *Save & run* errors with
+> *"already exists"*. Found live during the demo. **Frontend-only; no data loss, no incorrect
+> results.** Write-up and fix design:
+> [`docs/Known_Issue_Save_Run_Button_State.md`](docs/Known_Issue_Save_Run_Button_State.md).
+>
+> ⚠️ **"Accepted" is not "production-ready."** §12 stands in full, and the modelling finding below
+> was **parked, not resolved.**
 
 **Iteration 3** (demo/pilot-ready) merged 2026-07-27. **Iteration 4** (dataset transparency layer)
 merged to `main` 2026-08-03. **Iteration 5 (Beta)** — the conversational scenario/what-if analyst —
-merged to `main` 2026-08-05 (`bc42bb3`). **Iteration 6a — the custom scenario panel** — is
-**complete and verified on-device** on `feat/iteration6a-custom-scenario` (2026-08-20). Iteration 6b
-(custom dataset) is deferred on the sponsor's own sequencing; the production track is Iteration 7 in
-effect (see §13).
+merged to `main` 2026-08-05 (`bc42bb3`). **Iteration 6a — the custom scenario panel** — merged to
+`main` as `ad17cc5` (2026-08-20). **Iteration 6b — the custom dataset (network tier)** — complete
+2026-08-24 on `feat/iteration6b-custom-dataset`. The production track is Iteration 7 in effect
+(see §13).
 
 **Ryan reviewed the live demo on 2026-08-19** — his first look at Iterations 4 and 5. Outcome positive;
 the dataset view's **network map** was his favourite feature; the **chat bot is parked as-is**, so
 Iteration 5 keeps its visible **`BETA`** chip until he says otherwise. He asked for two things — a
-**custom scenario** and a **custom dataset** — and, told the dataset one looked hard, asked to see the
-scenario one first. **Iteration 6a is that ask, delivered in the week it was made.**
+**custom scenario** and a **custom dataset**. **6a and 6b are those two asks, both delivered inside
+the week, and both accepted at the 2026-08-26 demo.**
+
+🔴 **The most important thing Iteration 6b produced is not the panel — it is a modelling finding.**
+Building "just reduce a warehouse" measured that **removing a warehouse is free and a network with
+zero warehouses scores best on both cost and service**, because the routing optimizer has **no
+concept of a node**. **Ryan has parked this** — acknowledged, deliberately not funded for this
+engagement. It remains true of the code today. Anyone building a resilience, node-capacity or
+network-survivability feature must read
+[`docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+**first**.
 
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
 - `make demo` generates data, rebuilds the web UI, and prints the demo URLs (results, dataset, chat).
-- `make test` — **558 passed, 2 xpassed** (560 total). Web: **108 Vitest** (`make web-test`),
-  **38/38** browser checks (`make web-check`).
-- `make scenario-eval` — **29/29** validation cases (7 controls); `make scenario-ledger` prints what
-  each of the 59 settings can and cannot change.
+- `make test` — **633 passed, 5 skipped, 2 xpassed** (verified 2026-08-26). Web: **118 Vitest**
+  (`make web-test`); `make web-check` → **ALL CHECKS PASSED (91 PASS, 0 FAIL)**.
+  ⚠️ Older docs say *"50/50"* browser checks. That was a hand-maintained count and it drifted —
+  `dataset-view.check.mjs` keeps **no internal counter**, it just prints `PASS`/`FAIL` lines and a
+  final `ALL CHECKS PASSED`. Quote the script's own output, not a remembered total.
+  ⚠️ **The 5 skips are not a regression.** They are the box-global `clear_all` tests, which
+  *self-skip rather than delete custom scenarios a human saved on the box* — two demo leftovers
+  (`custom-test1`, `custom-test3`) are still present. **On a clean box: 638 passed + 2 xpassed.**
+  Read the skip line, not just the pass count.
+- `make scenario-eval` — **41/41** validation cases; `make scenario-ledger` prints what each of the
+  **67 settings across 8 groups** can and cannot change.
 - `make bench-all` runs all four scenarios through baseline, classical, PPO, and advisory RAG/LLM.
 - `make chat-eval` / `make redteam` / `make parse-eval` — the committed chat, red-team and parser
   evaluation sets (**31/31**, **27/27**, **35/35** against the real on-device model).
@@ -374,15 +404,21 @@ docs/
     AI_Jumpstart_MVP_Iteration4_handoff.md           # Iteration 4 — dataset transparency layer
     AI_Jumpstart_MVP_Iteration5_handoff.md           # Iteration 5 (Beta) — conversational analyst
     AI_Jumpstart_MVP_Iteration6a_handoff.md          # Iteration 6a — the custom scenario panel
-    Iteration6a_Ryan_Review_Packet.md                # Iteration 6a review packet (four open questions)
-    Iteration5_Ryan_Review_Packet.md                 # draft review packet for Ryan (NOT sent)
-    screenshots/iteration4/, screenshots/iteration5/ # committed UI evidence
+    AI_Jumpstart_MVP_Iteration6b_handoff.md          # Iteration 6b — the custom dataset (network tier)
+    Modelling_Finding_The_Optimizer_Has_No_Node.md   # 🔴 READ FIRST before any resilience feature (parked by Ryan)
+    Iteration6b_Ryan_Review_Packet.md                # Iteration 6b review packet (SENT; reviewed 2026-08-26)
+    Iteration6a_Ryan_Review_Packet.md                # Iteration 6a review packet (SENT; reviewed 2026-08-26)
+    Iteration6b_Phase0_Human_Handover.md             # the two human-only Phase 0 items (closed as overtaken)
+    Iteration5_Ryan_Review_Packet.md                 # draft review packet for Ryan (NOT sent — superseded by the live demo)
+    screenshots/iteration4/, iteration6a/, iteration6b/ # committed UI evidence
   Iteration2_Plan_of_Action.md                       # Iteration 2 build blueprint (phases 0–6)
   Iteration2_Point3_Scaffolding_Response_to_Ryan.md  # Iteration 2 model/tool rationale
   Iteration3_Plan_of_Action.md                       # Iteration 3 build blueprint (phases 0–7)
   Iteration4_Plan_of_Action.md                       # Iteration 4 build blueprint
   Iteration5_Plan_of_Action.md                       # Iteration 5 build blueprint (phases 0–6)
   Iteration6a_Plan_of_Action.md                      # Iteration 6a build blueprint (phases 0–5)
+  Iteration6b_Plan_of_Action.md                      # Iteration 6b build blueprint (phases 0–5)
+  Known_Issue_Save_Run_Button_State.md               # 🔴 the one open defect — write-up and fix design
   DEMO_GUIDE.md                                      # step-by-step demo walkthrough (Options A–E)
   containerization.md                                # current arm64/four-service stack notes
   handoff.md                                         # quick-start commands and on-device caveats
@@ -509,7 +545,7 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ```bash
 make up                        # build + start all four arm64 services
-make test                      # 558 passed + 2 xpassed (560 total)
+make test                      # 633 passed, 5 skipped, 2 xpassed (638 + 2 on a clean box — see §9)
 make demo                      # generate data, rebuild web, print every demo URL
 ```
 
@@ -525,8 +561,8 @@ make run SCENARIO=baseline     # single scenario end-to-end
 make scale-study               # run the 6-level scale study
 make rag SCENARIO=...          # RAG advisory for a single scenario
 make cli SCENARIO=...          # thin CLI over the same API
-make web-test                  # 108 Vitest tests from the committed lockfile
-make web-check                 # 26 headless-Chromium checks (needs the stack up)
+make web-test                  # 118 Vitest tests from the committed lockfile
+make web-check                 # headless-Chromium checks, 91 PASS / 0 FAIL (needs the stack up)
 ```
 
 **Iteration 5 (BETA) chat commands:**
@@ -556,15 +592,24 @@ docs called "Iteration 4 = production" is now **Iteration 7** in effect:
 | 3 | Productization, demo polish, honest RL fair-shot | ✅ Done (`main`, 2026-07-27) |
 | 4 | **Dataset transparency layer** — a read-only "Know Your Data" view so a viewer can see the dataset a result ran on | ✅ Done (`main`, 2026-08-03) — **reviewed 2026-08-19; the network map was Ryan's favourite feature** |
 | **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Done (`main`, 2026-08-05) — **reviewed 2026-08-19 and parked as-is; the `BETA` chip stays until Ryan says otherwise** |
-| **6a** | **Custom scenario** — a control panel over the 59 settings that define a scenario (8 grouped Simple controls, all 59 in Advanced), a real run on whatever you build, and save / load / delete / clear-all | ✅ Done (`feat/iteration6a-custom-scenario`, 2026-08-20) — **merge is Ryan's call** |
-| 6b | **Custom dataset** — the `network:` block as controls plus row-level entity editing ("just remove a warehouse"), cascade and feasibility validation | ⏳ Deferred on Ryan's own sequencing, **not dropped** |
-| 7 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, cross-scenario comparison and persistent transcripts. | ⏳ Not started |
+| **6a** | **Custom scenario** — a control panel over the settings that define a scenario, a real run on whatever you build, and save / load / delete / clear-all | ✅ Done (`main` @ `ad17cc5`, 2026-08-20) — **reviewed 2026-08-26 and accepted as-is** |
+| **6b** | **Custom dataset** — the `network:` block as eight controls ("just remove a warehouse"), two labelled honesty classes, comparability guardrails, and the modelling finding that fell out of building it | ✅ Done (2026-08-24) — **reviewed 2026-08-26 and accepted as-is; the modelling finding was parked** |
+| — | 🔴 **Open defect** — Save / Save & run button state in the custom panel | 🔧 **The only outstanding work.** [Write-up](docs/Known_Issue_Save_Run_Button_State.md) |
+| 7 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, cross-scenario comparison, persistent transcripts, and 🔴 **the multi-echelon LP question parked at the 2026-08-26 demo**. | ⏳ Not started |
 
-**If continuing development:** read [`docs/Iteration6a_Plan_of_Action.md`](docs/Iteration6a_Plan_of_Action.md)
-for the current build and [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4
-for the honest gap between this demo/pilot-ready prototype and a shippable product. **Iteration 6b**
-(custom dataset) is the next feature; the production track is where real customer-data onboarding,
-hardening, multi-tenant isolation, licensing, and packaging land. Start from
+**If continuing development, read these three first**, in this order:
+
+1. 🔴 [`docs/Known_Issue_Save_Run_Button_State.md`](docs/Known_Issue_Save_Run_Button_State.md) — the
+   one open defect, with the fix already designed.
+2. 🔴 [`docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+   — parked by the sponsor, still true, and it invalidates any resilience feature built in ignorance
+   of it.
+3. [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4 — the honest gap
+   between this demo/pilot-ready prototype and a shippable product.
+
+Then [`docs/Iteration6b_Plan_of_Action.md`](docs/Iteration6b_Plan_of_Action.md) for how the most
+recent build was structured. The production track is where real customer-data onboarding, hardening,
+multi-tenant isolation, licensing, and packaging land. Start from
 [`docs/DEVELOPMENT_JOURNAL.md`](docs/DEVELOPMENT_JOURNAL.md) — the snapshot at the top says exactly
 where things stand, and each phase entry records the defects found and how.
 

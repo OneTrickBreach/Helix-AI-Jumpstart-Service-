@@ -336,6 +336,15 @@ def test_every_numeric_setting_declares_a_range():
     assert not missing, f"numeric settings with no declared range: {missing}"
 
 
+#: Iteration 6b: the network tier refuses out-of-bounds counts with its own codes,
+#: because decision 4 requires the *measured reason* in the sentence rather than a
+#: generic "below the minimum of 1". Both spellings are a refusal; this test cares
+#: that the bound is enforced, not which wording enforced it.
+_BELOW_CODES = {"below_minimum", "network_count_below_floor",
+                "network_zero_distribution_centers", "network_zero_suppliers"}
+_ABOVE_CODES = {"above_maximum", "network_count_above_ceiling"}
+
+
 def test_each_settings_own_bounds_are_accepted_and_just_outside_is_refused():
     """Exercises every numeric setting's declared range, not a sampled few."""
     for setting in SETTINGS:
@@ -348,8 +357,8 @@ def test_each_settings_own_bounds_are_accepted_and_just_outside_is_refused():
         step = 1 if setting.kind == "int" else 0.5
         below = validate_overrides({setting.key: low - step})
         above = validate_overrides({setting.key: high + step})
-        assert "below_minimum" in [item.code for item in below.refusals], setting.key
-        assert "above_maximum" in [item.code for item in above.refusals], setting.key
+        assert _BELOW_CODES & {item.code for item in below.refusals}, setting.key
+        assert _ABOVE_CODES & {item.code for item in above.refusals}, setting.key
 
 
 def test_all_refusals_are_reported_not_just_the_first():
@@ -357,12 +366,14 @@ def test_all_refusals_are_reported_not_just_the_first():
     result = validate_overrides({
         "capacity.capacity_tightness": 99.0,
         "service_targets.fill_rate_target": -1.0,
-        "network.plants": 4,
+        # Iteration 6b: `network.plants: 4` is valid now, so this uses the value
+        # that is still refused — zero, which raises ZeroDivisionError.
+        "network.plants": 0,
         "not.a.setting": 1,
     })
     assert len(result.refusals) == 4
     assert {item.code for item in result.refusals} == {
-        "above_maximum", "below_minimum", "network_setting_out_of_scope", "unknown_setting",
+        "above_maximum", "below_minimum", "network_count_below_floor", "unknown_setting",
     }
 
 
@@ -492,12 +503,14 @@ def test_the_settings_endpoint_serves_the_whole_honest_ledger(monkeypatch):
     response = client.get("/scenarios/custom/settings", headers=_headers())
     assert response.status_code == 200
     data = response.json()["data"]
-    assert len(data["settings"]) == 59
+    # Iteration 6b added the 8 network counts: 59 + 8 = 67, and
+    # network.lines_per_plant makes the cannot-change block 16.
+    assert len(data["settings"]) == 67
     assert len(data["simple_controls"]) == 8
-    assert data["ledger"]["cannot_change_the_answer"] == 15
+    assert data["ledger"]["cannot_change_the_answer"] == 16
     # Decision 15: the UI is handed the list, so the labelling cannot be forgotten
     # on the front end.
-    assert data["cannot_change_the_answer"]["count"] == 15
+    assert data["cannot_change_the_answer"]["count"] == 16
     assert data["cannot_change_the_answer"]["heading"] == (
         "recorded in the dataset, not read by the optimizer"
     )

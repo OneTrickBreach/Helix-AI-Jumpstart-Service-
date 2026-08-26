@@ -40,6 +40,7 @@ from src.scenario.run_card import (
     ScenarioMissing,
     build_run_card,
     load_config_for,
+    comparability_warnings,
     reachability_warnings,
 )
 from src.scenario.store import (
@@ -51,7 +52,7 @@ from src.scenario.store import (
     save as save_custom_scenario,
 )
 from src.scenario.synthesize import CANONICAL_SCENARIOS
-from src.scenario.validate import capacity_reachability
+from src.scenario.validate import capacity_reachability, network_comparability
 
 
 router = APIRouter(dependencies=[Depends(require_api_key)])
@@ -298,14 +299,23 @@ def _run_scenario_comparison(
         config = load_config_for(req.scenario)
     except (ScenarioMissing, StoreError, OSError):
         config = None
+    sizing: dict[str, Any] | None = None
     if config is not None:
         reachability = capacity_reachability(config)
-        warnings = reachability_warnings(config, reachability=reachability)
+        # 🔴 6b guardrail 4: a resized network produces a different quantity, not a
+        # better plan. Labelled here, after the run, because this is the moment the
+        # lower number is actually on screen.
+        sizing = network_comparability(config)
+        warnings = [
+            *reachability_warnings(config, reachability=reachability),
+            *comparability_warnings(config, sizing=sizing),
+        ]
 
     return {
         "benchmark": benchmark_result,
         "rationale": rationale,
         "capacity_reachability": reachability,
+        "network_comparability": sizing,
         "warnings": warnings,
         # What actually ran, stated in the payload. A reader should never have to
         # infer from a missing key whether PPO was excluded or merely lost.

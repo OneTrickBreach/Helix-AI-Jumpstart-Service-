@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   advancedLayout,
+  networkLayout,
   annotateChanges,
   capacityWarning,
   changeLabel,
@@ -76,7 +77,15 @@ const SCHEMA: CustomSettingsPayload = {
   reach_labels: {},
   ledger: {},
   cannot_change_the_answer: { heading: INERT_LABEL, settings: [], count: 2 },
-  excluded_from_6a: { keys: ["network.*"], reason: "" },
+  network_tier: {
+    group: "network",
+    keys: [],
+    reason: "",
+    answer_class_labels: {},
+    classes: {},
+    not_comparable_note: "",
+    not_comparable_keys: [],
+  },
 };
 
 describe("naming", () => {
@@ -345,5 +354,167 @@ describe("the estimate wording", () => {
   it("switches to minutes past a minute", () => {
     expect(formatSeconds(95)).toBe("about 1 min 35 s");
     expect(formatSeconds(120)).toBe("about 2 min");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Iteration 6b Phase 3 — the network tier is rendered now. These replace the
+// Phase 1 gate tests, which asserted the opposite while the honesty labels did
+// not exist yet.
+// ---------------------------------------------------------------------------
+
+describe("the network tier in the form", () => {
+  const NETWORK_SETTINGS: SettingSpec[] = [
+    setting({
+      key: "network.distribution_centers",
+      label: "Distribution centers (warehouses)",
+      kind: "int",
+      minimum: 1,
+      maximum: 20,
+      answer_class: "changes_network_shape",
+      answer_class_label: "…this is NOT a resilience test.",
+      comparable_to_baseline: true,
+    }),
+    setting({
+      key: "network.customers",
+      label: "Customers",
+      kind: "int",
+      minimum: 1,
+      maximum: 60,
+      answer_class: "changes_problem_size",
+      answer_class_label: "…never against the recorded baseline.",
+      comparable_to_baseline: false,
+    }),
+    setting({
+      key: "network.lines_per_plant",
+      label: "Production lines per plant",
+      kind: "int",
+      minimum: 0,
+      maximum: 20,
+      reach: "recorded_not_read",
+      reach_label: INERT_LABEL,
+      reaches_optimizer: false,
+    }),
+  ];
+
+  const withNetwork: CustomSettingsPayload = {
+    ...SCHEMA,
+    groups: ["network", "capacity", "demand", "service_targets"],
+    settings: [...SETTINGS, ...NETWORK_SETTINGS],
+    network_tier: {
+      group: "network",
+      keys: [
+        "network.distribution_centers",
+        "network.customers",
+        "network.lines_per_plant",
+      ],
+      reason: "IDs are positional, so reducing a count removes the LAST entity.",
+      answer_class_labels: {
+        changes_network_shape: "…this is NOT a resilience test.",
+        changes_problem_size: "…never against the recorded baseline.",
+      },
+      classes: {
+        changes_network_shape: ["network.distribution_centers"],
+        changes_problem_size: ["network.customers"],
+      },
+      not_comparable_note: "…not better or worse than 81,789.36.",
+      not_comparable_keys: ["network.customers"],
+    },
+  };
+
+  it("splits the counts into the two honesty classes, taking the split from the payload", () => {
+    const layout = networkLayout(withNetwork);
+    expect(layout.classes.map((entry) => entry.answerClass).sort()).toEqual([
+      "changes_network_shape",
+      "changes_problem_size",
+    ]);
+    const shape = layout.classes.find((e) => e.answerClass === "changes_network_shape");
+    const size = layout.classes.find((e) => e.answerClass === "changes_problem_size");
+    expect(shape?.settings.map((s) => s.key)).toEqual(["network.distribution_centers"]);
+    expect(size?.settings.map((s) => s.key)).toEqual(["network.customers"]);
+  });
+
+  it("carries each class's label rather than inventing wording in the form", () => {
+    const layout = networkLayout(withNetwork);
+    expect(layout.classes.find((e) => e.answerClass === "changes_network_shape")?.label).toContain(
+      "NOT a resilience test",
+    );
+    expect(layout.classes.find((e) => e.answerClass === "changes_problem_size")?.label).toContain(
+      "never against the recorded baseline",
+    );
+  });
+
+  it("never offers the inert count as a live network control (decision 7)", () => {
+    const layout = networkLayout(withNetwork);
+    const live = layout.classes.flatMap((entry) => entry.settings).map((s) => s.key);
+    expect(live).not.toContain("network.lines_per_plant");
+    expect(layout.inert.map((s) => s.key)).toEqual(["network.lines_per_plant"]);
+  });
+
+  it("still shows the inert count under Advanced's cannot-change heading", () => {
+    const layout = advancedLayout(withNetwork);
+    expect(layout.cannotChange.map((s) => s.key)).toContain("network.lines_per_plant");
+  });
+
+  it("no longer gates the network group out of Advanced — Phase 1's gate is gone", () => {
+    const layout = advancedLayout(withNetwork);
+    expect(layout.groups.map((entry) => entry.group)).toContain("network");
+    const live = layout.groups.flatMap((entry) => entry.settings).map((s) => s.key);
+    expect(live).toContain("network.distribution_centers");
+    expect(live).toContain("network.customers");
+  });
+
+  it("degrades safely when the server sends no network tier at all", () => {
+    const layout = networkLayout(SCHEMA);
+    expect(layout.classes).toEqual([]);
+    expect(layout.inert).toEqual([]);
+    expect(layout.reason).toBe("");
+  });
+
+  it("keeps a count typeable below its floor so the refusal stays reachable", () => {
+    // Decision 4: typing 0 is how a planner reaches the measured explanation.
+    // `coerceSetting` must not clamp it to the minimum.
+    const dcs = NETWORK_SETTINGS[0];
+    expect(coerceSetting(dcs, "0")).toBe(0);
+    expect(coerceSetting(dcs, "999")).toBe(999);
+    // ...and it rounds, because a count is a whole number.
+    expect(coerceSetting(dcs, "2.6")).toBe(3);
+  });
+});
+
+describe("the sticky footer summary does not repeat a long refusal", () => {
+  const long =
+    "A network with no distribution centers has no lane by which a finished good can reach a " +
+    "customer — and this prototype does not notice. Measured: it scores 68,565.25 at 92.01% fill, " +
+    "which is better than baseline on BOTH counts. That is a limit of the model.";
+
+  it("summarises by count when the single refusal is long", () => {
+    const display = validationDisplay({
+      ok: false,
+      refusals: [{ code: "network_zero_distribution_centers", message: long }],
+      warnings: [],
+    });
+    expect(display.summary).not.toBe(long);
+    expect(display.summary).toContain("1 thing needs fixing");
+    expect(display.summary).toContain("see the reason above");
+    // The full text is still available — it renders in the refusal list.
+    expect(display.refusals[0].message).toBe(long);
+    expect(display.blocking).toBe(true);
+  });
+
+  it("still echoes a short refusal verbatim, which is 6a's useful behaviour", () => {
+    const short = "Give the scenario a name — for example 'q3-surge'.";
+    const display = validationDisplay({ ok: false, refusals: [{ code: "name_empty", message: short }], warnings: [] });
+    expect(display.summary).toBe(short);
+  });
+
+  it("applies the same rule to a lone long warning", () => {
+    const display = validationDisplay({
+      ok: true,
+      refusals: [],
+      warnings: [{ code: "resized_network_not_comparable", message: long }],
+    });
+    expect(display.summary).toContain("1 thing is worth knowing");
+    expect(display.summary).not.toBe(long);
   });
 });
