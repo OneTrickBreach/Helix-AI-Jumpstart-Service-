@@ -739,12 +739,19 @@ async function askStarter(page, question, timeout = 90000) {
   await page.waitForSelector(PANEL, { timeout: 15000 });
   const savedBefore = await page.locator('[data-testid="custom-saved-list"] li').count();
   await page.click(`[aria-label="Delete custom-${SLUG}"]`);
+  // 60s, not 20s: observed timing out here exactly once, on the run immediately
+  // after `make web` recreated the `api` container, and passing on three other runs
+  // against a warm one. A delete removes the config, the generated data, the
+  // recorded artifact AND the vector-store collection, so a cold container has real
+  // work to do on its first call. Widening the tolerance for a slow-but-correct
+  // delete — this is not masking a failed assertion; the assertions below still run
+  // unchanged and still have to hold.
   await page.waitForFunction(
     (expected) =>
       document.querySelectorAll('[data-testid="custom-saved-list"] li').length < expected ||
       document.querySelectorAll('[data-testid="custom-saved-list"]').length === 0,
     savedBefore,
-    { timeout: 20000 },
+    { timeout: 60000 },
   );
   const notice = await page.locator('[data-testid="custom-notice"]').innerText().catch(() => "");
   await page.click(`${PANEL} [aria-label="Close custom scenario panel"]`);
@@ -1216,6 +1223,147 @@ async function askStarter(page, question, timeout = 90000) {
     `${deletedOk ? "PASS" : "FAIL"} both panel-built network datasets deleted, recorded four intact ` +
     `saved=${savedBefore}->${savedAfter} recordedIntact=${options.filter((t) => !t.includes("custom")).length >= 4}`
   );
+
+  await context.close();
+}
+
+// ---------------------------------------------------------------------------
+// 🔴 The realistic multi-step session — Save / Save & run button state.
+//
+// This check exists because the defect it covers was found by the sponsor during
+// a live demo, not by this suite. Every other custom-scenario check here performs
+// ONE action and asserts the outcome, so all of them passed while the most obvious
+// two-click sequence in the panel — Save, then Save & run — errored with
+// "already exists": the panel had no idea it had just saved.
+//
+// Rule for anyone extending this file: at least one check must move through the
+// panel the way a person does, several steps deep, not one action at a time.
+// ---------------------------------------------------------------------------
+{
+  const context = await browser.newContext({ viewport: VIEWPORTS.desktop, deviceScaleFactor: 1 });
+  const page = await context.newPage();
+  const errs = [];
+  page.on("console", (m) => { if (m.type() === "error") errs.push(m.text()); });
+  page.on("pageerror", (e) => errs.push(`pageerror: ${e.message}`));
+
+  const SLUG = `seq${Math.random().toString(36).slice(2, 8)}`;
+  const NAME = `custom-${SLUG}`;
+  const PANEL = '[data-testid="custom-panel"]';
+
+  const state = async () => ({
+    saveEnabled: await page.locator('[data-testid="custom-save"]').isEnabled().catch(() => false),
+    saveLabel: (await page.locator('[data-testid="custom-save"]').innerText().catch(() => "")).trim(),
+    saveRun: await page.locator('[data-testid="custom-save-run"]').count(),
+    run: await page.locator('[data-testid="custom-run"]').count(),
+  });
+  const panelSays = async (re) =>
+    re.test(await page.locator(PANEL).innerText().catch(() => ""));
+
+  await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
+  await page.selectOption('[data-testid="scenario-select"]', "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 20000 });
+
+  // --- 1. Unsaved edits: Save is offered, and the primary saves AND runs ----
+  await page.fill('[data-testid="custom-name"]', SLUG);
+  await page.fill('[data-testid="simple-demand_level"] input', "52");
+  await page.waitForFunction(
+    () => {
+      const b = document.querySelector('[data-testid="custom-save"]');
+      return b && !b.disabled;
+    },
+    null,
+    { timeout: 30000 },
+  ).catch(() => {});
+  const dirty = await state();
+  const dirtyOk = dirty.saveEnabled && dirty.saveRun === 1 && dirty.run === 0;
+  if (!dirtyOk) failures++;
+  console.log(
+    `${dirtyOk ? "PASS" : "FAIL"} unsaved edits offer Save and Save & run ` +
+    `saveEnabled=${dirty.saveEnabled} saveRunShown=${dirty.saveRun === 1} runShown=${dirty.run === 1}`
+  );
+
+  // --- 2. 🔴 Click SAVE ONLY. This is the click that used to poison the next
+  //         one. Save must grey out and the primary must become a plain Run.
+  await page.click('[data-testid="custom-save"]');
+  await page.waitForSelector('[data-testid="custom-run"]', { timeout: 60000 }).catch(() => {});
+  const clean = await state();
+  const cleanOk =
+    !clean.saveEnabled && /saved/i.test(clean.saveLabel) &&
+    clean.run === 1 && clean.saveRun === 0 && !(await panelSays(/already exists/i));
+  if (!cleanOk) failures++;
+  console.log(
+    `${cleanOk ? "PASS" : "FAIL"} after Save the pair flips: Save greys out, primary becomes Run ` +
+    `saveDisabled=${!clean.saveEnabled} saveLabel="${clean.saveLabel}" ` +
+    `runShown=${clean.run === 1} saveRunGone=${clean.saveRun === 0}`
+  );
+
+  // --- 3. Edit again: the pair must flip BACK ------------------------------
+  await page.fill('[data-testid="simple-demand_level"] input', "48");
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="custom-save-run"]') !== null,
+    null,
+    { timeout: 30000 },
+  ).catch(() => {});
+  const redirty = await state();
+  const redirtyOk = redirty.saveEnabled && redirty.saveRun === 1 && redirty.run === 0;
+  if (!redirtyOk) failures++;
+  console.log(
+    `${redirtyOk ? "PASS" : "FAIL"} editing after a save re-enables Save and restores Save & run ` +
+    `saveEnabled=${redirty.saveEnabled} saveRunBack=${redirty.saveRun === 1} runGone=${redirty.run === 0}`
+  );
+
+  // --- 4. 🔴 THE REPORTED SEQUENCE. Save & run under the SAME name, after an
+  //         edit. Must overwrite this session's own scenario, not collide.
+  await page.click('[data-testid="custom-save-run"]');
+  await page.waitForSelector('[data-testid="custom-result-banner"]', { timeout: 180000 })
+    .catch(() => {});
+  const banner = await page.locator('[data-testid="custom-result-banner"]').innerText()
+    .catch(() => "");
+  const body = await page.locator("body").innerText();
+  const overwriteOk =
+    banner.includes(NAME) && !/already exists/i.test(body) && errs.length === 0;
+  if (!overwriteOk) failures++;
+  console.log(
+    `${overwriteOk ? "PASS" : "FAIL"} Save & run after an edit overwrites its own scenario ` +
+    `named=${banner.includes(NAME)} noCollision=${!/already exists/i.test(body)} errors=${errs.length}`
+  );
+  if (errs.length) console.log("   errors:", errs.slice(0, 3));
+
+  // --- 5. 🔴 Decision 14 regression. Closing the panel ends the session, so the
+  //         next one has no claim on that name and must still be refused. This is
+  //         the guard the fix NARROWS rather than removes: it protects names this
+  //         session did not create.
+  await page.selectOption('[data-testid="scenario-select"]', "__custom__");
+  await page.waitForSelector(PANEL, { timeout: 20000 });
+  await page.fill('[data-testid="custom-name"]', SLUG);
+  await page.fill('[data-testid="simple-demand_level"] input', "44");
+  await page.waitForFunction(
+    () => {
+      const b = document.querySelector('[data-testid="custom-save"]');
+      return b && !b.disabled;
+    },
+    null,
+    { timeout: 30000 },
+  ).catch(() => {});
+  await page.click('[data-testid="custom-save"]');
+  await page.waitForFunction(
+    () => /already exists/i.test(document.body.innerText),
+    null,
+    { timeout: 30000 },
+  ).catch(() => {});
+  const refusedOk = await panelSays(/already exists/i);
+  if (!refusedOk) failures++;
+  console.log(
+    `${refusedOk ? "PASS" : "FAIL"} a name THIS session did not create is still refused (decision 14) ` +
+    `refused=${refusedOk}`
+  );
+
+  // Clean up after ourselves: this check saves for real, on a box-global store.
+  const cleanup = await page.evaluate(async (n) => {
+    const r = await fetch(`/api/scenarios/custom/${n}`, { method: "DELETE" });
+    return r.status;
+  }, SLUG);
+  console.log(`     (cleanup: deleted ${NAME} -> ${cleanup})`);
 
   await context.close();
 }

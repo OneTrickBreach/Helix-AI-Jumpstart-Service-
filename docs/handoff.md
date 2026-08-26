@@ -1,26 +1,26 @@
 # Helix AI Jumpstart — Handoff Reference
 
-> ## ✅ Sponsor-accepted, feature-complete. One open defect.
+> ## ✅ Sponsor-accepted and feature-complete. No known open defect.
 >
 > **Ryan reviewed the full product live on 2026-08-26 and is satisfied. He requested no changes.**
 > Every iteration through **6b** is built, verified on-device and accepted. Feature work on this
 > engagement is **closed**.
 >
-> 🔴 **One defect remains, and it is the only outstanding work:** the custom panel's
-> **Save / Save & run** buttons have no dirty-state tracking, so clicking *Save* and then
-> *Save & run* errors with *"already exists"*. Found live at the demo. Frontend-only; no data loss,
-> no wrong results. **Full write-up and fix design:**
+> The one defect found live at that demo — the custom panel's **Save / Save & run** buttons having no
+> dirty-state tracking, so *Save* then *Save & run* errored with *"already exists"* — was **fixed,
+> tested and merged the same day**. Write-up, worth reading for *why a green suite missed it*:
 > [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
-> Branch: `fix/custom-panel-save-run-state`.
 >
 > **Verified on-device 2026-08-26:** `make test` → **633 passed, 5 skipped, 2 xpassed**. Web:
-> **118 Vitest**, and `make web-check` → **ALL CHECKS PASSED (91 PASS, 0 FAIL)**. Tuned classical still wins all four scenarios,
+> **130 Vitest**, **55/55** browser checks. Tuned classical still wins all four scenarios,
 > bit-identical.
 >
 > ⚠️ **On that "5 skipped".** They are the box-global `clear_all` tests, which *self-skip rather than
 > delete real saved scenarios* a human left on the box — and two demo leftovers (`custom-test1`,
-> `custom-test3`) are still there. **On a clean box the count is 638 passed + 2 xpassed.** The number
-> is environment-dependent by design; read the skip line, not just the pass count.
+> `custom-test3`) are still there. Delete those and the 5 should run, giving the **638 passed** older
+> docs quote — that is `633 + 5`, arithmetic rather than a fresh measurement, and it is flagged as
+> such because nobody has re-run it on a clean box. The number is environment-dependent by design;
+> read the skip line, not just the pass count.
 >
 > **"Accepted" is not "production-ready."** §12 of the README and *Known limits* below still stand,
 > and the modelling finding at
@@ -37,8 +37,8 @@ make test                     # full regression suite (633 passed + 5 skipped + 
 make demo                     # generate data, rebuild web, print every demo URL
 make bench-all                # all four scenarios → benchmark/suite-summary.{json,md}
 make run SCENARIO=baseline    # single scenario end-to-end plan + metrics
-make web-test                 # 118 Vitest tests, run from the committed lockfile
-make web-check                # headless-Chromium checks against the running stack (91 PASS, 0 FAIL)
+make web-test                 # 130 Vitest tests, run from the committed lockfile
+make web-check                # 55 headless-Chromium checks against the running stack
 ```
 
 Open **`http://localhost:8081`** for the planner UI. Pick a scenario and run it. The **Before**
@@ -226,13 +226,18 @@ or days of inventory at all · `network.lines_per_plant` is **inert** and labell
 network is **not comparable** to the recorded baseline and says so on every surface · 🔴 **the
 optimizer has no node** (parked by Ryan — see the modelling finding).
 
-🔴 **OPEN DEFECT — Save / Save & run button state.** The only outstanding work on the project.
+**Save / Save & run button state** — found live at the demo, fixed and merged the same day. The
+panel now tracks dirty state: `Save` greys out and reads *Saved* when the form matches disk, and the
+primary button becomes a plain **Run**. `overwrite` is sent **only** for a name the current panel
+session created, so decision 14 still refuses to replace a scenario someone else built.
 [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
 
 🔴 **The test suite proves features work; it does not prove a human moving through them in a natural
 order has a coherent experience.** Two defects in three days escaped a fully green suite for exactly
-that reason — the 2026-08-24 naming fix and the 2026-08-26 save/run defect. **A browser check that
-performs one realistic multi-step session is the highest-value test improvement available.**
+that reason — the 2026-08-24 naming fix and the 2026-08-26 save/run defect. `web-check` now has
+**five checks driving one multi-step session** and a comment stating the rule, but the panel still
+has no coverage of closing and reopening mid-build, and no check drives the dataset-view entry
+through a full save/edit/run cycle. **Both are plausible homes for the next defect of this shape.**
 
 
 - 🔴 **Lane capacity reaches the optimizer at exactly one period** — `state.horizon()` =
@@ -260,7 +265,7 @@ performs one realistic multi-step session is the highest-value test improvement 
 
 - [`DEMO_GUIDE.md`](DEMO_GUIDE.md) — full demo walkthrough with talk tracks (Options A–E)
 - [`DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) — chronological truth ledger
-- [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md) — 🔴 **the one open defect**
+- [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md) — the save/run defect, and 🔴 **why a green suite missed it**
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md) — **Iteration 6b handoff — current**
 - [`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) — 🔴 **read before any resilience feature**
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md) — Iteration 6a handoff

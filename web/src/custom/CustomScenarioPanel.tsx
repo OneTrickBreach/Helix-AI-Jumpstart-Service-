@@ -44,6 +44,7 @@ import {
   otherWarnings,
   networkLayout,
   releaseSimpleControl,
+  savedFingerprint,
   scenarioNameFor,
   simpleControlOverridden,
   validationDisplay,
@@ -106,11 +107,28 @@ export default function CustomScenarioPanel({
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const debounce = useRef<number | null>(null);
+  /**
+   * What this panel last wrote to disk, and the exact form state that produced it.
+   * Its absence is what "unsaved" means; comparing its fingerprint to the current
+   * form is what tells an edited form from an untouched one.
+   */
+  const [lastSaved, setLastSaved] = useState<{ scenario: string; fingerprint: string } | null>(null);
+  /**
+   * Every name THIS panel session has saved. The overwrite decision reads this, not
+   * `lastSaved`, so that saving `a`, then `b`, then going back to `a` still counts
+   * as overwriting your own work rather than clobbering a stranger's.
+   */
+  const [sessionSaved, setSessionSaved] = useState<string[]>([]);
 
-  const refreshSaved = useCallback(() => {
-    fetchSavedScenarios()
-      .then(setSaved)
-      .catch(() => setSaved([]));
+  const refreshSaved = useCallback(async () => {
+    try {
+      const list = await fetchSavedScenarios();
+      setSaved(list);
+      return list;
+    } catch {
+      setSaved([]);
+      return [] as SavedScenario[];
+    }
   }, []);
 
   useEffect(() => {
@@ -174,7 +192,30 @@ export default function CustomScenarioPanel({
     [preview, schema],
   );
   const targetName = scenarioNameFor(name, schema?.name_rules.prefix ?? "custom-");
-  const canSave = Boolean(name.trim()) && validation.ok && !busy;
+
+  /** What a save would write right now, as one comparable string. */
+  const fingerprint = useMemo(
+    () => savedFingerprint({ name, description, simple, overrides, seed }),
+    [name, description, simple, overrides, seed],
+  );
+
+  /**
+   * "Clean" — this exact form is already on disk, so there is nothing to save and
+   * the only sensible action is to run it.
+   *
+   * Gated on the scenario still being in the saved list as well as on the
+   * fingerprint, because deleting it from the list a few centimetres above these
+   * buttons would otherwise leave a Run button pointing at nothing.
+   */
+  const isClean = Boolean(
+    lastSaved &&
+      lastSaved.fingerprint === fingerprint &&
+      saved.some((item) => item.scenario === lastSaved.scenario),
+  );
+
+  // Nothing to save when the form is already on disk. This is what greys Save out
+  // after a save and un-greys it on the next edit.
+  const canSave = Boolean(name.trim()) && validation.ok && !busy && !isClean;
 
   const request = (): CustomScenarioRequest => ({
     name: name.trim(),
@@ -184,6 +225,16 @@ export default function CustomScenarioPanel({
     description: description.trim() || null,
     include_ppo: includePpo,
     include_rationale: includeRationale,
+    /**
+     * Only ever true for a name this session created.
+     *
+     * Storage is box-global (decision 14), so replacing a scenario someone else on
+     * the box built must still be refused — that guard is correct and stays. What
+     * changes is its scope: it now protects names this session did *not* create,
+     * instead of protecting the planner from their own work of ten seconds ago.
+     * See `src/api/pipeline.py:170-173`.
+     */
+    overwrite: sessionSaved.includes(targetName),
   });
 
   async function handleSave(runAfter: boolean) {
@@ -192,10 +243,16 @@ export default function CustomScenarioPanel({
     setNotice(null);
     try {
       const result = await saveCustomScenario(request());
-      setNotice(
-        `Saved as ${result.scenario}. It is now in the scenario dropdown.`,
+      setNotice(`Saved as ${result.scenario}. It is now in the scenario dropdown.`);
+      // Awaited before `lastSaved` is set, so the first render that knows about the
+      // save also has the scenario in `saved`. The other order leaves `isClean`
+      // briefly false with `lastSaved` already set, which swaps the primary button
+      // to "Save & run" and back for one frame.
+      await refreshSaved();
+      setSessionSaved((names) =>
+        names.includes(result.scenario) ? names : [...names, result.scenario],
       );
-      refreshSaved();
+      setLastSaved({ scenario: result.scenario, fingerprint });
       onSavedSetChanged();
       if (runAfter) onRun(result.scenario);
     } catch (err: unknown) {
@@ -207,13 +264,17 @@ export default function CustomScenarioPanel({
     }
   }
 
-  async function handleDelete(slug: string) {
+  async function handleDelete(slug: string, scenario: string) {
     setBusy(true);
     setError(null);
     try {
       await deleteCustomScenario(slug);
-      setNotice(`Deleted custom-${slug}.`);
-      refreshSaved();
+      setNotice(`Deleted ${scenario}.`);
+      // The name is free again, so this session no longer has a claim to overwrite
+      // it — whoever creates it next owns it.
+      setSessionSaved((names) => names.filter((entry) => entry !== scenario));
+      if (lastSaved?.scenario === scenario) setLastSaved(null);
+      await refreshSaved();
       onSavedSetChanged();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -232,7 +293,9 @@ export default function CustomScenarioPanel({
           ? `Deleted ${deleted.length} custom scenario${deleted.length === 1 ? "" : "s"}. The four recorded scenarios are untouched.`
           : "There were no custom scenarios to delete.",
       );
-      refreshSaved();
+      setSessionSaved([]);
+      setLastSaved(null);
+      await refreshSaved();
       onSavedSetChanged();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err));
@@ -314,7 +377,7 @@ export default function CustomScenarioPanel({
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleDelete(item.slug)}
+                    onClick={() => handleDelete(item.slug, item.scenario)}
                     disabled={busy}
                     className="inline-flex shrink-0 items-center gap-1 rounded border border-[#d8b4a0] px-2 py-0.5 text-xs font-semibold text-[#8a4b2a] transition hover:bg-[#fdf6f1] disabled:opacity-50"
                     aria-label={`Delete ${item.scenario}`}
@@ -614,27 +677,48 @@ export default function CustomScenarioPanel({
             {validation.summary}
           </p>
         ) : null}
+        {/* Two states, because there are two situations and one pair of buttons used
+            to pretend there was one. With unsaved edits the pair is Save / Save &
+            run. Once what is on screen is what is on disk there is nothing to save,
+            so Save greys out and the primary becomes a plain Run — which cannot
+            collide with the name the previous click just created. */}
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => handleSave(false)}
             disabled={!canSave}
+            title={isClean ? "No changes to save" : undefined}
             className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-medium text-[#536258] transition hover:bg-field disabled:cursor-not-allowed disabled:opacity-60"
             data-testid="custom-save"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            Save
+            {/* The label carries the reason it is greyed. A disabled button that
+                still says "Save" reads as broken rather than as satisfied. */}
+            {isClean ? "Saved" : "Save"}
           </button>
-          <button
-            type="button"
-            onClick={() => handleSave(true)}
-            disabled={!canSave}
-            className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
-            data-testid="custom-save-run"
-          >
-            <Play className="h-4 w-4" />
-            Save &amp; run
-          </button>
+          {isClean ? (
+            <button
+              type="button"
+              onClick={() => lastSaved && onRun(lastSaved.scenario)}
+              disabled={busy}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="custom-run"
+            >
+              <Play className="h-4 w-4" />
+              Run
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              disabled={!canSave}
+              className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-ink px-3 text-sm font-semibold text-white shadow-soft transition hover:bg-[#263329] disabled:cursor-not-allowed disabled:opacity-60"
+              data-testid="custom-save-run"
+            >
+              <Play className="h-4 w-4" />
+              Save &amp; run
+            </button>
+          )}
         </div>
         <p className="mt-2 text-[10px] leading-4 text-[#8a9690]">
           {previewing ? "Checking…" : "Synthetic, seeded, on-device data. Not customer data."}

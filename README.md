@@ -25,7 +25,7 @@ A suggested `.gitignore` is in **[§10](#10-repository-structure)**.
 6. [Data Elements & Pipeline](#6-data-elements--pipeline)
 7. [Use-Case / Opportunity Map](#7-use-case--opportunity-map)
 8. [Prototype Scope (depth over breadth)](#8-prototype-scope-depth-over-breadth)
-9. [Current Status — sponsor-accepted through Iteration 6b; one open defect](#9-current-status--sponsor-accepted-through-iteration-6b-one-open-defect)
+9. [Current Status — sponsor-accepted, feature-complete through Iteration 6b](#9-current-status--sponsor-accepted-feature-complete-through-iteration-6b)
 10. [Repository Structure](#10-repository-structure)
 11. [Confirmed Kickoff Decisions](#11-confirmed-kickoff-decisions)
 12. [Honest Caveats & Guardrails (carry-forward)](#12-honest-caveats--guardrails-carry-forward)
@@ -207,17 +207,16 @@ Rationale: a retail/distribution example exercises **all four dimensions** clean
 
 ---
 
-## 9. Current Status — sponsor-accepted through Iteration 6b; one open defect
+## 9. Current Status — sponsor-accepted, feature-complete through Iteration 6b
 
 > ### ✅ The sponsor reviewed the full product on 2026-08-26, is satisfied, and requested no changes.
 >
-> **Feature work on this engagement is closed.** Everything through **Iteration 6b** is built,
-> verified on-device, and accepted.
+> **Feature work on this engagement is closed. There is no known open defect.** Everything through
+> **Iteration 6b** is built, verified on-device, and accepted.
 >
-> 🔴 **One defect is outstanding, and it is the only remaining work:** the custom panel's **Save /
-> Save & run** buttons have no dirty-state tracking, so *Save* followed by *Save & run* errors with
-> *"already exists"*. Found live during the demo. **Frontend-only; no data loss, no incorrect
-> results.** Write-up and fix design:
+> The one defect found live at that demo — the custom panel's **Save / Save & run** buttons having no
+> dirty-state tracking — was **fixed, tested and merged the same day**. Write-up, and the more useful
+> half (why a fully green suite missed it):
 > [`docs/Known_Issue_Save_Run_Button_State.md`](docs/Known_Issue_Save_Run_Button_State.md).
 >
 > ⚠️ **"Accepted" is not "production-ready."** §12 stands in full, and the modelling finding below
@@ -248,14 +247,13 @@ network-survivability feature must read
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
 - `make demo` generates data, rebuilds the web UI, and prints the demo URLs (results, dataset, chat).
 - `make test` — **633 passed, 5 skipped, 2 xpassed** (verified 2026-08-26). Web: **118 Vitest**
-  (`make web-test`); `make web-check` → **ALL CHECKS PASSED (91 PASS, 0 FAIL)**.
-  ⚠️ Older docs say *"50/50"* browser checks. That was a hand-maintained count and it drifted —
-  `dataset-view.check.mjs` keeps **no internal counter**, it just prints `PASS`/`FAIL` lines and a
-  final `ALL CHECKS PASSED`. Quote the script's own output, not a remembered total.
+  (`make web-test`); `make web-check` → **55 PASS, 0 FAIL**, up from 50 with the five new
+  button-state checks.
   ⚠️ **The 5 skips are not a regression.** They are the box-global `clear_all` tests, which
   *self-skip rather than delete custom scenarios a human saved on the box* — two demo leftovers
-  (`custom-test1`, `custom-test3`) are still present. **On a clean box: 638 passed + 2 xpassed.**
-  Read the skip line, not just the pass count.
+  (`custom-test1`, `custom-test3`) are still present. Delete those and the 5 should run, giving the
+  **638 passed** older docs quote — `633 + 5`, which is arithmetic, not a re-measurement. Read the
+  skip line, not just the pass count.
 - `make scenario-eval` — **41/41** validation cases; `make scenario-ledger` prints what each of the
   **67 settings across 8 groups** can and cannot change.
 - `make bench-all` runs all four scenarios through baseline, classical, PPO, and advisory RAG/LLM.
@@ -418,7 +416,7 @@ docs/
   Iteration5_Plan_of_Action.md                       # Iteration 5 build blueprint (phases 0–6)
   Iteration6a_Plan_of_Action.md                      # Iteration 6a build blueprint (phases 0–5)
   Iteration6b_Plan_of_Action.md                      # Iteration 6b build blueprint (phases 0–5)
-  Known_Issue_Save_Run_Button_State.md               # 🔴 the one open defect — write-up and fix design
+  Known_Issue_Save_Run_Button_State.md               # the save/run defect: found at the demo, fixed same day
   DEMO_GUIDE.md                                      # step-by-step demo walkthrough (Options A–E)
   containerization.md                                # current arm64/four-service stack notes
   handoff.md                                         # quick-start commands and on-device caveats
@@ -545,7 +543,7 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 ```bash
 make up                        # build + start all four arm64 services
-make test                      # 633 passed, 5 skipped, 2 xpassed (638 + 2 on a clean box — see §9)
+make test                      # 633 passed, 5 skipped, 2 xpassed  (see §9 on the 5 skips)
 make demo                      # generate data, rebuild web, print every demo URL
 ```
 
@@ -562,7 +560,7 @@ make scale-study               # run the 6-level scale study
 make rag SCENARIO=...          # RAG advisory for a single scenario
 make cli SCENARIO=...          # thin CLI over the same API
 make web-test                  # 118 Vitest tests from the committed lockfile
-make web-check                 # headless-Chromium checks, 91 PASS / 0 FAIL (needs the stack up)
+make web-check                 # headless-Chromium checks, 55 PASS / 0 FAIL (needs the stack up)
 ```
 
 **Iteration 5 (BETA) chat commands:**
@@ -594,16 +592,18 @@ docs called "Iteration 4 = production" is now **Iteration 7** in effect:
 | **5** | **Conversational scenario/what-if analyst (BETA)** — grounded natural-language Q&A plus real what-if runs on the optimizer | ✅ Done (`main`, 2026-08-05) — **reviewed 2026-08-19 and parked as-is; the `BETA` chip stays until Ryan says otherwise** |
 | **6a** | **Custom scenario** — a control panel over the settings that define a scenario, a real run on whatever you build, and save / load / delete / clear-all | ✅ Done (`main` @ `ad17cc5`, 2026-08-20) — **reviewed 2026-08-26 and accepted as-is** |
 | **6b** | **Custom dataset** — the `network:` block as eight controls ("just remove a warehouse"), two labelled honesty classes, comparability guardrails, and the modelling finding that fell out of building it | ✅ Done (2026-08-24) — **reviewed 2026-08-26 and accepted as-is; the modelling finding was parked** |
-| — | 🔴 **Open defect** — Save / Save & run button state in the custom panel | 🔧 **The only outstanding work.** [Write-up](docs/Known_Issue_Save_Run_Button_State.md) |
+| — | **Save / Save & run button state** — found live at the demo, fixed the same day | ✅ Fixed, tested and merged 2026-08-26. [Write-up](docs/Known_Issue_Save_Run_Button_State.md) |
 | 7 | Production / GA — real customer-data onboarding, hardening, multi-tenant isolation, licensing, packaging. Also owns the five deferred perturbation types, compound what-ifs, cross-scenario comparison, persistent transcripts, and 🔴 **the multi-echelon LP question parked at the 2026-08-26 demo**. | ⏳ Not started |
 
 **If continuing development, read these three first**, in this order:
 
-1. 🔴 [`docs/Known_Issue_Save_Run_Button_State.md`](docs/Known_Issue_Save_Run_Button_State.md) — the
-   one open defect, with the fix already designed.
-2. 🔴 [`docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+1. 🔴 [`docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](docs/iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
    — parked by the sponsor, still true, and it invalidates any resilience feature built in ignorance
    of it.
+2. 🔴 [`docs/Known_Issue_Save_Run_Button_State.md`](docs/Known_Issue_Save_Run_Button_State.md) — the
+   defect itself is fixed, but read *why the suite missed it*. Two defects in three days escaped a
+   fully green suite because it tests that features work, not that a person moving through them in a
+   natural order has a coherent experience.
 3. [`docs/Iteration3_Plan_of_Action.md`](docs/Iteration3_Plan_of_Action.md) §4 — the honest gap
    between this demo/pilot-ready prototype and a shippable product.
 

@@ -12,6 +12,7 @@ import {
   formatSeconds,
   otherWarnings,
   releaseSimpleControl,
+  savedFingerprint,
   scenarioNameFor,
   simpleControlOverridden,
   slugify,
@@ -516,5 +517,82 @@ describe("the sticky footer summary does not repeat a long refusal", () => {
     });
     expect(display.summary).toContain("1 thing is worth knowing");
     expect(display.summary).not.toBe(long);
+  });
+});
+
+/**
+ * The defect these cover: the panel had no way to tell "this form has unsaved
+ * changes" from "this form is exactly what is on disk", so Save followed by
+ * Save & run collided with the name the first click had just created.
+ */
+describe("savedFingerprint", () => {
+  const base = {
+    name: "q3-surge",
+    description: "tighter lanes",
+    simple: { "demand.base_units_per_customer_period": 44 },
+    overrides: { "network.distribution_centers": 2 },
+    seed: 12345,
+  };
+
+  it("is stable across repeated calls on equal input", () => {
+    expect(savedFingerprint(base)).toBe(savedFingerprint({ ...base }));
+  });
+
+  it("does not depend on the insertion order of simple or overrides", () => {
+    const forwards = savedFingerprint({
+      ...base,
+      simple: { a: 1, b: 2, c: 3 },
+      overrides: { x: 9, y: 8 },
+    });
+    const backwards = savedFingerprint({
+      ...base,
+      simple: { c: 3, b: 2, a: 1 },
+      overrides: { y: 8, x: 9 },
+    });
+    // `simple` and `overrides` are built by successive setState calls, so their key
+    // order genuinely varies between edits. A raw JSON.stringify would call this a
+    // change and re-enable Save for no reason.
+    expect(forwards).toBe(backwards);
+  });
+
+  it("sorts nested objects too, not just the top level", () => {
+    const one = savedFingerprint({ ...base, simple: { spike: { weeks: 8, from: 20 } } });
+    const two = savedFingerprint({ ...base, simple: { spike: { from: 20, weeks: 8 } } });
+    expect(one).toBe(two);
+  });
+
+  it("ignores undefined values, which is what a released Simple control leaves", () => {
+    const withUndefined = savedFingerprint({ ...base, simple: { a: 1, b: undefined } });
+    const without = savedFingerprint({ ...base, simple: { a: 1 } });
+    expect(withUndefined).toBe(without);
+  });
+
+  it("treats surrounding whitespace on the name and description as no change", () => {
+    expect(savedFingerprint({ ...base, name: "  q3-surge  " })).toBe(savedFingerprint(base));
+    expect(savedFingerprint({ ...base, description: " tighter lanes " })).toBe(
+      savedFingerprint(base),
+    );
+  });
+
+  it.each([
+    ["name", { name: "q4-surge" }],
+    ["description", { description: "something else" }],
+    ["a simple control", { simple: { "demand.base_units_per_customer_period": 52 } }],
+    ["an override", { overrides: { "network.distribution_centers": 1 } }],
+    ["the seed", { seed: 999 }],
+  ])("changes when %s changes", (_label, patch) => {
+    expect(savedFingerprint({ ...base, ...patch })).not.toBe(savedFingerprint(base));
+  });
+
+  it("distinguishes a value from its string form", () => {
+    const numeric = savedFingerprint({ ...base, overrides: { k: 2 } });
+    const stringy = savedFingerprint({ ...base, overrides: { k: "2" } });
+    expect(numeric).not.toBe(stringy);
+  });
+
+  it("distinguishes an empty object from an empty array", () => {
+    expect(savedFingerprint({ ...base, overrides: {} })).not.toBe(
+      savedFingerprint({ ...base, overrides: [] as unknown as Record<string, unknown> }),
+    );
   });
 });
