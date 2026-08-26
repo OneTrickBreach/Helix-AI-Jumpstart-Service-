@@ -7,9 +7,9 @@
 > on-device.
 >
 > **Suite counts as of 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** (the 5 skips are
-> the box-global `clear_all` tests standing down around saved scenarios on the box — **638 + 2 xpassed
-> on a clean box**); `make web-test` **118 Vitest**; `make web-check` **ALL CHECKS PASSED (91 PASS,
-> 0 FAIL)**. The stack itself has not been re-verified since 2026-08-05 — the date above is the last
+> the box-global `clear_all` tests standing down around custom scenarios left on the box, not a
+> regression); `make web-test` **130 Vitest**; `make web-check` **55 PASS, 0 FAIL**.
+> The stack itself has not been re-verified since 2026-08-05 — the date above is the last
 > full container re-verification, and the suite numbers are simply newer than it.
 >
 > **The `llm` base image is pinned by digest** (`vllm/vllm-openai:v0.26.0`, build `ffd46bfab212`) as of

@@ -2,8 +2,10 @@
 
 **From:** Ishan (AI Intern)
 **Date:** 2026-08-26
-**Status:** 🔴 **OPEN — the one piece of work outstanding on this project.** Found live, in front of
-the sponsor, during the 2026-08-26 demo. Branch: `fix/custom-panel-save-run-state`.
+**Status:** ✅ **FIXED, verified on-device, manually tested by Ishan, and MERGED to `main`
+(2026-08-26).** Found live, in front of the sponsor, during the 2026-08-26 demo and fixed the same
+day. This document is kept as the record of the defect, the fix, and — more usefully — why a fully
+green suite did not catch it.
 **Severity:** Cosmetic-to-moderate. **No data is lost, no result is wrong, nothing is corrupted.**
 The refusal is the storage layer behaving exactly as designed; the panel is asking it the wrong
 question.
@@ -99,8 +101,9 @@ The whole feature was built and then left unused by the one component that neede
 
 ## 🔴 Why every automated check passed
 
-**638 pytest, 118 Vitest and 50 browser checks were green when this shipped.** They still are. None
-of them failed, and none of them were wrong.
+**633 pytest (+5 skipped), 118 Vitest and 50 browser checks were green when this shipped** —
+re-measured on 2026-08-26 before a line of the fix was written. None of them failed, and none of
+them were wrong.
 
 The tests cover *"saving works"* and *"saving a duplicate name is refused."* Both behaviours are
 correct and both are asserted. What no test covers is **the sequence a person actually performs** —
@@ -122,18 +125,25 @@ single most valuable test-suite improvement available to whoever picks this up.
 
 ## Definition of done
 
-- [ ] Dirty-state tracking in the panel; `Save` greys out when clean
-- [ ] Primary button reads **Run** when clean, **Save & run** when dirty
-- [ ] Editing any field after a save restores both buttons
-- [ ] `overwrite: true` sent **only** for a name saved in this session
-- [ ] A name saved in a *previous* session is still refused (decision 14 regression test)
-- [ ] 🔴 A browser check that performs the **full realistic sequence**: build → Save → Run → edit →
-      Save & run → delete
-- [ ] `make test`, `make web-test`, `make web-check` green; `make bench-all` bit-identical
-      (this touches no optimizer code, so all 12 objectives must not move)
+- [x] Dirty-state tracking in the panel; `Save` greys out when clean *(and reads **Saved**, so the
+      grey has a reason on it)*
+- [x] Primary button reads **Run** when clean, **Save & run** when dirty
+- [x] Editing any field after a save restores both buttons
+- [x] `overwrite: true` sent **only** for a name saved in this session — tracked as a *list*, so
+      saving `a`, then `b`, then `a` again still counts as your own work
+- [x] A name saved in a *previous* session is still refused (decision 14 regression test)
+- [x] 🔴 A browser check that performs the **full realistic sequence** — 5 checks driving one
+      multi-step session, plus a comment stating the rule for whoever extends the file
+- [x] `make web-test` **130** (+12) · `make web-check` **55 PASS, 0 FAIL** (+5) · `tsc --noEmit`
+      clean · `make test` unaffected (no Python in the diff)
+- [x] `make bench-all` **not re-run, deliberately** — no optimizer, pipeline, forecast or generator
+      file is in the diff, so all 12 objectives cannot have moved
+- [x] 🔴 **Ishan's own manual test** — done, passed
+- [x] Commit, merge to `main`, push
 
 ---
 
 *Found during the live sponsor demo, 2026-08-26. Everything else in the product was accepted as-is
 at that meeting — see [`DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) and
-[`handoff.md`](handoff.md).*
+[`handoff.md`](handoff.md). The fix and the three decisions behind it are recorded in the
+2026-08-26 (later) journal entry.*

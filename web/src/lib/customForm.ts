@@ -315,3 +315,52 @@ export function networkLayout(payload: CustomSettingsPayload): {
 
   return { classes, inert, reason: tier?.reason ?? "" };
 }
+
+/**
+ * The form state that determines what a save would WRITE, as a comparable string.
+ *
+ * This is what tells "the panel has unsaved changes" from "the panel is exactly
+ * what is already on disk" — the distinction the panel had no concept of, which is
+ * why clicking Save and then Save & run used to collide with its own first click.
+ *
+ * Two deliberate exclusions:
+ *
+ * 1. **`include_ppo` and `include_rationale` are not here.** They feed the run
+ *    estimate only; `resolved_config` — the thing actually written to disk — does
+ *    not depend on them (`src/scenario/preview.py:358`). Ticking "include PPO"
+ *    changes what the next *run* does, not what is saved, so it must not re-enable
+ *    Save.
+ * 2. **The seed IS here.** It is part of the saved config (decision 7), so changing
+ *    it genuinely means the thing on disk is now stale.
+ *
+ * Keys are sorted at every level because `simple` and `overrides` are built by
+ * successive `setState` calls; their insertion order is not stable across edits and
+ * a raw `JSON.stringify` would report a spurious change.
+ */
+export function savedFingerprint(input: {
+  name: string;
+  description: string;
+  simple: Record<string, unknown>;
+  overrides: Record<string, unknown>;
+  seed: number;
+}): string {
+  return stableStringify({
+    name: input.name.trim(),
+    description: input.description.trim(),
+    simple: input.simple,
+    overrides: input.overrides,
+    seed: input.seed,
+  });
+}
+
+/** `JSON.stringify` with object keys sorted at every depth, so equal values compare equal. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    // `undefined` is what a released Simple control leaves behind, and it is not a
+    // value the server ever sees — treat it as absent rather than as a change.
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${stableStringify(v)}`).join(",")}}`;
+}

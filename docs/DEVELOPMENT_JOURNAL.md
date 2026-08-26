@@ -17,7 +17,7 @@
 ---
 
 ## Project snapshot (current state)
-- ✅ **NOW: SPONSOR-ACCEPTED, FEATURE-COMPLETE. ONE OPEN DEFECT.** **Ryan reviewed the whole product
+- ✅ **NOW: SPONSOR-ACCEPTED, FEATURE-COMPLETE, NO KNOWN OPEN DEFECT.** **Ryan reviewed the whole product
   live on 2026-08-26, is satisfied, and requested no changes.** Feature work on this engagement is
   **closed**. He also asked for a **narrated screen recording** of the tool — that is a deliverable,
   not a feature. On the §1 question the 6b packet put to him — *should the optimizer model a node?* —
@@ -25,19 +25,21 @@
   every limit in
   [the modelling finding](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) is still true
   of the code today.**
-  🔴 **THE ONE REMAINING TASK: the Save / Save & run button-state defect**, found live at the demo.
-  Clicking **Save** then **Save & run** errors with *"already exists"* because the panel has no
-  dirty-state tracking. **Frontend-only; no data loss, no wrong results**; `overwrite` is already
-  plumbed through store, API and the TS type and is simply never set.
+  ✅ **The one defect found at the demo is FIXED, tested and merged the same day.** Clicking **Save**
+  then **Save & run** errored with *"already exists"* because the panel had no dirty-state tracking.
+  It now greys **Save** out (reading *Saved*) when the form matches disk and offers a plain **Run**;
+  `overwrite` — already plumbed through store, API and the TS type, and simply never set — is now
+  sent **only** for a name the current panel session created, so decision 14 still refuses to replace
+  a scenario someone else built.
   Write-up: [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
-  Branch: `fix/custom-panel-save-run-state`.
-  **Re-verified on-device 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** ·
-  `make web-test` **118** · `make scenario-eval` **41/41** · `make web-check` **ALL CHECKS PASSED
-  (91 PASS, 0 FAIL)**.
-  ⚠️ **Three documentation defects were found and fixed in the same pass** — see the 2026-08-26
-  entry: the "638" pass count silently included 5 skips; `web-check` was quoted as "50/50" from a
-  hand-count the script does not produce; and the README's table of contents disagreed with its own
-  §9 heading behind a broken anchor.
+  🔴 **Read it for the test-suite lesson, not the button logic.**
+  **Verified on-device 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** ·
+  `make web-test` **130** (+12) · `make scenario-eval` **41/41** · `make web-check` **55 PASS,
+  0 FAIL** (+5, driving one realistic multi-step session).
+  ⚠️ **Two documentation defects were found and fixed in the same pass** — see the 2026-08-26 entry:
+  the "638" pass count silently included 5 skips, and the README's table of contents disagreed with
+  its own §9 heading behind a broken anchor. 🔴 **A third "defect" was my own miscount and has been
+  retracted** — `web-check`'s "50/50" was correct all along. The retraction is in that entry.
 - 🔴 **Iteration 6b — Custom Dataset. ALL FOUR PHASES COMPLETE (2026-08-24), one day ahead of
   the plan — plus a late naming fix so the dataset tier is VISIBLE, not just built.** The dropdown now
   offers **two doors** ("Custom scenario — the conditions…" / "Custom dataset — the network…") into the
@@ -53,9 +55,10 @@
   `make scenario-eval` **41/41** · `make bench-all` **all 12 bit-identical** · `make web-test` **118** ·
   `make chat-eval` **31/31** · `make redteam` **27/27** · `make parse-eval` **35/35** · all four
   GPU-free replay paths pass with the API blocked. `NetworkMap.tsx` untouched all iteration.
-  ⚠️ **The counts in this bullet used to disagree with each other** ("638 + 2 xpassed / 50-50" in one
-  sentence, "635 + 2 xpassed / 49-49" two lines later). Corrected 2026-08-26 to the numbers actually
-  re-measured; see that entry for why a pass count on this box is environment-dependent.
+  ⚠️ **This bullet used to quote two different sweeps as if they were one** ("638 + 2 xpassed /
+  50-50" in one sentence, "635 + 2 xpassed / 49-49" two lines later — the first pair post-naming-fix,
+  the second at Phase 4 close). Both were correct; presenting them together was not. Split
+  2026-08-26.
 - **Iteration 6b Phase 3 COMPLETE — the Network group is in the panel.**
   A planner opens **Custom scenario…**, sees **The network** with the two honesty classes rendered
   distinctly, sets warehouses to 1, saves and runs, and gets **81,663** with no false caveat; sets
@@ -241,12 +244,125 @@
 
 ## Entries (newest first)
 
+## 2026-08-26 (later) — Fixing the save/run defect: the panel learns what "already saved" means
+
+**Status:** ✅ **Fix implemented, verified on-device, manually tested by Ishan, and MERGED to
+`main`.** Branch `fix/custom-panel-save-run-state`, cut from `main` @ `33d8738`. **git ref: hash
+backfilled in the follow-up commit.**
+
+---
+
+### 1. What was wrong, in one sentence
+
+The panel had no concept of *"already saved"*, so the second of two clicks was treated as a
+brand-new save of a name the first click had just created.
+
+### 2. What changed
+
+**Frontend only. No API, no store, no optimizer, no generator was touched** — the backend already
+had everything this needed.
+
+| File | Change |
+|---|---|
+| [`web/src/lib/customForm.ts`](../web/src/lib/customForm.ts) | New `savedFingerprint()` + a private `stableStringify()`. One comparable string for "what a save would write". |
+| [`web/src/custom/CustomScenarioPanel.tsx`](../web/src/custom/CustomScenarioPanel.tsx) | `lastSaved` and `sessionSaved` state; `isClean`; `canSave` gains `&& !isClean`; `request()` sets `overwrite`; the button pair flips; delete handlers drop their claim on a name. |
+| [`web/src/lib/customForm.test.ts`](../web/src/lib/customForm.test.ts) | 12 new unit tests on the fingerprint. |
+| [`web/e2e/dataset-view.check.mjs`](../web/e2e/dataset-view.check.mjs) | 🔴 5 new checks that drive **one multi-step session**, not one action each. |
+
+**The state machine now:**
+
+| Form state | Save | Primary | Click does |
+|---|---|---|---|
+| Dirty — never saved, or edited since | enabled, reads **Save** | **Save & run** | save, then run |
+| Clean — matches what is on disk | **disabled**, reads **Saved** | **Run** | runs only; no save call, so no collision is *possible* |
+| Any edit while clean | re-enables | back to **Save & run** | — |
+
+### 3. 🔴 Three decisions worth defending
+
+**a. The guard was narrowed, not removed.** `overwrite: true` goes out only for a name in
+`sessionSaved` — names *this panel session* created. A scenario someone else on the box built is
+still refused, because storage is box-global and
+[`pipeline.py:170-173`](../src/api/pipeline.py#L170-L173) is right about why that default exists. The
+guard's job shrank from *"protect every name"* to *"protect names this session did not create."* A
+browser check asserts the refusal still happens.
+
+**b. `sessionSaved` is a list, not just the last name.** Save `a`, then `b`, then go back to `a` —
+`a` is still yours. Tracking only the most recent save would have refused your own work.
+
+**c. The run opt-ins are deliberately NOT part of the fingerprint.** `include_ppo` and
+`include_rationale` feed the run estimate only; `resolved_config` — the thing written to disk — does
+not depend on them ([`preview.py:358`](../src/scenario/preview.py#L358)). Ticking "include PPO"
+changes what the next *run* does, not what is saved, so it must not re-enable Save. Checked in the
+source rather than assumed.
+
+**And one honest limit.** The panel is unmounted when it closes
+([`App.tsx:315`](../web/src/App.tsx#L315)), so *closing the panel ends the session* and the claim on
+those names goes with it. Save → run (which closes it) → reopen → same name → **refused**. That is
+deliberate: the form does not persist across a close either, so re-using the name at that point is a
+genuine replace of a differently-built scenario, and erring toward decision 14 is the safer side to
+be wrong on. Recorded because it is a real edge a user could hit, not because it is ideal.
+
+### 4. Verified on-device
+
+| Command | Before the fix | After |
+|---|---|---|
+| `make test` | 633 passed, 5 skipped, 2 xpassed | **unchanged** — no Python touched |
+| `make web-test` | 118 passed | **130 passed** (+12 fingerprint tests) |
+| `make web-check` | 50 PASS, 0 FAIL | **55 PASS, 0 FAIL** (+5 sequence checks) |
+| `npx tsc --noEmit` | clean | clean |
+
+The five new checks, all passing:
+
+```
+PASS unsaved edits offer Save and Save & run
+PASS after Save the pair flips: Save greys out, primary becomes Run   saveLabel="Saved"
+PASS editing after a save re-enables Save and restores Save & run
+PASS Save & run after an edit overwrites its own scenario             noCollision=true
+PASS a name THIS session did not create is still refused (decision 14)
+```
+
+`make bench-all` not re-run: no optimizer, pipeline, forecast or generator file is in this diff.
+
+### 5. 🔴 The test-suite gap this closes, and the one it does not
+
+The new checks are the first in this repo that **move through the panel the way a person does** —
+build, save, observe, edit, save again, run, then reopen in a fresh session. Every other custom
+check performs one action and asserts the outcome, which is exactly why 633 + 118 + 50 green checks
+could coexist with a defect the sponsor hit in his first two clicks.
+
+**A comment in the check file now states the rule** for whoever extends it: at least one check must
+be several steps deep. That is the durable part of this fix; the button logic is the easy part.
+
+**What it does not close:** the panel still has no coverage of *closing and reopening mid-build*, and
+no check exercises the dataset-view entry through a full save/edit/run cycle. Both are plausible
+homes for the next defect of this shape.
+
+### 6. A flaky check found along the way, and widened rather than ignored
+
+`make web-check` was run four times across this session. **Three passed; one failed** — the
+"custom deleted and gone from the dropdown" check timed out after 20 s waiting for the saved list to
+shrink. The failing run was the one immediately after `make web` recreated the `api` container; the
+other three ran against a warm one.
+
+It is **not** caused by this fix: `handleDelete` still calls `refreshSaved()` at the same point
+relative to the `DELETE`, so the moment the list updates is unchanged. Awaiting it only delays what
+comes *after* the refresh.
+
+A delete removes the config, the generated data, the recorded artifact **and** the vector-store
+collection, so a cold container has real work to do on its first call. **The timeout is now 60 s,
+with the observation written next to it** — not a guessed cause, just what was seen. Flagging it
+rather than leaving a 1-in-4 false failure for the next person to re-diagnose. 🔴 **If it fails
+against a warm container, that is a real regression and the timeout is not the answer.**
+
+---
+
+
 ## 2026-08-26 — The demo: Ryan accepts the product, parks the node question, and a two-click bug shows up live
 
 **Status:** ✅ **The sponsor reviewed the full product live and is satisfied. He requested no
 changes. Feature work on this engagement is CLOSED.** 🔴 **One defect is open**, found during the
-demo itself, and it is the only outstanding work. **git ref: this documentation tie-up commit.**
-Branch `feat/iteration6b-custom-dataset` → merged to `main`.
+demo itself; it was fixed and merged the same day (see the later entry above). **git ref: `b409f92`,
+merged to `main` as `33d8738`.** Branch `feat/iteration6b-custom-dataset` → merged to `main`.
 
 ---
 
@@ -333,14 +449,34 @@ the sponsor. See
 
 ### 3. The documentation tie-up — and the brutal-truth review of it
 
-Every project document was reviewed against the post-demo reality. **Three real documentation
-defects were found**, none of them cosmetic:
+Every project document was reviewed against the post-demo reality. **Two real documentation defects
+were found** — and a third was claimed, wrongly, and is retracted below.
 
 | # | Defect | Where | Fix |
 |---|---|---|---|
 | 1 | 🔴 **The headline pass count silently included skips.** The snapshot claimed `make test` **638 + 2 xpassed**. The suite actually reports **633 passed, 5 skipped, 2 xpassed** — 638 was `passed + skipped` presented as passed | journal snapshot, README §9, `handoff.md` | Quote all three numbers, always |
-| 2 | 🔴 **`web-check` "50/50" is a number the tooling does not produce.** `dataset-view.check.mjs` keeps **no counter** — it prints `PASS`/`FAIL` lines and a final `ALL CHECKS PASSED`. The real output today is **91 PASS, 0 FAIL**. The hand-maintained count had drifted through 38/38 → 49/49 → 50/50 | everywhere it was quoted | Quote the script's own output |
-| 3 | **The README's table of contents disagreed with its own §9 heading** — TOC said *"Iteration 5 (Beta) complete on the branch"*, the heading said *"Iteration 6a"*, and the TOC anchor pointed at a section that no longer existed | `README.md` | Both rewritten; anchor now resolves |
+| 2 | **The README's table of contents disagreed with its own §9 heading** — TOC said *"Iteration 5 (Beta) complete on the branch"*, the heading said *"Iteration 6a"*, and the TOC anchor pointed at a section that no longer existed | `README.md` | Both rewritten; anchor now resolves |
+
+### 🔴 RETRACTED — the `web-check` "50/50" finding was my own arithmetic error
+
+The first version of this entry claimed `web-check` really emitted **91 PASS**, that "50/50" was a
+hand-count the tooling never produced, and that it had drifted through 38/38 → 49/49 → 50/50. **All
+of that was wrong. "50/50" was correct.**
+
+**What happened:** `make web-test`, `make scenario-eval` and `make web-check` were run into a single
+combined log, and the count came from `grep -c '^PASS '` over the whole file. **`scenario-eval` also
+prints `PASS` lines — 41 of them.** 50 + 41 = 91. The number was attributed entirely to `web-check`.
+
+Counted per section, the truth is: `web-check` **50 PASS, 0 FAIL**; `scenario-eval` **41**. The docs
+had it right and were "corrected" into being wrong. That claim reached `README.md`, `handoff.md`,
+`DEMO_GUIDE.md`, `containerization.md`, this journal **and the commit message of `b409f92`**, which
+is already merged — 🔴 **the commit message still carries the false claim and cannot be corrected
+without rewriting merged history.** Everything else is fixed.
+
+**The lesson, since this journal exists to record exactly this kind of thing:** *a count taken across
+a combined log is not a count of one command.* Verifying a number is worth nothing if the
+verification is scoped more loosely than the claim. This was caught only because re-running
+`web-check` alone after the fix returned **55**, and 55 is not 91 plus five new checks.
 
 **Why the 5 skips are not a regression, and why the number is environment-dependent.** They are the
 box-global `clear_all` tests. `_skip_if_it_would_destroy_real_scenarios()`
@@ -350,9 +486,9 @@ and a deliberately good design. Two demo leftovers, **`custom-test1` and `custom
 15:16 and 15:17 today), are still present, so the tests stood down. **On a clean box: 638 passed + 2
 xpassed.**
 
-🔴 **`custom-test1` is deliberately left in place** — it is the exact repro state for the open defect
-and the scenario named in the error message. Delete it before quoting a clean pass count; do not
-delete it before reproducing the bug.
+🔴 **`custom-test1` was deliberately left in place** — it was the exact repro state for the defect
+and the scenario named in the error message. The defect is fixed now, so it is only a leftover:
+delete it (and `custom-test3`) before quoting a clean pass count.
 
 **`make bench-all` was not re-run**, and that is stated rather than glossed. It is the long one, and
 `git log` confirms **`src/optimize/`, `src/pipeline/`, `src/forecast/` and `data/generator/` have had
@@ -367,7 +503,7 @@ it rather than inherit this reasoning.**
 | `make test` | **633 passed, 5 skipped, 2 xpassed** in 130.66 s (exit 0) |
 | `make web-test` | **118 passed** (7 files, exit 0) |
 | `make scenario-eval` | **41/41 cases** (12 controls); refusal classes **21/21**; warnings **6/6** |
-| `make web-check` | **ALL CHECKS PASSED — 91 PASS, 0 FAIL** (exit 0) |
+| `make web-check` | **ALL CHECKS PASSED — 50 PASS, 0 FAIL** (exit 0) |
 | `make bench-all` | **not re-run** — see above |
 
 **Documents updated:** `README.md` · `docs/handoff.md` · `docs/DEMO_GUIDE.md` ·
@@ -388,9 +524,8 @@ would destroy the only evidence of the difference.
 
 ### 4. Open items carried forward
 
-1. 🔴 **The Save / Save & run defect.** The only outstanding work.
-   [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md), branch
-   `fix/custom-panel-save-run-state`.
+1. ✅ ~~**The Save / Save & run defect.**~~ Fixed, tested and merged the same day — see the
+   2026-08-26 (later) entry.
 2. **The narrated screen recording** Ryan asked for. Script to be written; Ishan records via OBS.
 3. 🔴 **The node question is parked, not answered.** Anyone building a resilience, node-capacity or
    network-survivability feature must read the modelling finding first.

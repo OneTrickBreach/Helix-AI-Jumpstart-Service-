@@ -23,11 +23,13 @@ it stands, and this document plus
 must be read before anyone builds a resilience, node-capacity or network-survivability feature on
 this optimizer.
 
-🔴 **One defect remains open**, found live at that demo: clicking **Save** and then **Save & run** in
-the panel errors with *"already exists"*, because the panel has no dirty-state tracking. Frontend
-only; no data loss, no incorrect results; the fix is designed and the backend support already exists.
-See [`../Known_Issue_Save_Run_Button_State.md`](../Known_Issue_Save_Run_Button_State.md). **It is the
-only outstanding work on the project.**
+**One defect was found live at that demo and fixed the same day:** clicking **Save** and then
+**Save & run** errored with *"already exists"*, because the panel had no dirty-state tracking. The
+panel now greys **Save** out when what is on screen matches what is on disk and offers a plain
+**Run** instead. Frontend only; no data was ever at risk and no result was ever wrong.
+See [`../Known_Issue_Save_Run_Button_State.md`](../Known_Issue_Save_Run_Button_State.md) — 🔴 **worth
+reading less for the defect than for why 633 passing tests, 118 Vitest and 50 browser checks did not
+catch a two-click sequence.**
 
 ---
 

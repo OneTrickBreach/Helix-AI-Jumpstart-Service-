@@ -5,7 +5,7 @@
 **Status:** ✅ **EXECUTED.** All four build phases complete on **2026-08-24**, one day ahead of plan,
 plus a late naming fix so the dataset tier is visible. **Demoed to Ryan 2026-08-26: accepted as-is,
 no further changes requested.** The §1 modelling finding was acknowledged and **parked** by him. One
-open defect found live at that demo — [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+defect found live at that demo was fixed and merged the same day — [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
 Written 2026-08-21 against `main` @ `262c498`, with every number in §1 measured on-device that day;
 the plan text below is kept as written, as the record of what was intended.
 **Branch:** `feat/iteration6b-custom-dataset`, to be cut from `main` @ `262c498` (Phase 0).
