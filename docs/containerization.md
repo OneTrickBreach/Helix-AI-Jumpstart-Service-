@@ -3,15 +3,20 @@
 > **Status:** Four-service PoC stack, **re-verified live on the GB10 (2026-08-05, Iteration 5 Phase 6)**.
 > All images are arm64; the API and shared LLM declare GPU reservations. cuOpt/OR-Tools VRP
 > capability is integrated in the `api` service (`/cuopt/*`), not a separate container. `make up` →
-> `make test` (**558 passed + 2 xpassed**, 560 total) → `make bench-all` (4 scenarios, 12 objectives
-> bit-identical) → `make demo` all pass on-device. Web: `make web-test` **108 Vitest**,
-> `make web-check` **38/38**.
+> `make test` → `make bench-all` (4 scenarios, 12 objectives bit-identical) → `make demo` all pass
+> on-device.
+>
+> **Suite counts as of 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** (the 5 skips are
+> the box-global `clear_all` tests standing down around saved scenarios on the box — **638 + 2 xpassed
+> on a clean box**); `make web-test` **118 Vitest**; `make web-check` **ALL CHECKS PASSED (91 PASS,
+> 0 FAIL)**. The stack itself has not been re-verified since 2026-08-05 — the date above is the last
+> full container re-verification, and the suite numbers are simply newer than it.
 >
 > **The `llm` base image is pinned by digest** (`vllm/vllm-openai:v0.26.0`, build `ffd46bfab212`) as of
 > Iteration 5 Phase 0 — it silently changed under us once, during Iteration 4 Phase 0, and moved the
 > device envelope. A tag can be re-pushed; a digest cannot.
 
-_Last updated: **2026-08-05** (Iteration 5 Phase 6)_
+_Stack last re-verified: **2026-08-05** (Iteration 5 Phase 6). Suite counts refreshed **2026-08-26**._
 
 ## Stack
 

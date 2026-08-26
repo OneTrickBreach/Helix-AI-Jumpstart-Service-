@@ -21,7 +21,8 @@
 | **One-command setup** | `make demo` |
 | **Hardware** | NVIDIA GB10 (arm64, Grace Blackwell, ~121 GiB unified memory) |
 | **Stack** | 4 containers: `web` (nginx), `api` (FastAPI), `llm` (vLLM/Nemotron 30B), `vectordb` (Qdrant) |
-| **Test suite** | 558 passed + 2 xpassed (560 total); web 108 Vitest (`make web-test`); `make web-check` 38/38 for the UI |
+| **Test suite** | `make test` 633 passed + 5 skipped + 2 xpassed (2026-08-26); web 118 Vitest (`make web-test`); `make web-check` → ALL CHECKS PASSED (91 PASS, 0 FAIL). The 5 skips are the box-global `clear_all` tests self-skipping around saved scenarios left on the box — 638 + 2 xpassed on a clean box |
+| **🔴 Known defect** | Click **Save & run** once; never **Save** then **Save & run**. [Details](Known_Issue_Save_Run_Button_State.md) |
 | **Full demo guide** | This file |
 
 ---
@@ -123,11 +124,16 @@ Generates data, rebuilds the web UI, and prints the demo URLs.
 ### 4. Optional: run the test suite
 
 ```bash
-make test          # 558 passed, 2 xpassed (560 total)
+make test          # 633 passed, 5 skipped, 2 xpassed  (638 + 2 xpassed on a clean box)
 ```
 
 The 2 xpassed tests are GPU-probe tests for a known NVML initialization issue after container
 recreation — CUDA is working (the LLM and optimizer both use it). This is documented and expected.
+
+**The 5 skipped are also expected, and are not a regression.** They are the box-global `clear_all`
+tests, which *self-skip rather than delete custom scenarios a human saved on the box*. If any
+`custom-*` scenario is present they stand down; on a clean box the suite reports **638 passed + 2
+xpassed**. Read the skip line, not just the pass count.
 
 `make test` does **not** refresh anything the demo reads. It writes its benchmark artifacts to a
 temporary directory (`HELIX_BENCHMARK_DIR`), so running it before a demo cannot overwrite the
@@ -664,7 +670,23 @@ the natural place to decide you want different conditions.
 ⚠️ **The entry is deliberately absent in `?replay=true`.** The recorded walkthrough blocks every API
 call by design, and building a scenario needs the API. Use the live stack for this option.
 
-### 🔴 Two things to know before you start talking
+### 🔴 Before you start talking
+
+> #### 🔴 KNOWN DEFECT — do not click **Save** and then **Save & run**
+>
+> The panel has no dirty-state tracking, so the second click is treated as a brand-new save of a name
+> that now exists, and you get:
+> *"A scenario named 'custom-…' already exists. Delete it first, or save under a different name."*
+>
+> **This happened live in front of the sponsor on 2026-08-26.** Until it is fixed:
+>
+> - **To save and run: click `Save & run` ONCE.** Do not press `Save` first. It does both.
+> - **To re-run something already saved:** click its name in the **YOUR SAVED SCENARIOS** list, or
+>   pick it from the Scenario dropdown. Do not use the buttons.
+> - **If you hit the error anyway:** the scenario *was* saved correctly. Nothing is lost. Close the
+>   panel and run it from the dropdown.
+>
+> Fix design and status: [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
 
 1. **It starts from `baseline`, and it says so.** Every control left blank means "same as baseline".
    That is why the change list is short and readable — it only ever shows what *you* moved.
@@ -910,7 +932,7 @@ saved custom scenario is an ordinary scenario as far as the rest of the system i
 | Save is greyed out with a long red block about warehouses | Working as intended — a network count is below its floor. **This is step 8**, not a fault. Set Distribution centers back to 1 or more. |
 | A network count won't go below 1 | It will — the field is not clamped. If it *looks* clamped, you are reading the `1–20` bound hint under the field, not a limit on typing. |
 | "The network" section is missing from the panel | Your browser is showing a cached build. **Hard-reload** (Ctrl/Cmd+Shift+R). |
-| "A scenario named … already exists" | Delete it first, or pick another name. This also happens if a save failed halfway once — delete clears it. |
+| "A scenario named … already exists" | 🔴 **Almost always the known defect: you clicked `Save` and then `Save & run`.** Your scenario *was* saved — nothing is lost. Close the panel and run it from the dropdown. Click `Save & run` **once** next time. [Details](Known_Issue_Save_Run_Button_State.md). *(It can also mean a genuine name clash with a scenario already on the box — the saved list at the top of the panel shows what is there.)* |
 | A saved scenario shows "no data generated" | It should be impossible: a save is atomic. If you see it, delete and re-save, and it is worth a bug report. |
 
 ## Suggested Talk Track

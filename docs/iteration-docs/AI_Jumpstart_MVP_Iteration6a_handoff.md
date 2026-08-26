@@ -6,6 +6,8 @@
 **Branch:** `feat/iteration6a-custom-scenario`
 **Predecessor:** Iteration 5 (Beta) — conversational analyst, merged to `main` 2026-08-05 (`bc42bb3`)
 **Origin:** your demo review of **2026-08-19** — the first sponsor look at Iterations 4 and 5
+**Outcome:** ✅ **Merged to `main` as `ad17cc5` (2026-08-20). Reviewed at the 2026-08-26 demo and
+accepted as-is — no changes requested.**
 
 ---
 

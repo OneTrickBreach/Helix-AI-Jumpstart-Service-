@@ -1,13 +1,45 @@
 # Iteration 6b, Phase 0 — the two items that need a human
 
 **From:** Ishan (AI Intern) / agent session, 2026-08-21
-**Status:** 🔴 **OPEN. Both items are unstarted and neither can be done from an agent session.**
+**Status:** ✅ **CLOSED 2026-08-26 — overtaken by events, not ticked off.** Read the box at the
+top of this file before the body; the body is preserved as written on 2026-08-21.
 **Why this document exists:** Phase 0's definition of done includes two items an agent cannot
 legitimately mark complete. They are written up here with everything needed to do them quickly, so
 they do not quietly become the thing that got skipped.
 
 **Deadline reality:** the Ryan demo is **Wednesday 2026-08-26**. Both items below should be done
 **this weekend (Sat 22 – Sun 23)**, not Tuesday night. Together they are about **80 minutes**.
+
+---
+
+## 🔴 What actually happened — read this first
+
+Both items existed to protect **the Wednesday 2026-08-26 demo**. That demo has now happened, live on
+the box, and **it went well: Ryan was satisfied and asked for no changes.** The risk both items
+insured against — *"the box wobbles Wednesday morning and the one thing Ryan came to see cannot be
+shown"* — did not occur. The stack was healthy and the demo ran on it.
+
+So neither item is being marked complete, because neither was done as written. They are **closed as
+overtaken by events**, with the honest detail:
+
+| Item | Outcome |
+|---|---|
+| **1 — record the Option E walkthrough** | ❌ Not done as a fallback. **Superseded by a live deliverable:** at the demo Ryan asked for a *narrated screen recording* of the tool. That recording is now a real handoff artifact rather than an insurance policy, and it is being produced from a purpose-written script rather than by reading Option E verbatim. |
+| **2 — read the talk track aloud, end to end** | ❌ Not done as a rehearsal. **But its purpose was served, expensively.** Ishan presented the whole thing live. |
+
+### 🔴 Item 2 was right, and the demo proved it the hard way
+
+This item has been carried as a definition-of-done since Iteration 3 and was never once closed. Its
+stated purpose was to catch *"a transition that assumes a click you did not make"* — a defect no test
+and no browser check can find.
+
+**A defect of exactly that class surfaced during the live demo**: clicking **Save** and then
+**Save & run** produces a *"already exists"* error, because the panel has no idea it just saved.
+See [`../Known_Issue_Save_Run_Button_State.md`](../Known_Issue_Save_Run_Button_State.md).
+
+Sixty minutes of reading the talk track aloud, with the stack in front of him, would very likely have
+found it in a quiet room instead of in front of the sponsor. **That is the argument for this item,
+written down properly at last, for whoever inherits the practice.** It was never a formality.
 
 ---
 
@@ -144,12 +176,16 @@ sitting is not that one. Doing this one now is what makes that one quick.
 
 ## Checklist
 
-- [ ] **Item 1** — Option E walkthrough recorded, narrated, stored, linked from `DEMO_GUIDE.md`,
-      and played back with the stack down
-- [ ] **Item 2** — Option E talk track read aloud end to end, problems written down **and fixed**,
-      journal updated
+- [x] ~~**Item 1** — Option E walkthrough recorded as a demo fallback~~ — **closed as overtaken.**
+      The demo it insured has happened and succeeded. A *narrated* recording is now being produced at
+      Ryan's request, as a deliverable in its own right.
+- [x] ~~**Item 2** — Option E talk track read aloud end to end~~ — **closed as overtaken.** Never
+      done as a rehearsal; the live demo served the purpose and found the defect this item was
+      designed to catch. See the box at the top of this file.
 
-Neither box is ticked by an agent. When they are done, say so and the Phase 0 DoD closes.
+**Neither box was ticked by an agent, and neither was ticked by doing the work as written.** They are
+closed because the deadline they served has passed. That distinction is the whole point of recording
+it this way.
 
 ---
 

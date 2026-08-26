@@ -10,6 +10,27 @@ would happen if a warehouse went down, why can't we just reduce a warehouse."*
 
 ---
 
+## ✅ Outcome — reviewed 2026-08-26
+
+**You reviewed this live on 2026-08-26, are satisfied, and requested no changes.** Iteration 6b is
+accepted as-is and feature work on this engagement is closed.
+
+**On the decision this document asks you for** — *should the optimizer model a node?* — **you parked
+it.** The finding is acknowledged and not disputed; it is deliberately not funded for this
+engagement. 🔴 **Parked is not resolved.** Every limit described below is still true of the code as
+it stands, and this document plus
+[`Modelling_Finding_The_Optimizer_Has_No_Node.md`](Modelling_Finding_The_Optimizer_Has_No_Node.md)
+must be read before anyone builds a resilience, node-capacity or network-survivability feature on
+this optimizer.
+
+🔴 **One defect remains open**, found live at that demo: clicking **Save** and then **Save & run** in
+the panel errors with *"already exists"*, because the panel has no dirty-state tracking. Frontend
+only; no data loss, no incorrect results; the fix is designed and the backend support already exists.
+See [`../Known_Issue_Save_Run_Button_State.md`](../Known_Issue_Save_Run_Button_State.md). **It is the
+only outstanding work on the project.**
+
+---
+
 ## TL;DR
 
 You asked for two things on 2026-08-19. 6a delivered the conditions; **this delivers the network.**

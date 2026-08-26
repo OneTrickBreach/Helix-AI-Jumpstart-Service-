@@ -2,7 +2,11 @@
 
 **From:** Ishan (AI Intern)
 **Date:** 2026-08-21
-**Status:** Measured on-device. The measurements are real; the recommendation is a decision for Ryan.
+**Status:** Measured on-device. The measurements are real. **Decided: Ryan reviewed this at the
+2026-08-26 demo and PARKED it** — acknowledged, not disputed, and deliberately not funded for this
+engagement. 🔴 **It is parked, not resolved.** Every limit described below is still true of the code
+as it stands today, and this document remains the single most important thing to read before anyone
+builds a resilience, node-capacity or network-survivability feature on top of this optimizer.
 **Audience:** Ryan Spurr (decision), and whoever picks this prototype up after 2026-08-28 (context).
 **Scope:** This document describes a **limit of the model**, not a defect in the code as written. No
 code was changed to produce it, and nothing here asks for code to be changed before the demo.

@@ -17,22 +17,45 @@
 ---
 
 ## Project snapshot (current state)
-- 🔴 **NOW: Iteration 6b — Custom Dataset. ALL FOUR PHASES COMPLETE (2026-08-24), one day ahead of
+- ✅ **NOW: SPONSOR-ACCEPTED, FEATURE-COMPLETE. ONE OPEN DEFECT.** **Ryan reviewed the whole product
+  live on 2026-08-26, is satisfied, and requested no changes.** Feature work on this engagement is
+  **closed**. He also asked for a **narrated screen recording** of the tool — that is a deliverable,
+  not a feature. On the §1 question the 6b packet put to him — *should the optimizer model a node?* —
+  he **parked it**: acknowledged, not disputed, deliberately not funded. 🔴 **Parked is not resolved;
+  every limit in
+  [the modelling finding](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) is still true
+  of the code today.**
+  🔴 **THE ONE REMAINING TASK: the Save / Save & run button-state defect**, found live at the demo.
+  Clicking **Save** then **Save & run** errors with *"already exists"* because the panel has no
+  dirty-state tracking. **Frontend-only; no data loss, no wrong results**; `overwrite` is already
+  plumbed through store, API and the TS type and is simply never set.
+  Write-up: [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+  Branch: `fix/custom-panel-save-run-state`.
+  **Re-verified on-device 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** ·
+  `make web-test` **118** · `make scenario-eval` **41/41** · `make web-check` **ALL CHECKS PASSED
+  (91 PASS, 0 FAIL)**.
+  ⚠️ **Three documentation defects were found and fixed in the same pass** — see the 2026-08-26
+  entry: the "638" pass count silently included 5 skips; `web-check` was quoted as "50/50" from a
+  hand-count the script does not produce; and the README's table of contents disagreed with its own
+  §9 heading behind a broken anchor.
+- 🔴 **Iteration 6b — Custom Dataset. ALL FOUR PHASES COMPLETE (2026-08-24), one day ahead of
   the plan — plus a late naming fix so the dataset tier is VISIBLE, not just built.** The dropdown now
   offers **two doors** ("Custom scenario — the conditions…" / "Custom dataset — the network…") into the
   one panel, and the result banner reads **CUSTOM DATASET** when a network count differs from baseline.
-  `make test` **638 + 2 xpassed**, `make web-check` **50/50**. A planner opens **Custom scenario…**, shapes the network, runs the real pipeline, and gets
+  A planner opens **Custom scenario…**, shapes the network, runs the real pipeline, and gets
   an honestly-labelled result. Deliverables: the
   [6b handoff](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md), the
-  [Ryan packet](iteration-docs/Iteration6b_Ryan_Review_Packet.md) (**draft, not sent**),
+  [Ryan packet](iteration-docs/Iteration6b_Ryan_Review_Packet.md) (**sent; reviewed 2026-08-26**),
   [the modelling finding](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md),
   `DEMO_GUIDE.md` **Option E steps 7–9**, and
   [five reproducible screenshots](iteration-docs/screenshots/iteration6b/).
-  **Full green sweep:** `make test` **635 + 2 xpassed** · `make scenario-eval` **41/41** ·
-  `make bench-all` **all 12 bit-identical** · `make web-test` **118** · `make web-check` **49/49** ·
+  **Green sweep at Phase 4 close (2026-08-24):** `make test` **635 + 2 xpassed** ·
+  `make scenario-eval` **41/41** · `make bench-all` **all 12 bit-identical** · `make web-test` **118** ·
   `make chat-eval` **31/31** · `make redteam` **27/27** · `make parse-eval` **35/35** · all four
   GPU-free replay paths pass with the API blocked. `NetworkMap.tsx` untouched all iteration.
-  🔴 **Remaining: Phase 5 (post-demo handoff, Thu–Fri) and the Wednesday demo itself.**
+  ⚠️ **The counts in this bullet used to disagree with each other** ("638 + 2 xpassed / 50-50" in one
+  sentence, "635 + 2 xpassed / 49-49" two lines later). Corrected 2026-08-26 to the numbers actually
+  re-measured; see that entry for why a pass count on this box is environment-dependent.
 - **Iteration 6b Phase 3 COMPLETE — the Network group is in the panel.**
   A planner opens **Custom scenario…**, sees **The network** with the two honesty classes rendered
   distinctly, sets warehouses to 1, saves and runs, and gets **81,663** with no false caveat; sets
@@ -217,6 +240,168 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-26 — The demo: Ryan accepts the product, parks the node question, and a two-click bug shows up live
+
+**Status:** ✅ **The sponsor reviewed the full product live and is satisfied. He requested no
+changes. Feature work on this engagement is CLOSED.** 🔴 **One defect is open**, found during the
+demo itself, and it is the only outstanding work. **git ref: this documentation tie-up commit.**
+Branch `feat/iteration6b-custom-dataset` → merged to `main`.
+
+---
+
+### 1. What happened at the demo
+
+Ryan reviewed everything — Iterations 4, 5, 6a and 6b — live on the GB10. **Outcome: satisfied, no
+changes requested.** Three decisions came out of it:
+
+| Question | His answer | Consequence |
+|---|---|---|
+| The product as built | **Accepted as-is** | Feature work on this engagement is closed |
+| 🔴 *"Should the optimizer model a node?"* (6b packet §1) | **Parked** | Acknowledged, not disputed, **not funded**. Documented and carried into handoff |
+| Anything else wanted | **A narrated screen recording** of the tool | A deliverable, not a feature. Script to be written; Ishan records via OBS |
+
+**On "parked".** It is not "resolved" and this journal should never let it read as such. The
+optimizer still has no concept of a node; removing a warehouse is still free; a network with zero
+warehouses still scores best on both cost and service. Every word of
+[`Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+is still true of the code as it stands. What changed is only that the sponsor has seen it and chosen
+not to fund it now.
+
+**On "accepted".** Also not "production-ready". README §12 stands in full. The distinction is written
+into every doc updated in this pass rather than left to the reader.
+
+---
+
+### 2. 🔴 The defect — found in front of the sponsor, in the most obvious two-click sequence in the panel
+
+Building a scenario, clicking **Save**, then clicking **Save & run**, produces:
+
+> A scenario named 'custom-test1' already exists. Delete it first, or save under a different name.
+
+**Root cause: the panel has no concept of "already saved."** No dirty-state tracking exists anywhere
+in `CustomScenarioPanel.tsx`, so:
+
+- `request()` ([`CustomScenarioPanel.tsx:192`](../web/src/custom/CustomScenarioPanel.tsx#L192)) never
+  sets `overwrite` — every save is a first save;
+- `canSave` ([`CustomScenarioPanel.tsx:177`](../web/src/custom/CustomScenarioPanel.tsx#L177)) is
+  `name && validation.ok && !busy` — so **both buttons stay fully enabled after a successful save**.
+
+The storage layer then does exactly what it promises, at
+[`store.py:296`](../src/scenario/store.py#L296).
+
+🔴 **This is not a backend bug, and the guard must not be removed.** `overwrite` is already plumbed
+through [`store.py:275`](../src/scenario/store.py#L275),
+[`pipeline.py:177`](../src/api/pipeline.py#L177) and even the TypeScript type at
+[`customApi.ts:48`](../web/src/lib/customApi.ts#L48) — **it is simply never set by the one component
+that needs it.** The whole capability was built and left unused. And the reason it defaults to
+`False` is written down at [`pipeline.py:170-173`](../src/api/pipeline.py#L170-L173): storage is
+box-global (decision 14), so silently overwriting a scenario someone else built is not a default
+worth having.
+
+**The fix therefore narrows the guard rather than removing it:** send `overwrite: true` **only** when
+the target name is the one this panel session saved. Full state machine and DoD in
+[`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+
+### 🔴 Why 633 pytest, 118 Vitest and 91 browser checks all passed
+
+They still pass. None was wrong. The suite asserts *"saving works"* and *"saving a duplicate is
+refused"* — both correct, both tested; `test_the_save_endpoint_returns_409_on_a_duplicate` passes
+today. **What no test covers is the sequence a person actually performs**, because every test
+performs one action and asserts the outcome.
+
+**This is the second time in three days:**
+
+| Date | What escaped | What the tests proved instead |
+|---|---|---|
+| 2026-08-24 | Every label said "scenario", so nobody could tell the custom **dataset** existed | That the feature *worked* |
+| **2026-08-26** | Save-then-run, the most obvious two-click sequence in the panel | That each click *works in isolation* |
+
+**The lesson, recorded properly this time:** this suite tests that features work. It does not test
+that a human moving through them in a natural order has a coherent experience. **One browser check
+that performs a realistic multi-step session is the highest-value test improvement available to
+whoever picks this up**, and it would have caught both.
+
+**And the item that would have caught it was on the list.** The Option E read-aloud rehearsal has
+been carried as a definition-of-done since **Iteration 3** and was never once closed — waived again
+on 2026-08-21. Its stated purpose was to catch *"a transition that assumes a click you did not
+make."* That is precisely this defect. Sixty minutes in a quiet room versus finding it in front of
+the sponsor. See
+[`Iteration6b_Phase0_Human_Handover.md`](iteration-docs/Iteration6b_Phase0_Human_Handover.md).
+
+---
+
+### 3. The documentation tie-up — and the brutal-truth review of it
+
+Every project document was reviewed against the post-demo reality. **Three real documentation
+defects were found**, none of them cosmetic:
+
+| # | Defect | Where | Fix |
+|---|---|---|---|
+| 1 | 🔴 **The headline pass count silently included skips.** The snapshot claimed `make test` **638 + 2 xpassed**. The suite actually reports **633 passed, 5 skipped, 2 xpassed** — 638 was `passed + skipped` presented as passed | journal snapshot, README §9, `handoff.md` | Quote all three numbers, always |
+| 2 | 🔴 **`web-check` "50/50" is a number the tooling does not produce.** `dataset-view.check.mjs` keeps **no counter** — it prints `PASS`/`FAIL` lines and a final `ALL CHECKS PASSED`. The real output today is **91 PASS, 0 FAIL**. The hand-maintained count had drifted through 38/38 → 49/49 → 50/50 | everywhere it was quoted | Quote the script's own output |
+| 3 | **The README's table of contents disagreed with its own §9 heading** — TOC said *"Iteration 5 (Beta) complete on the branch"*, the heading said *"Iteration 6a"*, and the TOC anchor pointed at a section that no longer existed | `README.md` | Both rewritten; anchor now resolves |
+
+**Why the 5 skips are not a regression, and why the number is environment-dependent.** They are the
+box-global `clear_all` tests. `_skip_if_it_would_destroy_real_scenarios()`
+([`tests/test_iteration6a_persistence.py:79`](../tests/test_iteration6a_persistence.py#L79)) makes
+them **self-skip rather than delete custom scenarios a human saved on the box** — decision 14 again,
+and a deliberately good design. Two demo leftovers, **`custom-test1` and `custom-test3`** (written
+15:16 and 15:17 today), are still present, so the tests stood down. **On a clean box: 638 passed + 2
+xpassed.**
+
+🔴 **`custom-test1` is deliberately left in place** — it is the exact repro state for the open defect
+and the scenario named in the error message. Delete it before quoting a clean pass count; do not
+delete it before reproducing the bug.
+
+**`make bench-all` was not re-run**, and that is stated rather than glossed. It is the long one, and
+`git log` confirms **`src/optimize/`, `src/pipeline/`, `src/forecast/` and `data/generator/` have had
+no commit since before the last full run on 2026-08-24**, when all 12 objectives were bit-identical.
+The claim holds by construction, not by re-measurement. **Anyone touching the optimizer must re-run
+it rather than inherit this reasoning.**
+
+**Verified on-device this session (2026-08-26):**
+
+| Command | Result |
+|---|---|
+| `make test` | **633 passed, 5 skipped, 2 xpassed** in 130.66 s (exit 0) |
+| `make web-test` | **118 passed** (7 files, exit 0) |
+| `make scenario-eval` | **41/41 cases** (12 controls); refusal classes **21/21**; warnings **6/6** |
+| `make web-check` | **ALL CHECKS PASSED — 91 PASS, 0 FAIL** (exit 0) |
+| `make bench-all` | **not re-run** — see above |
+
+**Documents updated:** `README.md` · `docs/handoff.md` · `docs/DEMO_GUIDE.md` ·
+`docs/DEVELOPMENT_JOURNAL.md` · `docs/Iteration6a_Plan_of_Action.md` ·
+`docs/Iteration6b_Plan_of_Action.md` · both Ryan review packets · both 6a/6b handoffs ·
+the modelling finding · the Phase 0 human handover. **New:**
+[`docs/Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+
+**Deliberately NOT rewritten**, because they are dated records rather than status: the six
+`data/corpus/manufacturing/*.md` synthetic RAG documents (editing them would corrupt the retrieval
+corpus), `docs/environment.md` and `docs/containerization.md` (dated device probes),
+`docs/agent-browser-setup.md` (a dated install record), the Iteration 1–5 plans and handoffs, and the
+screenshot READMEs. Iteration plan *bodies* were left exactly as written and only their status
+headers changed — a plan is a record of what was intended, and rewriting it to match the outcome
+would destroy the only evidence of the difference.
+
+---
+
+### 4. Open items carried forward
+
+1. 🔴 **The Save / Save & run defect.** The only outstanding work.
+   [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md), branch
+   `fix/custom-panel-save-run-state`.
+2. **The narrated screen recording** Ryan asked for. Script to be written; Ishan records via OBS.
+3. 🔴 **The node question is parked, not answered.** Anyone building a resilience, node-capacity or
+   network-survivability feature must read the modelling finding first.
+4. **A realistic multi-step browser check** — the test-suite gap that let two defects through in
+   three days.
+5. Everything in `handoff.md` *Known limits carried forward* still stands.
+
+**Deadline reality:** the internship ends **Friday 2026-08-28**.
+
+---
+
 
 ## 2026-08-24 (late) — the dataset tier was built but invisible: two doors, one panel
 

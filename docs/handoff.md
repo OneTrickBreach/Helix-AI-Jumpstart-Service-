@@ -1,25 +1,44 @@
 # Helix AI Jumpstart — Handoff Reference
 
-> **Status:** Iteration 4 (dataset transparency) merged to `main` 2026-08-03. **Iteration 5 (Beta) —
-> the conversational analyst — is complete on `feat/iteration5-beta-conversational-analyst`
-> (2026-08-05) and MERGED to `main` (`bc42bb3`). **Iteration 6a** (custom scenario panel) is complete
-> and verified on `feat/iteration6a-custom-scenario` (2026-08-20).** `make test` → **558 passed + 2
-> xpassed** (560 total); web
-> **108 Vitest**, **38/38** browser checks. Tuned classical still wins all four scenarios, bit-identical.
-> 🔴 Ryan has not reviewed Iteration 4 or 5 — the chat surface carries a visible `BETA` chip.
+> ## ✅ Sponsor-accepted, feature-complete. One open defect.
+>
+> **Ryan reviewed the full product live on 2026-08-26 and is satisfied. He requested no changes.**
+> Every iteration through **6b** is built, verified on-device and accepted. Feature work on this
+> engagement is **closed**.
+>
+> 🔴 **One defect remains, and it is the only outstanding work:** the custom panel's
+> **Save / Save & run** buttons have no dirty-state tracking, so clicking *Save* and then
+> *Save & run* errors with *"already exists"*. Found live at the demo. Frontend-only; no data loss,
+> no wrong results. **Full write-up and fix design:**
+> [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+> Branch: `fix/custom-panel-save-run-state`.
+>
+> **Verified on-device 2026-08-26:** `make test` → **633 passed, 5 skipped, 2 xpassed**. Web:
+> **118 Vitest**, and `make web-check` → **ALL CHECKS PASSED (91 PASS, 0 FAIL)**. Tuned classical still wins all four scenarios,
+> bit-identical.
+>
+> ⚠️ **On that "5 skipped".** They are the box-global `clear_all` tests, which *self-skip rather than
+> delete real saved scenarios* a human left on the box — and two demo leftovers (`custom-test1`,
+> `custom-test3`) are still there. **On a clean box the count is 638 passed + 2 xpassed.** The number
+> is environment-dependent by design; read the skip line, not just the pass count.
+>
+> **"Accepted" is not "production-ready."** §12 of the README and *Known limits* below still stand,
+> and the modelling finding at
+> [`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+> was **parked by Ryan, not resolved.** The chat surface keeps its visible `BETA` chip.
 
-_Last updated: **2026-08-20** (Iteration 6a Phase 5)_
+_Last updated: **2026-08-26** (post-demo tie-up)_
 
 ## Quick start
 
 ```bash
 make up                       # build + start all four arm64 services (GPU on api/llm)
-make test                     # full regression suite (349 tests on-device)
+make test                     # full regression suite (633 passed + 5 skipped + 2 xpassed on-device)
 make demo                     # generate data, rebuild web, print every demo URL
 make bench-all                # all four scenarios → benchmark/suite-summary.{json,md}
 make run SCENARIO=baseline    # single scenario end-to-end plan + metrics
-make web-test                 # 108 Vitest tests, run from the committed lockfile
-make web-check                # 26 headless-Chromium checks against the running stack
+make web-test                 # 118 Vitest tests, run from the committed lockfile
+make web-check                # headless-Chromium checks against the running stack (91 PASS, 0 FAIL)
 ```
 
 Open **`http://localhost:8081`** for the planner UI. Pick a scenario and run it. The **Before**
@@ -38,6 +57,25 @@ measured objective. Signed deltas are computed from those returned values. The r
 
 For the full demo walkthrough with talk tracks: [`docs/DEMO_GUIDE.md`](DEMO_GUIDE.md) — Option D is
 the chat panel.
+
+## Iteration 6b — the custom dataset (the network tier)
+
+The same panel also reshapes **the network itself**. The Scenario dropdown has a **Build your own**
+group with **two doors into one panel** — *"Custom scenario — the conditions…"* and *"Custom dataset —
+the network…"*; the dataset door opens the panel at **THE NETWORK**. Set **Distribution centers** to
+`1`, **Save & run**, and about a second and a half later you have a real result on a network you
+shaped. The result banner reads **CUSTOM DATASET** whenever a network count differs from baseline.
+
+🔴 **The valuable half of 6b is not the panel — it is what building the panel measured.** Removing a
+warehouse is *free*, and a network with **zero** warehouses scores **best** on both cost and service,
+because the routing optimizer has **no concept of a node**. Ryan has **parked** this. It is
+documented, acknowledged, and still true of the code today:
+[`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md)
+— **read it before building any resilience or node-capacity feature.**
+
+Full detail:
+[`iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md).
+Demo script: `DEMO_GUIDE.md` **Option E**, steps 7–9.
 
 ## Iteration 6a — the custom scenario panel
 
@@ -181,7 +219,20 @@ narrates, the deterministic pipeline computes, and a numeric validator enforces 
 warehouses, customers or products (that is 6b) · 15 of 59 settings cannot change the answer and are
 labelled · lane capacity is read at one period, so a narrow disruption window is a real no-op ·
 saved scenarios are box-global and single-user · `POST /scenario-comparison` is still not rate limited
-and is now reachable from a click · **no human has read the Option E talk track out loud yet.**
+and is now reachable from a click.
+
+**Iteration 6b:** the network counts move the objective only **0.12%–0.64%** and do not move fill rate
+or days of inventory at all · `network.lines_per_plant` is **inert** and labelled so · a resized
+network is **not comparable** to the recorded baseline and says so on every surface · 🔴 **the
+optimizer has no node** (parked by Ryan — see the modelling finding).
+
+🔴 **OPEN DEFECT — Save / Save & run button state.** The only outstanding work on the project.
+[`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md).
+
+🔴 **The test suite proves features work; it does not prove a human moving through them in a natural
+order has a coherent experience.** Two defects in three days escaped a fully green suite for exactly
+that reason — the 2026-08-24 naming fix and the 2026-08-26 save/run defect. **A browser check that
+performs one realistic multi-step session is the highest-value test improvement available.**
 
 
 - 🔴 **Lane capacity reaches the optimizer at exactly one period** — `state.horizon()` =
@@ -209,11 +260,15 @@ and is now reachable from a click · **no human has read the Option E talk track
 
 - [`DEMO_GUIDE.md`](DEMO_GUIDE.md) — full demo walkthrough with talk tracks (Options A–E)
 - [`DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) — chronological truth ledger
-- [`iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md) — **Iteration 6a handoff — current**
+- [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md) — 🔴 **the one open defect**
+- [`iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md) — **Iteration 6b handoff — current**
+- [`iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md`](iteration-docs/Modelling_Finding_The_Optimizer_Has_No_Node.md) — 🔴 **read before any resilience feature**
+- [`iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6a_handoff.md) — Iteration 6a handoff
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration5_handoff.md) — Iteration 5 (Beta) handoff
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration4_handoff.md) — Iteration 4 handoff
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md) — Iteration 3 handoff
-- [`Iteration5_Plan_of_Action.md`](Iteration5_Plan_of_Action.md) — the current phase-by-phase blueprint
+- [`Iteration6b_Plan_of_Action.md`](Iteration6b_Plan_of_Action.md) — the most recent phase-by-phase blueprint
+- [`Iteration5_Plan_of_Action.md`](Iteration5_Plan_of_Action.md) — the Iteration 5 blueprint
 - [`Iteration3_Plan_of_Action.md`](Iteration3_Plan_of_Action.md) §4 — the honest prototype→product gap
 - [`containerization.md`](containerization.md) — arm64 four-service stack details
 - [`environment.md`](environment.md) — live GB10 device specs

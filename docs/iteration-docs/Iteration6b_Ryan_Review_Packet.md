@@ -2,7 +2,10 @@
 
 **From:** Ishan (AI Intern)
 **Date:** 2026-08-24 · **for the demo on Wednesday 2026-08-26**
-**Status:** 🔴 **DRAFT — not sent.**
+**Status:** ✅ **SENT.** Reviewed by Ryan at the **2026-08-26** demo. **Outcome: he is satisfied and
+requested no changes.** On the decision this packet asks for in §1 — *should the optimizer model a
+node?* — his answer was to **park it**: the finding is acknowledged, documented, and not blocking.
+See [`Modelling_Finding_The_Optimizer_Has_No_Node.md`](Modelling_Finding_The_Optimizer_Has_No_Node.md).
 **Subject:** You asked for two things on 2026-08-19. Both are on the box. And building the second one
 found something about the product that nobody knew last Monday.
 
