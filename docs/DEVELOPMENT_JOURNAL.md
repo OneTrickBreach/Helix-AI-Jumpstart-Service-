@@ -247,8 +247,8 @@
 ## 2026-08-26 (later) — Fixing the save/run defect: the panel learns what "already saved" means
 
 **Status:** ✅ **Fix implemented, verified on-device, manually tested by Ishan, and MERGED to
-`main`.** Branch `fix/custom-panel-save-run-state`, cut from `main` @ `33d8738`. **git ref: hash
-backfilled in the follow-up commit.**
+`main`.** Branch `fix/custom-panel-save-run-state`, cut from `main` @ `33d8738`. **git ref:
+`8dbd756`; merged to `main` as `6ef9122` (`--no-ff`). Hashes backfilled in this follow-up commit.**
 
 ---
 
