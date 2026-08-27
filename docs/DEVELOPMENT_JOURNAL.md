@@ -251,8 +251,8 @@
 ## 2026-08-26 (later still) — The narrated recording script, and three stale numbers it uncovered
 
 **Status:** ✅ **Script written and cross-checked against the running system.** 🔴 **The recording
-itself is not done** — only a person can do that. **git ref: hash backfilled in the follow-up
-commit.**
+itself is not done** — only a person can do that. **git ref: `831e38e` on `main`. Hash backfilled in
+this follow-up commit.**
 
 ---
 
