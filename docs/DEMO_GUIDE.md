@@ -24,6 +24,7 @@
 | **Test suite** | `make test` 633 passed + 5 skipped + 2 xpassed (2026-08-26); web 130 Vitest (`make web-test`); `make web-check` 55/55. The 5 skips are the box-global `clear_all` tests self-skipping around custom scenarios left on the box — not a regression |
 | **Panel buttons** | Two states: **Save** / **Save & run** with unsaved edits; **Saved** (greyed) / **Run** once saved. [Why](Known_Issue_Save_Run_Button_State.md) |
 | **Full demo guide** | This file |
+| **Narrated recording** | [`Recording_Script_Narrated_Walkthrough.md`](Recording_Script_Narrated_Walkthrough.md) — a ~10-min read-aloud screenplay, for recording rather than presenting live |
 
 ---
 
@@ -756,11 +757,11 @@ when the matching box is ticked, and the row says so. They appear only for a cus
 recorded ones always run everything.
 
 **4. 🔴 The first honesty beat — a control that cannot change the answer.** Click
-**"Show all 59 settings"**. Scroll to the bottom of the Advanced list, to the boxed section headed:
+**"Show all 67 settings"**. Scroll to the bottom of the Advanced list, to the boxed section headed:
 
 > **recorded in the dataset, not read by the optimizer**
 >
-> These 15 settings are part of the dataset and show up on the dataset page, but the forecast and the
+> These 16 settings are part of the dataset and show up on the dataset page, but the forecast and the
 > optimizer never read them — so changing one cannot change the result. They are editable so the saved
 > scenario is complete and honest, not because they are levers.
 
@@ -768,7 +769,7 @@ Point at **`capacity.dc_throughput_units_per_period`**, tagged **"no effect on t
 
 Say: *"This reads like the most intuitive control on the whole panel — how much this warehouse can
 handle. It does nothing. It lands in `nodes.csv`, which the optimizer never reads. We found that by
-generating the data twice and re-running the optimizer for every one of the 59 settings, not by reading
+generating the data twice and re-running the optimizer for every one of the 67 settings, not by reading
 the code — and a test fails if that ever stops being true."*
 
 **5. 🔴 The second honesty beat — a disruption the optimizer cannot see.** Reopen the panel

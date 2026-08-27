@@ -337,7 +337,7 @@ refused **by name, with the reason**. Nothing is ever written to disk by a what-
 
 **"Build your own scenario" — Iteration 6a.** A fifth entry in the scenario dropdown — **"Custom
 scenario…"**, on the results screen and the dataset view — opens a control panel over the settings that actually define a scenario, pre-filled from
-`baseline`: **8 grouped Simple controls** and **all 59 settings** in Advanced. Name it, run the real
+`baseline`: **8 grouped Simple controls** and **all 67 settings** in Advanced. Name it, run the real
 pipeline on it (**~1.2 s**), save it so it returns in the dropdown, delete it, or clear all.
 
 > ### The architectural bet: the four scenarios were already data, not code.
@@ -349,7 +349,7 @@ pipeline on it (**~1.2 s**), save it so it returns in the dropdown, delete it, o
 
 Two guardrails matter more than the feature:
 
-- 🔴 **15 of the 59 settings cannot change the optimizer's answer** and are shown in Advanced under an
+- 🔴 **16 of the 67 settings cannot change the optimizer's answer** and are shown in Advanced under an
   explicit *"recorded in the dataset, not read by the optimizer"* heading — never as live Simple
   controls. The labels are **derived** from the running system by two independent probes (generate-and-
   diff for what a setting writes, column ablation for what the optimizer reads), and a committed test
@@ -417,6 +417,7 @@ docs/
   Iteration6a_Plan_of_Action.md                      # Iteration 6a build blueprint (phases 0–5)
   Iteration6b_Plan_of_Action.md                      # Iteration 6b build blueprint (phases 0–5)
   Known_Issue_Save_Run_Button_State.md               # the save/run defect: found at the demo, fixed same day
+  Recording_Script_Narrated_Walkthrough.md           # ~10-min read-aloud screenplay for the narrated screen recording
   DEMO_GUIDE.md                                      # step-by-step demo walkthrough (Options A–E)
   containerization.md                                # current arm64/four-service stack notes
   handoff.md                                         # quick-start commands and on-device caveats
@@ -509,7 +510,7 @@ An agent continuing this work MUST preserve these — they are the difference be
 
 **Added by Iteration 6a (the custom scenario panel):**
 - 🔴 **No no-op controls.** A setting that cannot change the optimizer's answer must never be presented
-  as if it can. 15 of the 59 are labelled *"recorded in the dataset, not read by the optimizer"* and
+  as if it can. 16 of the 67 are labelled *"recorded in the dataset, not read by the optimizer"* and
   excluded from the Simple tier. The labels are **derived** from the running system, and the test that
   compares derived against declared is what fails when a label becomes a lie — do not weaken it.
 - 🔴 **A custom result is labelled as custom, everywhere** — the `custom-` prefix in the name, the

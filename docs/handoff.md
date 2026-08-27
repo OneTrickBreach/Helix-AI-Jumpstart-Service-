@@ -85,13 +85,13 @@ Move the controls, name it, **Save & run**. A default custom run is **~1.2 s**; 
 **0.04–0.07 s**.
 
 ```bash
-make scenario-ledger        # print what each of the 59 settings can and cannot change
+make scenario-ledger        # print what each of the 67 settings can and cannot change
 make scenario-eval          # 29 validation cases, 7 of them controls
 ```
 
 **Two things to state, not gloss:**
 
-- **15 of the 59 settings cannot change the optimizer's answer.** They are shown in Advanced under
+- **16 of the 67 settings cannot change the optimizer's answer.** They are shown in Advanced under
   *"recorded in the dataset, not read by the optimizer"*. `capacity.dc_throughput_units_per_period` is
   the one that reads most like a real lever and is not one.
 - **Lane capacity reaches the optimizer at one period** (`max(demand.period)` — 52, or 104 on
@@ -216,7 +216,7 @@ narrates, the deterministic pipeline computes, and a numeric validator enforces 
 ## Known limits carried forward (state these; do not quietly fix them)
 
 **Iteration 6a:** the panel edits the scenario layer only — no adding or removing suppliers, plants,
-warehouses, customers or products (that is 6b) · 15 of 59 settings cannot change the answer and are
+warehouses, customers or products (that is 6b) · 16 of 67 settings cannot change the answer and are
 labelled · lane capacity is read at one period, so a narrow disruption window is a real no-op ·
 saved scenarios are box-global and single-user · `POST /scenario-comparison` is still not rate limited
 and is now reachable from a click.
@@ -264,6 +264,7 @@ through a full save/edit/run cycle. **Both are plausible homes for the next defe
 ## Key documents
 
 - [`DEMO_GUIDE.md`](DEMO_GUIDE.md) — full demo walkthrough with talk tracks (Options A–E)
+- [`Recording_Script_Narrated_Walkthrough.md`](Recording_Script_Narrated_Walkthrough.md) — **the ~10-minute read-aloud screenplay** for the narrated screen recording Ryan asked for: click steps and spoken lines interleaved
 - [`DEVELOPMENT_JOURNAL.md`](DEVELOPMENT_JOURNAL.md) — chronological truth ledger
 - [`Known_Issue_Save_Run_Button_State.md`](Known_Issue_Save_Run_Button_State.md) — the save/run defect, and 🔴 **why a green suite missed it**
 - [`iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md`](iteration-docs/AI_Jumpstart_MVP_Iteration6b_handoff.md) — **Iteration 6b handoff — current**

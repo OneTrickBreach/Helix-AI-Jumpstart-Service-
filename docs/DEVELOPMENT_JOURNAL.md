@@ -36,6 +36,10 @@
   **Verified on-device 2026-08-26:** `make test` **633 passed, 5 skipped, 2 xpassed** ·
   `make web-test` **130** (+12) · `make scenario-eval` **41/41** · `make web-check` **55 PASS,
   0 FAIL** (+5, driving one realistic multi-step session).
+  📝 **Next: the narrated recording.** The read-aloud script is written
+  ([`Recording_Script_Narrated_Walkthrough.md`](Recording_Script_Narrated_Walkthrough.md)); 🔴 **the
+  recording itself is Ishan's to make.** Writing it also caught three stale counts — the panel offers
+  **67** settings and marks **16** as unable to change the answer, where the docs still said 59 and 15.
   ⚠️ **Two documentation defects were found and fixed in the same pass** — see the 2026-08-26 entry:
   the "638" pass count silently included 5 skips, and the README's table of contents disagreed with
   its own §9 heading behind a broken anchor. 🔴 **A third "defect" was my own miscount and has been
@@ -243,6 +247,82 @@
 ---
 
 ## Entries (newest first)
+
+## 2026-08-26 (later still) — The narrated recording script, and three stale numbers it uncovered
+
+**Status:** ✅ **Script written and cross-checked against the running system.** 🔴 **The recording
+itself is not done** — only a person can do that. **git ref: hash backfilled in the follow-up
+commit.**
+
+---
+
+### 1. What this is
+
+Ryan asked at the demo for a narrated screen recording. This is the read-aloud screenplay for it:
+[`Recording_Script_Narrated_Walkthrough.md`](Recording_Script_Narrated_Walkthrough.md).
+
+**Shape agreed with Ishan:** ~10½ minutes · audience *"literally anyone"* (assume zero supply-chain
+knowledge) · **▶ DO** and **🎙 SAY** strictly alternating, so it can be read from a second laptop
+while OBS records the box. 1,376 spoken words across 9 shots, with a per-shot word budget so the
+pacing is checkable rather than hoped for.
+
+**Two structural decisions worth recording:**
+
+1. 🔴 **Shots 1–4 run in `?replay=true`, shots 5–9 live**, in two pre-opened tabs. A live run of a
+   recorded scenario takes **2–4 minutes** because the four always run PPO and the rationale — that
+   is four minutes of dead air in a ten-minute video. The replay capture is a real measured run of
+   `component-shortage-shock`, so the numbers are honest; the script makes the narrator **say** it is
+   a playback in Shot 1 rather than let the viewer assume it is live. Custom runs in shots 5–8 are
+   ~1.2 s, so the live half needs no filler at all.
+2. **The chat beat works in replay.** In `?replay=true` the suggested questions *are* the recorded
+   transcript's questions ([`ChatPanel.tsx:148`](../web/src/chat/ChatPanel.tsx#L148)), so clicking
+   *"What if warehouse 4 is completely depleted?"* replays the real captured premise-correction with
+   **no API call and no model latency**. That beat is the best in the product and it costs nothing.
+
+### 2. 🔴 Three stale numbers the fact-check found
+
+Every figure was checked against the running API and the two payloads the replay actually serves,
+not against the demo guide. Three were wrong in the guide:
+
+| # | Claim | Truth | Where it was |
+|---|---|---|---|
+| 1 | *"Show all **59** settings"* | The button is `Show all {schema.settings.length} settings` → **67**. 6b added the eight `network:` counts and the guide never caught up | `DEMO_GUIDE.md`, `README.md` ×3, `handoff.md` ×3 |
+| 2 | *"These **15** settings … cannot change the result"* | The panel renders `These {layout.cannotChange.length} settings` → **16**. `network.lines_per_plant` joined the inert set in 6b | same files |
+| 3 | *"derived … for every one of the **59** settings"* | 67 | `DEMO_GUIDE.md` |
+
+**The API is the source of truth and says so plainly:** `ledger.total` **67**,
+`cannot_change_the_answer.count` **16** (15 `recorded_not_read` + 1 `label_only`). All fixed.
+
+⚠️ **The pattern is the point, and it is the same one as the last two entries.** Both numbers are
+*rendered from live data* in the UI and were *hard-coded* in the prose beside it. The screen could
+never be wrong; the document could never be right. Anything quoted in prose that the UI derives at
+runtime will rot — and the only reason these were caught is that writing a script forces you to read
+every number out loud against the actual screen.
+
+**That is the third time this week the same class of gap has surfaced** — a built feature nobody
+could see, a two-click sequence no test performed, and now counts no document re-checked. All three
+were found by a human looking at the product, none by the suite.
+
+### 3. Verified for the script
+
+| Claim in the script | Checked against |
+|---|---|
+| Replay is `component-shortage-shock`, baseline **102,834.79** → classical **95,445.45**, fill **79.87% → 82.47%** | `web/public/demo-replay.json` |
+| 5 suppliers · 2 plants · 2 DCs · 8 customers = **17 locations**; 28 products; 30 lanes; 52 weeks; **2,912** demand rows; seed **12345** | `web/public/demo-dataset-overview.json` |
+| The one-sentence summary, verbatim | same payload — it is a stored string, so the script quotes it exactly |
+| Shortage = 2 lanes, `SUP-001 → PLANT-001`, **periods 18–27**, 10 periods | same payload, `scenario_diff` |
+| Baseline **81,789.36** / 1 DC **81,663.11** / 0 DC **68,565.25 at 92.01%** | `benchmark/suite-summary.md` + the 6b measurements |
+| The chat button renders in replay | [`App.tsx:339`](../web/src/App.tsx#L339) — not gated on replay |
+| The panel is unmounted on close | [`App.tsx:315`](../web/src/App.tsx#L315) |
+
+### 4. Open
+
+1. 🔴 **The recording.** Ishan records it. The script's PRE-FLIGHT says to delete `custom-test1` and
+   `custom-test3` first — they are still on the box and would show in the saved list on camera.
+2. Everything else in this file's *Open items carried forward* still stands.
+
+---
+
 
 ## 2026-08-26 (later) — Fixing the save/run defect: the panel learns what "already saved" means
 
@@ -526,7 +606,9 @@ would destroy the only evidence of the difference.
 
 1. ✅ ~~**The Save / Save & run defect.**~~ Fixed, tested and merged the same day — see the
    2026-08-26 (later) entry.
-2. **The narrated screen recording** Ryan asked for. Script to be written; Ishan records via OBS.
+2. **The narrated screen recording** Ryan asked for. ✅ Script written —
+   [`Recording_Script_Narrated_Walkthrough.md`](Recording_Script_Narrated_Walkthrough.md).
+   🔴 **The recording itself is Ishan's to make**; only a person can do it.
 3. 🔴 **The node question is parked, not answered.** Anyone building a resilience, node-capacity or
    network-survivability feature must read the modelling finding first.
 4. **A realistic multi-step browser check** — the test-suite gap that let two defects through in
