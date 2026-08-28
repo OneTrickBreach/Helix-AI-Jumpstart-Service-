@@ -248,6 +248,88 @@
 
 ## Entries (newest first)
 
+## 2026-08-28 — Bringing §3, §5 and §12 of the README up to the evidence, and a premise that did not survive `git status`
+
+**Status:** ✅ **README updated and pushed. git ref: `PENDING` on `main`. Hash backfilled in this
+follow-up commit.** Documentation only — no code, no generated data, no new runs.
+
+---
+
+### 1. 🔴 The task premise was wrong, and checking took two minutes
+
+The request came in describing a repo/remote mismatch: *origin/main is at 6 commits with a README
+frozen at "end of Iteration 1", local work has gone through Iteration 6, diagnose the divergence.*
+**None of that was true.**
+
+| Asserted | Actual |
+|---|---|
+| `origin/main` at 6 commits | `origin/main` == local `main` == `9bad78d`. `git rev-list --left-right --count origin/main...main` → `0 0`, re-checked after a fresh `git fetch` |
+| README frozen at Iteration 1 | Footer read *"Iteration 5 (Beta) complete (2026-08-05)"*, and §9/§10/§11/§13 had **already** been rewritten to Iteration 6b reality |
+| Work may live outside this tree | All 8 iteration branches are on the remote; `src/` has 68 modules; journal and demo guide are tracked, not ignored |
+
+The brief carried a stop-condition — *"if local main is NOT ahead of origin, STOP"* — whose stated
+reason was *"it would mean the work lives somewhere other than this working tree."* That condition
+fired, but its reason was disproven: the work is here **and** already pushed. Proceeding was the
+right call, but the lesson is the cheaper one: **the diagnostic was worth running before the edit,
+and every assertion in it should have been checked before being restated.**
+
+### 2. What was actually stale, after reading rather than assuming
+
+Only three sections were genuinely wrong. §9, §10, §11, §13 and the table of contents needed little
+or nothing — someone had already done that pass.
+
+| § | Was | Now |
+|---|---|---|
+| **3** | A neutral *"cuOpt update"* note | A **resolved** outcome: obtained (26.06.00), **runs on ARM64 on this box**, benchmarked, and 🔴 **not shipped** — with both independent reasons stated (wrong problem class: VRP vs. our transportation LP; wrong side of the ~100-location crossover at ~152 lanes) |
+| **5** | A *hypothesis*: "Recommended start" column, *"PPO vs. tuned base-stock"*, *"Routing: cuOpt"* | A *result*: an **Outcome** column, **OR-Tools GLOP named as the shipped router**, and a red-flagged block stating PPO was rebuilt as a true per-period MDP, evaluated on CVaR-75, and **lost every evaluated scenario** |
+| **12** | *"cuOpt is not preinstalled … verify on ARM64, benchmark separately"* · *"PPO is recommended, not mandated"* | Both **updated as resolved by evidence, neither deleted.** The cuOpt caveat records that the instruction was carried out and the answer was no; the PPO caveat keeps the principle and adds the verdict |
+
+🔴 **No caveat was deleted.** The ~94% baseline-collapse line and the hospital service-level line are
+**byte-identical** to before, as is the ~273 GB/s bandwidth flag in §3 — grep-verified after the edit.
+
+### 3. Two stale numbers found on the way, outside the brief
+
+Same class of rot as the last three entries: a figure quoted in prose that something else derives.
+
+| Claim | Truth | Source |
+|---|---|---|
+| §9 and §13: `make web-test` **118** | **130** — the 2026-08-26 fix added 12 fingerprint tests | this journal (2026-08-26 entry) and `handoff.md`, both already said 130 |
+| §9 envelope: **73.2–74.1 GiB**, LLM ~48 tok/s, from the **2026-08-05** run | **71.25–71.38 GiB**, 49.6–49.7 GiB headroom, LLM **46.7–48.1 tok/s**, from the **2026-08-24** run | `benchmark/suite-summary.md` |
+
+**That is the fourth consecutive entry where the document lagged a number the system already knew.**
+The README is now the only place quoting `web-test` counts that the 6b handoff still lists as 118 —
+left alone deliberately, because that handoff is a dated deliverable, not a living document.
+
+Also corrected in §10, which claimed to be "the actual layout" and was not: the **`src/scenario/`
+package was missing entirely** (all of 6a and 6b), along with `data/corpus/`, `.custom-staging/`,
+`screenshots/iteration5/` and `agent-browser-setup.md`; and the inlined `.gitignore` excerpt had
+drifted from the real file.
+
+### 4. Verified before writing
+
+Every figure traces to an artifact in this tree. Nothing was estimated and no TODO placeholder was
+needed.
+
+| Claim | Checked against |
+|---|---|
+| OR-Tools GLOP is the shipped router — not a doc claim, the code | [`common.py:114`](../src/optimize/common.py#L114) `select_ortools_lanes`, made default at [`common.py:231`](../src/optimize/common.py#L231) |
+| cuOpt is not in the shipped path | appears only in `src/api/cuopt_smoke.py` + a health probe; `cuopt-cu13` absent from `requirements-api.txt` |
+| PPO worse by +25.7% / +19.0% / +22.3% / +13.7%; CVaR-75 worse in 3 of 4 | Iteration 3 handoff §4.1–4.2, cross-checked against `benchmark/suite-summary.md` (2026-08-24) — objectives bit-identical across both runs |
+| cuOpt crossover, 27.8× at 500 locations, 67.8× at 10 | `benchmark/cuopt-recheck.json` |
+| Forecasting shipped statistical | [`statistical.py:61`](../src/forecast/statistical.py#L61) — AutoETS + CrostonSBA, selected per-series on zero-fraction |
+
+### 5. Open
+
+1. Nothing new. The **narrated recording** (Ishan's to make) and the **parked node question** remain
+   exactly as the previous entries left them.
+2. ⚠️ **`configs/` is still an empty `.gitkeep` scaffold** and §10 still lists it as
+   *"runtime/scenario config"*. Harmless — real config lives in `data/scenarios/*.yaml` and env vars
+   — but it is a directory that has never held anything, and a future pass should either use it or
+   delete it.
+
+---
+
+
 ## 2026-08-26 (later still) — The narrated recording script, and three stale numbers it uncovered
 
 **Status:** ✅ **Script written and cross-checked against the running system.** 🔴 **The recording

@@ -76,10 +76,17 @@ The goal is to "AI-fy" the supply chain end to end and package it as a sellable 
 
 **Software stack (preinstalled via DGX OS 7 / NGC):** DGX OS 7 (~7.2.x, Ubuntu 24.04 LTS), Linux 6.11 NVIDIA Base OS, GPU driver R580 branch, **CUDA Toolkit 13.x**, cuDNN, NCCL, **TensorRT / TensorRT-LLM**, **RAPIDS**, NVIDIA Container Toolkit (Docker), **NGC catalog + NVIDIA NIM** inference microservices, PyTorch via NGC containers. Work is portable to DGX cloud/data-center.
 
-> **cuOpt update (2026-07-27):** cuOpt 26.06.00 is now available for arm64/CUDA-13 (`pip install cuopt-cu13`).
-> VRP benchmark: OR-Tools CPU wins below ~100 locations (our scale); cuOpt GPU wins at 200+.
-> The main optimizer uses OR-Tools GLOP for transportation LP (a different problem class than cuOpt's VRP).
-> OR-Tools stays as the lane-routing engine. See [Phase 6 in the journal](docs/DEVELOPMENT_JOURNAL.md).
+> ### cuOpt: resolved (verified on-device 2026-07-27). Evaluated — **not** the shipped router.
+> The Iteration-1 concern was that cuOpt was absent from the preinstalled list and might not exist for
+> ARM64 in time, i.e. a schedule risk. **That risk did not materialise and is closed.** What actually happened:
+> - **Obtained:** cuOpt **26.06.00** for arm64/CUDA-13, `pip install cuopt-cu13 --extra-index-url https://pypi.nvidia.com`.
+> - **Runs on ARM64:** yes, on this GB10. Its API had changed since the Iteration-1 check (`set_task_locations` → `set_order_locations`). Reachable at `/cuopt/solve` when installed; falls back to OR-Tools when not.
+> - **Benchmarked (VRP, 1 vehicle, symmetric distance matrix):** OR-Tools CPU wins below ~100 locations, cuOpt GPU wins above. cuOpt carries ~100–120 ms fixed GPU overhead; OR-Tools scales ~O(n²). At 500 locations cuOpt is 27.8× faster; at 10 locations OR-Tools is 67.8× faster.
+> - 🔴 **Not shipped, for two independent reasons.** (1) **Wrong problem class** — the shipped optimizer solves a *transportation LP* via **OR-Tools GLOP**; cuOpt is a *VRP* solver and does not replace an LP. (2) **Wrong side of the crossover** — the prototype tops out at ~152 lanes, well below ~100 locations' worth of benefit. `cuopt-cu13` is deliberately **not** in `requirements-api.txt` (optional, ~28 packages, forces numpy/pyarrow downgrades).
+>
+> **OR-Tools CPU is the shipped lane-routing engine.** cuOpt stays available for a future 100+ stop
+> fleet-routing use case. Artifact: `benchmark/cuopt-recheck.json` (regenerate on-device); narrative in
+> [Phase 6 of the journal](docs/DEVELOPMENT_JOURNAL.md).
 
 ### Clustering (2-node)
 Two units bond over a single **200G QSFP56 passive DAC cable** (0.5 m, NVIDIA-approved, e.g. `Q56-200G-CU0-5`), point-to-point **RoCE/RDMA**, **NCCL** collectives, MPI on the CPU side, configured via **NVIDIA Sync "Cluster Assistant"**. Result: one logical node with **256 GB pooled memory, up to 8 TB storage, models up to ~400B params.** A separate out-of-band mgmt network (10 GbE RJ45 / Wi-Fi) is still needed (the DAC carries data only). **NVIDIA officially supports 2 nodes over the direct cable; 3+ requires a 200/400 GbE switch.**
@@ -131,22 +138,40 @@ caveat, etc.) are auto-loaded from [`.devin/rules/helix-sco.md`](.devin/rules/he
 
 **Engine layers (Pic 5):** Vector DB (vector) · LLM + RAG · Empirical AI Modeling.
 
-**Three-tier optimization design (do not conflate these tiers):**
-| Tier | Inventory | Routing/Transport | Role |
-|---|---|---|---|
-| **Naive baseline (target to beat)** | reorder-point / base-stock | shortest-route | The SOP's baseline; what we must beat by a set margin |
-| **Strong classical solver** | tuned (s,S) | MILP / **cuOpt** | The honest comparison — a well-tuned classical that does NOT collapse |
-| **Learned policy** | **continuous-action PPO** | (optional learned) | Recommended learned candidate; must justify itself vs. both above |
+**Three-tier optimization design (do not conflate these tiers).** All three are built and all three
+still run in `make bench-all` — the loser is kept visible, not deleted:
+| Tier | Inventory | Routing/Transport | Role | Outcome |
+|---|---|---|---|---|
+| **Naive baseline (target to beat)** | reorder-point / base-stock | shortest-route (greedy lanes) | The SOP's baseline; what we must beat by a set margin | Beaten in all four scenarios |
+| **Strong classical solver** | Optuna-tuned (s,S) | **OR-Tools GLOP** transportation LP | The honest comparison — a well-tuned classical | ✅ **Won. This is the shipped router.** |
+| **Learned policy** | continuous-action PPO (per-period MDP) | (not attempted) | Had to justify itself vs. both above | ❌ **Lost every evaluated scenario.** Evaluated, not shipped |
 
-**Stance (reconciling "lead with PPO" vs SOP "don't prescribe"):** PPO is the **recommended learned candidate**, but the framework proposes options and lets **on-device evidence decide** (cost/service AND latency/memory). PPO has to beat the naive baseline *and* earn its place against the strong classical solver.
+> ### 🔴 PPO was given a fair shot and lost. That result stands.
+> Iteration 3 Phase 4 rebuilt the RL environment as a **true per-period MDP** (not the original
+> whole-horizon parameter search) and evaluated it on **average cost and CVaR-75 tail risk** (the worst
+> 25% of periods). Across all four evaluated scenarios PPO was **13.7%–25.7% worse than the tuned
+> classical on objective**, and worse on CVaR-75 in three of four — in the fourth (`baseline`) its tail
+> risk was marginally better while its total cost was 25.7% worse. It was **demoted to "evaluated, not
+> shipped."** Numbers in §9; method in
+> [the Iteration 3 handoff](docs/iteration-docs/AI_Jumpstart_MVP_Iteration3_handoff.md) §4.
+>
+> This is a **negative result reported honestly, and it is a feature of this project.** Do not soften it,
+> bury it, or delete PPO from the benchmark to make the chart cleaner. Note also what it is *not*: the
+> classical solver did **not** collapse — a well-tuned classical simply won on this problem at this scale.
 
-**Scaffolding options to confirm at kickoff:**
-| Decision | Candidate options | Recommended start |
+**Stance (reconciling "lead with PPO" vs SOP "don't prescribe"):** PPO was the **recommended learned
+candidate**, but the framework proposed options and let **on-device evidence decide** (cost/service AND
+latency/memory). The evidence came in and chose the classical solver. The stance is unchanged and would
+re-open if the problem changed — published gains for deep RL concentrate in non-stationary,
+high-dimensional, constrained settings (§12), which this prototype's scale is not.
+
+**Scaffolding options — what was actually chosen:**
+| Decision | Candidate options | Outcome |
 |---|---|---|
-| Forecasting | Statistical (ETS/ARIMA, Croston for intermittent) · ML (gradient-boosted) · deep (temporal) | Seasonal statistical baseline first; add ML if it earns it |
-| Inventory opt | reorder-point/base-stock (baseline) · tuned (s,S) (classical) · **PPO** (learned) | PPO vs. tuned base-stock |
-| Routing | shortest-route (baseline) · MILP/**cuOpt** (classical) · learned | cuOpt |
-| Classical vs learned | run both; decide on evidence | head-to-head benchmark |
+| Forecasting | Statistical (ETS/ARIMA, Croston for intermittent) · ML (gradient-boosted) · deep (temporal) | **Statistical shipped** — `statsforecast` AutoETS, switching to CrostonSBA per-series on zero-fraction. ML never earned its way in; forecast latency (~25ms/series) is the scale ceiling |
+| Inventory opt | reorder-point/base-stock (baseline) · tuned (s,S) (classical) · PPO (learned) | **Optuna-tuned (s,S) shipped.** PPO lost on objective and tail risk |
+| Routing | shortest-route (baseline) · MILP/cuOpt (classical) · learned | **OR-Tools GLOP transportation LP shipped** (`select_ortools_lanes` in `src/optimize/common.py`). **cuOpt was obtained, runs on ARM64, was benchmarked — and is NOT shipped** (§3) |
+| Classical vs learned | run both; decide on evidence | **Head-to-head benchmark run** on all four scenarios; classical won all four. Both still run in `make bench-all` |
 
 **LLM + RAG role:** Provides a planner-facing natural-language interface, scenario retrieval, and human-readable rationale. **It contextualizes; it does NOT make the inventory/routing decision.** Serve via NIM, right-sized for bandwidth headroom.
 
@@ -246,9 +271,9 @@ network-survivability feature must read
 
 - `make up` builds and starts the four arm64 services: `web`, `api`, `llm`, and `vectordb`.
 - `make demo` generates data, rebuilds the web UI, and prints the demo URLs (results, dataset, chat).
-- `make test` — **633 passed, 5 skipped, 2 xpassed** (verified 2026-08-26). Web: **118 Vitest**
-  (`make web-test`); `make web-check` → **55 PASS, 0 FAIL**, up from 50 with the five new
-  button-state checks.
+- `make test` — **633 passed, 5 skipped, 2 xpassed** (verified 2026-08-26). Web: **130 Vitest**
+  (`make web-test`, up from 118 with the twelve new button-state fingerprint tests);
+  `make web-check` → **55 PASS, 0 FAIL**, up from 50 with the five new button-state checks.
   ⚠️ **The 5 skips are not a regression.** They are the box-global `clear_all` tests, which
   *self-skip rather than delete custom scenarios a human saved on the box* — two demo leftovers
   (`custom-test1`, `custom-test3`) are still present. Delete those and the 5 should run, giving the
@@ -273,19 +298,23 @@ network-survivability feature must read
 - **PPO was given a fair shot** (Phase 4: per-period MDP rebuild, CVaR tail-risk eval) and **lost all
   four on both objective and CVaR-75 tail risk**. Demoted to "evaluated, not shipped." Kept visible
   in the benchmark for transparency.
-- **Reconfirmed bit-identical** on every iteration since — most recently `make bench-all` at
-  2026-08-05T14:46Z, all 12 objectives to the digit.
+- **Reconfirmed bit-identical** on every iteration since — most recently `make bench-all` at the
+  Iteration 6b Phase 4 close (**2026-08-24**), all 12 objectives to the digit.
 - **RAG advisory** grounded on 6 real manufacturing documents (supplier agreements, SOPs, playbooks)
   with retrieval-time injection scanning and Qdrant stale-point cleanup. LLM rationale normally
   surfaces as `llm_finalized` for all four scenarios; the prose occasionally falls back to the
   deterministic template (`benchmark_template_after_short_llm_output`) — the metrics are unaffected
   either way, because the LLM never computes them.
-- **On-device envelope:** peak memory **73.2–74.1 GiB** of ~121 GiB usable (46.9–47.8 GiB headroom,
-  90% flag clear) on the 2026-08-05 suite run; it has been observed anywhere in 69–76 GiB for
-  unchanged code, so read it as "flag clear, headroom ample", not as a precise signal.
-  Up from Iteration 3's 65–68 GiB because the vLLM runtime was upgraded and then pinned by
-  digest — not because the app grew. Single-node holds at all tested scales up to 100x (28,800
-  series). LLM ~48 tokens/s.
+- **On-device envelope:** peak memory **71.25–71.38 GiB** of ~121 GiB usable (**49.6–49.7 GiB
+  headroom**, 90% flag clear) on the most recent suite run (**2026-08-24**, `benchmark/suite-summary.md`);
+  it has been observed anywhere in 69–76 GiB for unchanged code, so read it as "flag clear, headroom
+  ample", not as a precise signal. Up from Iteration 3's 65–68 GiB because the vLLM runtime was
+  upgraded and then pinned by digest — not because the app grew. Measured device-level from
+  `/proc/meminfo` (MemTotal−MemAvailable) inside the api container, which observes the whole unified
+  pool. Single-node holds at all tested scales up to 100x (28,800 series). LLM **46.7–48.1 tokens/s**.
+  ⚠️ The suite's `allocation_rate_gbps_proxy` column is **not** DRAM bandwidth and must never be
+  compared against the ~273 GB/s figure. GPU utilisation reads *unavailable* when the in-container
+  `nvidia-smi` query returns N/A — no value is fabricated.
 - **cuOpt 26.06.00 now available** for arm64/CUDA-13 (verified 2026-07-27). VRP benchmark shows
   crossover at ~100 locations — OR-Tools CPU wins at prototype scale (≤152 lanes). OR-Tools stays
   as the lane-routing engine; cuOpt available for future 100+ stop fleet routing.
@@ -384,15 +413,17 @@ generated `benchmark/suite-summary.md` (regenerate with `make bench-all`) for th
 README.md                                            # this file — stays at repo ROOT (GitHub landing page)
 .gitignore                                           # keeps heavy/binary artifacts out of git
 .devin/                                              # project rules / continuation guardrails
-Dockerfile                                           # arm64 API image (includes cuOpt/OR-Tools capability)
+Dockerfile                                           # arm64 API image (OR-Tools shipped; cuOpt optional, not installed)
 docker-compose.yml                                   # four-service PoC stack
 Makefile                                             # one-command build/test/run/bench entrypoints
 benchmark/                                           # generated benchmark artifacts; do not trust stale runs
 configs/                                             # runtime/scenario config
 data/
   generator/                                         # seeded synthetic data generator
-  scenarios/                                         # baseline, shock, surge, stress-large configs
-  generated/                                         # regenerated scenario data
+  scenarios/                                         # the 4 canonical configs (+ gitignored custom-*.yaml)
+  corpus/                                            # the 6 manufacturing documents behind the RAG advisory
+  generated/                                         # regenerated scenario data (gitignored)
+  .custom-staging/                                   # atomic-save staging for custom scenarios (gitignored)
 docs/
   iteration-docs/                                    # polished per-iteration handoff deliverables
     AI_Jumpstart_MVP_Iteration1_v1_paper-grounded.md # Iteration 1 — shareable internally (paper-based)
@@ -408,7 +439,7 @@ docs/
     Iteration6a_Ryan_Review_Packet.md                # Iteration 6a review packet (SENT; reviewed 2026-08-26)
     Iteration6b_Phase0_Human_Handover.md             # the two human-only Phase 0 items (closed as overtaken)
     Iteration5_Ryan_Review_Packet.md                 # draft review packet for Ryan (NOT sent — superseded by the live demo)
-    screenshots/iteration4/, iteration6a/, iteration6b/ # committed UI evidence
+    screenshots/iteration4/, iteration5/, iteration6a/, iteration6b/ # committed UI evidence
   Iteration2_Plan_of_Action.md                       # Iteration 2 build blueprint (phases 0–6)
   Iteration2_Point3_Scaffolding_Response_to_Ryan.md  # Iteration 2 model/tool rationale
   Iteration3_Plan_of_Action.md                       # Iteration 3 build blueprint (phases 0–7)
@@ -422,6 +453,7 @@ docs/
   containerization.md                                # current arm64/four-service stack notes
   handoff.md                                         # quick-start commands and on-device caveats
   environment.md                                     # live GB10 device specs
+  agent-browser-setup.md                             # headless-Chromium setup for `make web-check`
   DEVELOPMENT_JOURNAL.md                             # chronological truth ledger
 docker/
   llm/                                               # vLLM/Nemotron service image
@@ -442,9 +474,12 @@ src/
   forecast/                                           # demand forecast
   ingest/                                             # raw/generated data -> structured state
   optimize/
-    baseline/                                         # reorder-point + shortest-route
-    classical/                                        # tuned classical optimizer, OR-Tools fallback
-    learned/                                          # PPO candidate
+    common.py                                         # 🟢 select_ortools_lanes (GLOP LP) = THE SHIPPED ROUTER; CVaR; build_plan
+    baseline/                                         # reorder-point + greedy shortest-route (the target to beat)
+    classical/                                        # ✅ Optuna-tuned (s,S) — the winner, shipped
+    learned/                                          # ❌ PPO + per-period MDP env — evaluated, lost, kept visible
+  scenario/                                           # Iterations 6a/6b: settings ledger, validate, preview,
+                                                      #   atomic store, synthesize, run card, network tables
   pipeline/                                           # API-reused run_head_to_head orchestration
   rag/                                                # Qdrant + local LLM advisory layer
 tests/                                               # backend/unit/API regression tests
@@ -459,6 +494,8 @@ web/                                                 # React/Vite planner UI
 # generated data + benchmark reports: regenerate from seed / `make bench-all`
 data/**/generated/
 benchmark/*.json  benchmark/*.csv  benchmark/*.md
+# a saved custom scenario is box-local state, not source (Iteration 6a)
+data/scenarios/custom-*.yaml  data/.custom-staging/
 .env
 # model weights / artifacts
 *.ckpt  *.pt  *.onnx
@@ -466,6 +503,8 @@ benchmark/*.json  benchmark/*.csv  benchmark/*.md
 __pycache__/  *.pyc  .venv/  venv/
 # web
 web/node_modules/  web/dist/  web/*.tsbuildinfo
+# headless-browser verification output: regenerate with `make web-check`
+web/e2e/shots/  web/e2e/node_modules/  web/e2e/package*.json  .phase3-shots/
 # os
 .DS_Store
 ```
@@ -498,11 +537,18 @@ Fine-tuning, production licensing/hardening, and the two-node implementation rem
 
 An agent continuing this work MUST preserve these — they are the difference between a defensible prototype and an overclaiming one:
 - **PPO is recommended, not mandated.** Classical vs. learned is decided on on-device evidence.
+  **The evidence is now in and it went against PPO** — it lost every evaluated scenario on objective and
+  lost CVaR-75 tail risk in three of four (§5, §9). The principle stands unchanged; the verdict is not
+  permanent, but it is what the runs on this device said, and it must not be re-litigated by assertion.
 - **RL is not a guaranteed win.** Published work shows generic deep-RL does not universally beat well-tuned heuristics; gains concentrate in non-stationary, high-dimensional, constrained problems.
 - **The paper is single-benchmark / single-seed evidence.** Its own thesis is that such wins are not robust. Use its numbers only as reference points.
 - **The ~94% figure is baseline-collapse + rescaled-metric, vs. an un-tuned baseline.** Never present it as flat steady-state savings.
 - **The binding hardware constraint is memory bandwidth (~273 GB/s), not capacity.**
-- **cuOpt is not preinstalled** and is unproven by the paper — pull from NGC, verify on ARM64, benchmark separately.
+- **cuOpt: resolved, and the answer was no.** The original caveat (not preinstalled, unproven by the
+  paper, verify on ARM64, benchmark separately) was **carried out** — obtained, run on ARM64, benchmarked.
+  It is **evaluated, not shipped**: wrong problem class (VRP vs. our transportation LP) and wrong side of
+  the ~100-location crossover at our ~152-lane scale. **OR-Tools CPU is the shipped router** (§3).
+  Anything running cuOpt in future must re-benchmark on its own workload rather than inherit this result.
 - **Hospitals: no service-level win is substantiated** — validate per site before any clinical claim.
 - **Data sovereignty:** customer data stays on-device; do not design anything that ships it off-box.
 - **Evidence basis:** the paper is shareable, but it's single-benchmark/single-seed evidence — use it for internal grounding, prefer v2's public benchmarks for external pitches.
@@ -560,7 +606,7 @@ make run SCENARIO=baseline     # single scenario end-to-end
 make scale-study               # run the 6-level scale study
 make rag SCENARIO=...          # RAG advisory for a single scenario
 make cli SCENARIO=...          # thin CLI over the same API
-make web-test                  # 118 Vitest tests from the committed lockfile
+make web-test                  # 130 Vitest tests from the committed lockfile
 make web-check                 # headless-Chromium checks, 55 PASS / 0 FAIL (needs the stack up)
 ```
 
@@ -653,6 +699,14 @@ complete handoff.
 
 ---
 
-*Last updated: Iteration 5 (Beta) complete on `feat/iteration5-beta-conversational-analyst`
-(2026-08-05); Iteration 4 merged to `main` 2026-08-03. Keep this README current as the single source
-of truth — update §9 and §11 as decisions are made and code lands.*
+*Last updated 2026-08-28. **Sponsor-accepted and feature-complete through Iteration 6b** — Ryan
+reviewed the full product live on 2026-08-26, requested no changes, and the one defect found at that
+demo (custom-panel Save / Save & run state) was fixed, tested and merged the same day. **Feature work on
+this engagement is closed; there is no known open defect.** The shipped router is **OR-Tools CPU**;
+**cuOpt was evaluated and is not shipped**; **PPO was given a fair per-period-MDP shot with CVaR-75 and
+lost** — all three kept visible on purpose. Two things are open and neither is a defect: the **narrated
+screen recording** (script written, recording is Ishan's to make) and the **parked multi-echelon /
+"optimizer has no node" modelling question**, which is acknowledged-but-unfunded and **still true of the
+code today**. "Accepted" is not "production-ready" — §12 stands in full. Keep this README current as the
+single source of truth: update §9, §12 and §13 as code lands, and never delete a caveat to make the
+project look better.*
