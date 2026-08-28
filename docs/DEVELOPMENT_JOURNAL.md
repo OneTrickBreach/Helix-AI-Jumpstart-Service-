@@ -250,7 +250,7 @@
 
 ## 2026-08-28 — Bringing §3, §5 and §12 of the README up to the evidence, and a premise that did not survive `git status`
 
-**Status:** ✅ **README updated and pushed. git ref: `PENDING` on `main`. Hash backfilled in this
+**Status:** ✅ **README updated and pushed. git ref: `2bca0a0` on `main`. Hash backfilled in this
 follow-up commit.** Documentation only — no code, no generated data, no new runs.
 
 ---
